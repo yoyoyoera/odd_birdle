@@ -4,16 +4,17 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Odd Birdle — 배드민턴</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@650&amp;display=swap">
   <style>
     * { box-sizing: border-box; }
     body { margin: 0; min-height: 100vh; min-height: 100svh; display: grid; place-items: center;
-      background: #182223; font: 16px system-ui, sans-serif; }
+      background: #182223; font: 16px "Space Grotesk", system-ui, sans-serif; }
     main { position: relative; width: min(940px, 100% - 32px); }
     canvas { display: block; width: 100%; aspect-ratio: 9 / 5; background: #e8ebd6;
       touch-action: none; cursor: none; }
     main[data-phase="ready"] canvas, main[data-phase="finished"] canvas { cursor: default; }
     #score { position: absolute; inset: 50% auto auto 50%; transform: translate(-50%, -50%);
-      color: #274d3b; opacity: .45; font: 650 clamp(1.5rem, 6vw, 3.5rem)/1 system-ui, sans-serif;
+      color: #274d3b; opacity: .45; font-size: clamp(1.5rem, 6vw, 3.5rem); font-weight: 650; line-height: 1;
       font-variant-numeric: tabular-nums; pointer-events: none; }
     main[data-phase="ready"] #score, main[data-phase="finished"] #score { opacity: 1; }
     #winner { position: absolute; bottom: calc(50% + clamp(1rem, 5vw, 2.25rem)); left: 50%;
@@ -22,6 +23,7 @@
     #event-banner { position: absolute; top: 7%; left: 50%; transform: translateX(-50%);
       color: #274d3b; background: #e8ebd6; padding: 3px 7px;
       font-size: clamp(.75rem, 3vw, 1rem); font-weight: 650; white-space: nowrap; pointer-events: none; }
+    #event-banner[data-wind] { font-size: clamp(1.125rem, 4vw, 2rem); }
     #game-control { position: absolute; top: 8px; right: 8px; display: grid; place-items: center;
       width: 44px; height: 44px; border: 0; background: #e8ebd6; color: #274d3b; cursor: pointer; }
     #game-control:hover { background: #d7dec6; }
@@ -75,7 +77,15 @@
     { fall: 0.99, drag: 0.59, vertices: [[-0.88, -0.50], [0, -1], [0.88, -0.50], [0.88, 0.50], [0, 1], [-0.88, 0.50]] },
     { fall: 0.94, drag: 0.67, vertices: [[-0.9, -0.85], [-0.23, -0.85], [0, -0.18], [0.23, -0.85],
       [0.9, -0.85], [0.4, 0.45], [0, 0.95], [-0.4, 0.45]] }
-  ];
+  ].map(kind => {
+    // Use the longest distance across each silhouette so rotation and aspect
+    // ratio cannot turn a small tier into the same size as a large one.
+    const diameter = Math.max(...kind.vertices.flatMap(([x, y]) =>
+      kind.vertices.map(([otherX, otherY]) => Math.hypot(x - otherX, y - otherY))
+    ));
+    return { ...kind, vertexScale: 2 / diameter };
+  });
+  const shuttleSizes = [11, 21, 34];
   const width = 900;
   const height = 500;
   const center = width / 2;
@@ -99,6 +109,7 @@
 
   let score;
   let shape = -1;
+  let sizeTier = -1;
   let shuttle;
   let outline;
   let racket;
@@ -114,7 +125,6 @@
   let accumulator = 0;
   let eventWait;
   let countdown;
-  let pendingEffect;
   let activeEffect;
   let cpuPrediction;
 
@@ -131,7 +141,7 @@
   }
 
   function flightProfile(kind, size) {
-    const sizeOffset = (size - 21) / 8;
+    const sizeOffset = (size - 21) / 13;
     return { gravity: baseGravity * kind.fall, airDrag: kind.drag * (1 + sizeOffset * 0.16) };
   }
 
@@ -141,7 +151,10 @@
       ? Math.floor(Math.random() * shapes.length)
       : (shape + 1 + Math.floor(Math.random() * (shapes.length - 1))) % shapes.length;
     const x = server === 'player' ? 245 : 660;
-    const size = 13 + Math.random() * 16;
+    sizeTier = sizeTier < 0
+      ? Math.floor(Math.random() * shuttleSizes.length)
+      : (sizeTier + 1 + Math.floor(Math.random() * (shuttleSizes.length - 1))) % shuttleSizes.length;
+    const size = shuttleSizes[sizeTier];
     shuttle = { x, y: 56, vx: 0, vy: 35, angle: 0, spin: 0.8, size, ...flightProfile(shapes[shape], size) };
     updateOutline();
     cpu = { x: 660, y: 300 };
@@ -174,13 +187,13 @@
     score = { player: 0, cpu: 0 };
     updateScore();
     server = 'player';
-    pendingEffect = undefined;
     clearEffect();
     scheduleEvent();
     serve();
   }
 
   function finishPoint(winner, reason) {
+    if (countdown > 0) scheduleEvent();
     clearEffect();
     updateOutline();
     if (reason === 'out') showEvent('out');
@@ -199,12 +212,14 @@
     status.textContent = reason + ' · ' + (winner === 'player' ? '내 득점' : 'CPU 득점');
   }
 
-  function showEvent(message) {
+  function showEvent(message, wind = false) {
+    eventBanner.toggleAttribute('data-wind', wind);
     if (eventBanner.textContent !== message) eventBanner.textContent = message;
     eventBanner.hidden = !message;
   }
 
   function scheduleEvent() {
+    countdown = 0;
     eventWait = 3 + Math.random() * 4;
   }
 
@@ -215,8 +230,9 @@
   }
 
   function startEffect() {
-    activeEffect = { ...pendingEffect, remaining: pendingEffect.duration };
-    pendingEffect = undefined;
+    const effect = effects[Math.floor(Math.random() * effects.length)];
+    activeEffect = { id: effect.id, remaining: effect.duration };
+    let label = effect.label;
     switch (activeEffect.id) {
       case 'shock':
         shuttle.vx = 0;
@@ -226,11 +242,14 @@
         cpuPrediction = { x: shuttle.x, y: shuttle.y, vx: shuttle.vx, vy: shuttle.vy };
         flash = 0;
         break;
-      case 'wind':
-        shuttle.vx = clamp(shuttle.vx + activeEffect.direction * 290, -1800, 1800);
+      case 'wind': {
+        const direction = Math.random() < 0.5 ? -1 : 1;
+        shuttle.vx = clamp(shuttle.vx + direction * 290, -1800, 1800);
+        label += direction < 0 ? ' ←' : ' →';
         break;
+      }
     }
-    showEvent(activeEffect.label);
+    showEvent(label, effect.id === 'wind');
     scheduleEvent();
   }
 
@@ -240,22 +259,20 @@
       if (activeEffect.remaining <= 1e-9) clearEffect();
       return;
     }
-    // Short points still contribute. Only the live rally advances the timer.
+    // Before a countdown, short rallies still contribute to the waiting time.
     if (!lastHitter) return;
-    if (!pendingEffect) {
+    if (countdown > 0) {
+      countdown -= dt;
+      if (countdown <= 1e-9) {
+        startEffect();
+        return;
+      }
+    } else {
       eventWait -= dt;
       if (eventWait > 0) return;
-      pendingEffect = { ...effects[Math.floor(Math.random() * effects.length)] };
-      if (pendingEffect.id === 'wind') {
-        pendingEffect.direction = Math.random() < 0.5 ? -1 : 1;
-        pendingEffect.label += pendingEffect.direction < 0 ? ' ←' : ' →';
-      }
       countdown = 3;
-    } else {
-      countdown -= dt;
     }
-    if (countdown <= 1e-9) startEffect();
-    else showEvent(pendingEffect.label + ' · ' + Math.ceil(countdown - 1e-9));
+    showEvent(String(Math.ceil(countdown - 1e-9)));
   }
 
   function flightScale(time, airDrag) {
@@ -299,10 +316,11 @@
   }
 
   function updateOutline() {
-    const size = shuttle.size * (activeEffect?.id === 'balloon' ? 2 : 1);
+    const kind = shapes[shape];
+    const size = shuttle.size * kind.vertexScale * (activeEffect?.id === 'balloon' ? 2 : 1);
     const cos = Math.cos(shuttle.angle);
     const sin = Math.sin(shuttle.angle);
-    outline = shapes[shape].vertices.map(([x, y]) => ({
+    outline = kind.vertices.map(([x, y]) => ({
       x: (x * cos - y * sin) * size,
       y: (x * sin + y * cos) * size
     }));
