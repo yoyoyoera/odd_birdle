@@ -2,7 +2,7 @@ import { center, clamp, createGame, floor, height, leftLine, netTop, racketRadiu
 
 const court = document.querySelector('#court');
 const ctx = court.getContext('2d');
-const stage = document.querySelector('main');
+const stage = document.querySelector('#stage');
 const scoreboard = document.querySelector('#score');
 const winnerLabel = document.querySelector('#winner');
 const status = document.querySelector('#status');
@@ -96,14 +96,14 @@ function connect(request) {
         if (join) codeInput.focus();
         break;
       case 'left':
-        leave('상대가 나갔어요.');
+        leave('Opponent left.');
         break;
     }
   });
   connection.addEventListener('close', () => {
     if (socket !== connection) return;
     const wasPlaying = mode === 'online';
-    leave(wasPlaying ? '연결이 끊겼어요.' : '방에 연결할 수 없어요.');
+    leave(wasPlaying ? 'Connection lost.' : 'Could not connect.');
   });
 }
 

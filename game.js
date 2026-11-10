@@ -217,7 +217,7 @@ export function createGame({ withCpu = false } = {}) {
     lastHitter = hitter;
     hitCooldown = 0.14;
     flash = 0.22;
-    message = '랠리 중';
+    message = 'Rally in progress';
   }
 
   function playerHit(side, swingX, swingY) {
@@ -371,7 +371,7 @@ export function createGame({ withCpu = false } = {}) {
     const crossesNet = crossesCenter && outlineContact(netStart, netEnd, 2, center,
       previousY + (shuttle.y - previousY) * (center - previousX) / (shuttle.x - previousX));
     if (lastHitter && (crossesNet || outlineContact(netStart, netEnd, 2))) {
-      finishPoint(opponent(lastHitter), '네트');
+      finishPoint(opponent(lastHitter), 'Net');
       return;
     }
     if (lastHitter && (shuttle.x + right < 0 || shuttle.x + left > width)) {
@@ -384,7 +384,7 @@ export function createGame({ withCpu = false } = {}) {
       shuttle.y = floor - bottom;
       const out = shuttle.x < leftLine || shuttle.x > rightLine;
       const landingSide = shuttle.x < center ? 'left' : 'right';
-      finishPoint(out ? opponent(lastHitter ?? server) : opponent(landingSide), out ? 'out' : '착지');
+      finishPoint(out ? opponent(lastHitter ?? server) : opponent(landingSide), out ? 'out' : 'Landed');
       return;
     }
 

@@ -69,7 +69,7 @@ function closeRoom(room, departing) {
   rooms.delete(room.code);
   for (const peer of [room.left, room.right]) {
     if (!peer || peer === departing) continue;
-    send(peer, departing ? { type: 'left' } : { type: 'error', message: '방 코드가 만료됐어요.' });
+    send(peer, departing ? { type: 'left' } : { type: 'error', message: 'Room code expired.' });
     peer.close();
   }
 }
@@ -124,7 +124,7 @@ websocket.on('connection', peer => {
     } else if (message.type === 'join') {
       const target = rooms.get(message.code);
       if (!target || target.right || target.expiresAt <= Date.now() || target.left.readyState !== WebSocket.OPEN) {
-        send(peer, { type: 'error', message: '참여할 수 없는 코드예요.' });
+        send(peer, { type: 'error', message: 'Room unavailable.' });
         return;
       }
       room = target;
@@ -170,4 +170,4 @@ setInterval(() => {
 
 const host = process.env.HOST ?? '127.0.0.1';
 const port = Number(process.env.PORT ?? 8766);
-http.listen(port, host, () => console.log('Odd Birdle at http://' + host + ':' + port + '/'));
+http.listen(port, host, () => console.log('ODD BRIDGE at http://' + host + ':' + port + '/'));
