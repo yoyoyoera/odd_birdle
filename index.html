@@ -64,17 +64,17 @@
   const restartIcon = document.querySelector('#restart-icon');
   // Vertices are shared by the renderer and collision checks.
   const shapes = [
-    [[0, -1], [0.94, 0.76], [-0.94, 0.76]],
-    Array.from({ length: 32 }, (_, i) => {
+    { fall: 0.98, drag: 0.61, vertices: [[0, -1], [0.94, 0.76], [-0.94, 0.76]] },
+    { fall: 1.06, drag: 0.48, vertices: Array.from({ length: 32 }, (_, i) => {
       const angle = i * Math.PI / 16;
       return [Math.cos(angle), Math.sin(angle)];
-    }),
-    [[-0.72, -0.72], [0.72, -0.72], [0.72, 0.72], [-0.72, 0.72]],
-    [[-1.38, -0.30], [1.38, -0.30], [1.38, 0.30], [-1.38, 0.30]],
-    [[0, -1.13], [0.75, 0], [0, 1.13], [-0.75, 0]],
-    [[-0.88, -0.50], [0, -1], [0.88, -0.50], [0.88, 0.50], [0, 1], [-0.88, 0.50]],
-    [[-0.9, -0.85], [-0.23, -0.85], [0, -0.18], [0.23, -0.85],
-      [0.9, -0.85], [0.4, 0.45], [0, 0.95], [-0.4, 0.45]]
+    }) },
+    { fall: 1.04, drag: 0.55, vertices: [[-0.72, -0.72], [0.72, -0.72], [0.72, 0.72], [-0.72, 0.72]] },
+    { fall: 0.92, drag: 0.76, vertices: [[-1.38, -0.30], [1.38, -0.30], [1.38, 0.30], [-1.38, 0.30]] },
+    { fall: 1.02, drag: 0.53, vertices: [[0, -1.13], [0.75, 0], [0, 1.13], [-0.75, 0]] },
+    { fall: 0.99, drag: 0.59, vertices: [[-0.88, -0.50], [0, -1], [0.88, -0.50], [0.88, 0.50], [0, 1], [-0.88, 0.50]] },
+    { fall: 0.94, drag: 0.67, vertices: [[-0.9, -0.85], [-0.23, -0.85], [0, -0.18], [0.23, -0.85],
+      [0.9, -0.85], [0.4, 0.45], [0, 0.95], [-0.4, 0.45]] }
   ];
   const width = 900;
   const height = 500;
@@ -86,8 +86,7 @@
   const leftLine = 64;
   const rightLine = width - leftLine;
   const racketRadius = 22;
-  const gravity = 760;
-  const airDrag = 0.6;
+  const baseGravity = 760;
   const step = 1 / 120;
   const pointsToWin = 7;
   const nicknames = { player: 'YOU', cpu: 'CPU' };
@@ -131,13 +130,19 @@
     racket = undefined;
   }
 
+  function flightProfile(kind, size) {
+    const sizeOffset = (size - 21) / 8;
+    return { gravity: baseGravity * kind.fall, airDrag: kind.drag * (1 + sizeOffset * 0.16) };
+  }
+
   function serve() {
     showEvent('');
     shape = shape < 0
       ? Math.floor(Math.random() * shapes.length)
       : (shape + 1 + Math.floor(Math.random() * (shapes.length - 1))) % shapes.length;
     const x = server === 'player' ? 245 : 660;
-    shuttle = { x, y: 56, vx: 0, vy: 35, angle: 0, spin: 0.8, size: 13 + Math.random() * 16 };
+    const size = 13 + Math.random() * 16;
+    shuttle = { x, y: 56, vx: 0, vy: 35, angle: 0, spin: 0.8, size, ...flightProfile(shapes[shape], size) };
     updateOutline();
     cpu = { x: 660, y: 300 };
     setPhase('live');
@@ -253,22 +258,23 @@
     else showEvent(pendingEffect.label + ' · ' + Math.ceil(countdown - 1e-9));
   }
 
-  function flightScale(time) {
+  function flightScale(time, airDrag) {
     return -Math.expm1(-airDrag * time) / airDrag;
   }
 
   function velocityToLandAt(targetX, vy) {
+    const { gravity, airDrag } = shuttle;
+    const terminalVelocity = gravity / airDrag;
     const landingY = floor - Math.max(...outline.map(point => point.y));
     let low = 0;
     let high = 3;
     for (let i = 0; i < 12; i++) {
       const time = (low + high) / 2;
-      const terminalVelocity = gravity / airDrag;
-      const y = shuttle.y + terminalVelocity * time + (vy - terminalVelocity) * flightScale(time);
+      const y = shuttle.y + terminalVelocity * time + (vy - terminalVelocity) * flightScale(time, airDrag);
       if (y < landingY) low = time;
       else high = time;
     }
-    return (targetX - shuttle.x) / flightScale(high);
+    return (targetX - shuttle.x) / flightScale(high, airDrag);
   }
 
   function launch(vx, vy, hitter) {
@@ -296,7 +302,7 @@
     const size = shuttle.size * (activeEffect?.id === 'balloon' ? 2 : 1);
     const cos = Math.cos(shuttle.angle);
     const sin = Math.sin(shuttle.angle);
-    outline = shapes[shape].map(([x, y]) => ({
+    outline = shapes[shape].vertices.map(([x, y]) => ({
       x: (x * cos - y * sin) * size,
       y: (x * sin + y * cos) * size
     }));
@@ -388,11 +394,11 @@
     }
   }
 
-  function advanceFlight(body, dt, drag) {
+  function advanceFlight(body, dt, scale, drag, terminalVelocity) {
+    body.x += body.vx * scale;
+    body.y += terminalVelocity * dt + (body.vy - terminalVelocity) * scale;
     body.vx *= drag;
-    body.vy = body.vy * drag + gravity * dt;
-    body.x += body.vx * dt;
-    body.y += body.vy * dt;
+    body.vy = terminalVelocity + (body.vy - terminalVelocity) * drag;
   }
 
   function simulate(dt) {
@@ -408,9 +414,12 @@
     flash = Math.max(0, flash - dt);
     const previousX = shuttle.x;
     const previousY = shuttle.y;
+    const { gravity, airDrag } = shuttle;
+    const scale = flightScale(dt, airDrag);
     const drag = Math.exp(-airDrag * dt);
-    advanceFlight(shuttle, dt, drag);
-    if (cpuPrediction) advanceFlight(cpuPrediction, dt, drag);
+    const terminalVelocity = gravity / airDrag;
+    advanceFlight(shuttle, dt, scale, drag, terminalVelocity);
+    if (cpuPrediction) advanceFlight(cpuPrediction, dt, scale, drag, terminalVelocity);
     shuttle.angle += shuttle.spin * dt;
     updateOutline();
     const left = Math.min(...outline.map(point => point.x));

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Odd Birdle 글꼴 비교</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600&amp;family=IBM+Plex+Mono:wght@600&amp;family=Space+Grotesk:wght@650&amp;display=swap">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #182223; color: #e8ebd6; font: 16px system-ui, sans-serif; }
+    main { width: min(1080px, calc(100% - 32px)); margin: 32px auto; }
+    h1 { font-size: 1.35rem; }
+    .samples { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 16px; }
+    figure { margin: 0; }
+    figcaption { margin-bottom: 8px; }
+    .court { position: relative; aspect-ratio: 9 / 5; display: grid; place-items: center;
+      background: linear-gradient(to bottom, #e8ebd6 90%, #c0cbb4 90%); color: #274d3b;
+      font-family: var(--face), system-ui, sans-serif; font-weight: var(--weight, 600); }
+    .court::after { content: ""; position: absolute; width: 2px; height: 20%; bottom: 10%;
+      left: calc(50% - 1px); background: #476755; }
+    .score { font-size: 3.25rem; font-variant-numeric: tabular-nums; }
+    .out, .winner { position: absolute; }
+    .out { top: 6%; font-size: 1rem; }
+    .winner { bottom: 65%; font-size: 1.3rem; }
+    a { color: inherit; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>코트 글꼴 비교</h1>
+  <div class="samples">
+    <figure style="--face: 'Space Grotesk'; --weight: 650">
+      <figcaption>Space Grotesk 650</figcaption>
+      <div class="court"><span class="out">out</span><span class="winner">YOU win!</span><span class="score">7:4</span></div>
+    </figure>
+    <figure style="--face: 'Barlow Condensed'">
+      <figcaption>Barlow Condensed 600</figcaption>
+      <div class="court"><span class="out">out</span><span class="winner">YOU win!</span><span class="score">7:4</span></div>
+    </figure>
+    <figure style="--face: 'IBM Plex Mono'">
+      <figcaption>IBM Plex Mono 600</figcaption>
+      <div class="court"><span class="out">out</span><span class="winner">YOU win!</span><span class="score">7:4</span></div>
+    </figure>
+  </div>
+  <p><a href="./index.html">경기장으로 돌아가기</a></p>
+</main>
+</body>
+</html>
