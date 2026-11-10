@@ -38,6 +38,13 @@ export const racketRadius = 22;
 const baseGravity = 760;
 export const step = 1 / 120;
 const faultReactions = ['Pardon?', 'LOL', 'Oops!', 'Nice try.', 'Wrong way.'];
+const cpuLevels = [
+  { speed: 0.65, spikeChance: 0.04 },
+  { speed: 0.82, spikeChance: 0.12 },
+  { speed: 1, spikeChance: 0.25 },
+  { speed: 1.16, spikeChance: 0.40 },
+  { speed: 1.32, spikeChance: 0.60 }
+];
 const effects = [
   { id: 'shock', label: 'SHOCK', duration: 0.55 },
   { id: 'invisible', label: 'INVISIBLE', duration: 1 },
@@ -177,6 +184,7 @@ export function createGame({ withCpu = false } = {}) {
   const rackets = {};
   const touching = {};
   let cpu;
+  let cpuLevel;
   let server;
   let lastHitter;
   let phase = 'ready';
@@ -223,6 +231,7 @@ export function createGame({ withCpu = false } = {}) {
     winner = undefined;
     score = { left: 0, right: 0 };
     pointsToWin = 5 + Math.floor(Math.random() * 11);
+    if (withCpu) cpuLevel = 1 + Math.floor(Math.random() * cpuLevels.length);
     rackets.left = rackets.right = undefined;
     server = 'left';
     clearEffect();
@@ -493,12 +502,14 @@ export function createGame({ withCpu = false } = {}) {
     const defending = tracked.x >= center && tracked.vy > 0;
     const targetX = defending ? clamp(tracked.x, center + racketRadius, rightLine - 24) : 660;
     const targetY = defending ? clamp(tracked.y + 24, 205, floor - 14) : 300;
-    cpu.x += clamp(targetX - cpu.x, -290 * dt, 290 * dt);
-    cpu.y += clamp(targetY - cpu.y, -340 * dt, 340 * dt);
+    const { speed, spikeChance } = cpuLevels[cpuLevel - 1];
+    const travel = speed * dt;
+    cpu.x += clamp(targetX - cpu.x, -290 * travel, 290 * travel);
+    cpu.y += clamp(targetY - cpu.y, -340 * travel, 340 * travel);
     if (defending && tracked.x <= rightLine && shuttle.x >= center && shuttle.x <= rightLine &&
         lastHitter !== 'right' && hitCooldown <= 0 &&
         racketContact(cpu, cpu)) {
-      if (lastHitter === 'left' && shuttle.y <= netTop - 65 && Math.random() < 0.25) {
+      if (lastHitter === 'left' && shuttle.y <= netTop - 65 && Math.random() < spikeChance) {
         const target = 205 + Math.random() * 120;
         const vy = 110;
         const vx = velocityToLandAt(target, vy);
@@ -619,7 +630,7 @@ export function createGame({ withCpu = false } = {}) {
     const visible = shuttle && phase !== 'starting' && activeEffect?.id !== 'invisible';
     const position = (racket) => racket && { x: racket.x, y: racket.y, seenTime: racket.seenTime };
     return {
-      phase, score, message, winner, eventText, eventWind, flash, frozen, support,
+      phase, score, message, winner, eventText, eventWind, flash, frozen, support, cpuLevel,
       strike: strike?.flight === flight ? strike : undefined,
       shake: activeEffect?.id === 'shock' ? activeEffect.remaining : 0,
       shuttle: visible ? { ...shuttlePose(), flight, baseSize: shuttle.size, canHit: hitCooldown <= 0 && !pendingLanding && !frozen } : undefined,

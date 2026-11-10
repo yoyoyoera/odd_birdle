@@ -154,8 +154,9 @@ function updateHud(view) {
   const { phase, score, eventText = '', eventWind = false, winner, message = '' } = view;
   if (stage.dataset.phase !== phase) stage.dataset.phase = phase;
   scoreboard.hidden = !score;
-  sideLabel.hidden = mode !== 'online';
-  sideLabel.dataset.side = localSide;
+  sideLabel.hidden = mode !== 'online' && !view.cpuLevel;
+  sideLabel.dataset.side = view.cpuLevel ? 'right' : localSide;
+  setText(sideLabel, view.cpuLevel ? 'CPU Lv. ' + view.cpuLevel : 'YOU');
   if (score) {
     const value = score.left + ':' + score.right;
     if (scoreboard.value !== value) scoreboard.value = value;
