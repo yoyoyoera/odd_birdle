@@ -7,6 +7,7 @@ export function createRooms(randomIndex) {
   let previousTick = performance.now();
   let accumulator = 0;
   let snapshotTime = 0;
+  let simulationTick = 0;
 
   const peers = new Set();
   let tickTimer;
@@ -29,8 +30,9 @@ export function createRooms(randomIndex) {
   function start(room, firstMatch = false) {
     room.game.restart(firstMatch ? 3 : 0);
     const state = room.game.view();
-    send(room.left, { type: 'start', side: 'left', state });
-    send(room.right, { type: 'start', side: 'right', state });
+    const time = simulationTick * step * 1000;
+    send(room.left, { type: 'start', side: 'left', time, state });
+    send(room.right, { type: 'start', side: 'right', time, state });
   }
 
   function closeRoom(room, departing) {
@@ -115,12 +117,13 @@ export function createRooms(randomIndex) {
     while (accumulator >= step) {
       for (const room of rooms.values()) room.game?.simulate(step);
       accumulator -= step;
+      simulationTick++;
     }
     if (snapshotTime >= 1 / 60) {
       snapshotTime %= 1 / 60;
       for (const room of rooms.values()) {
         if (!room.game) continue;
-        const message = { type: 'state', state: room.game.view() };
+        const message = { type: 'state', time: simulationTick * step * 1000, state: room.game.view() };
         send(room.left, message);
         send(room.right, message);
       }

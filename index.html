@@ -28,7 +28,10 @@
       color: var(--ink); opacity: .45; font-size: clamp(1.5rem, 6vw, 3.5rem); font-weight: 650; line-height: 1;
       font-variant-numeric: tabular-nums; pointer-events: none; }
     #stage[data-phase="ready"] #score, #stage[data-phase="finished"] #score { opacity: 1; }
-    #side-label { position: absolute; top: 90%; left: 25%; transform: translateX(-50%);
+    #target-score { position: absolute; top: calc(50% + clamp(.95rem, 3.5vw, 2.1rem)); left: 50%;
+      transform: translateX(-50%); color: var(--ink); opacity: .7; white-space: nowrap;
+      font-size: clamp(.625rem, 1.7vw, .875rem); font-weight: 650; letter-spacing: .06em; pointer-events: none; }
+    #side-label { position: absolute; top: 5%; left: 25%; transform: translateX(-50%);
       color: var(--ink); font-size: clamp(.65rem, 1.7vw, .875rem); font-weight: 650;
       letter-spacing: .08em; pointer-events: none; }
     #side-label[data-side="right"] { left: 75%; }
@@ -73,6 +76,7 @@
     <h1>ODD BRIDGE</h1>
     <canvas id="court" aria-label="Badminton court. Use your pointer to hit the shuttle."></canvas>
     <output id="score" aria-label="Left and right scores" hidden>0:0</output>
+    <span id="target-score" hidden></span>
     <span id="side-label" hidden>YOU</span>
     <p id="winner" role="status" hidden></p>
     <span id="status" class="sr-only" role="status"></span>

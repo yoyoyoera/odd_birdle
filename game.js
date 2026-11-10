@@ -37,7 +37,6 @@ export const rightLine = width - leftLine;
 export const racketRadius = 22;
 const baseGravity = 760;
 export const step = 1 / 120;
-const pointsToWin = 7;
 const effects = [
   { id: 'shock', label: 'SHOCK', duration: 0.55 },
   { id: 'invisible', label: 'INVISIBLE', duration: 1 },
@@ -48,12 +47,24 @@ const effects = [
 
 export const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
+export function shuttleOutline({ shape, size, angle }) {
+  const kind = shapes[shape];
+  const scale = size * kind.vertexScale;
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  return kind.rings.map(ring => ring.map(([x, y]) => ({
+    x: (x * cos - y * sin) * scale,
+    y: (x * sin + y * cos) * scale
+  })));
+}
+
 export function createGame({ withCpu = false } = {}) {
   let winner;
   let message = '';
   let eventText = '';
   let eventWind = false;
   let score;
+  let pointsToWin;
   let shape = -1;
   let sizeTier = -1;
   let shuttle;
@@ -104,6 +115,7 @@ export function createGame({ withCpu = false } = {}) {
   function restart(openingCountdown = 0) {
     winner = undefined;
     score = { left: 0, right: 0 };
+    pointsToWin = 5 + Math.floor(Math.random() * 11);
     rackets.left = rackets.right = undefined;
     server = 'left';
     clearEffect();
@@ -236,15 +248,13 @@ export function createGame({ withCpu = false } = {}) {
     return (shuttle.x < center ? 'left' : 'right') === side;
   }
 
+  function shuttlePose() {
+    return { x: shuttle.x, y: shuttle.y, shape, angle: shuttle.angle,
+      size: shuttle.size * (activeEffect?.id === 'balloon' ? 2 : 1) };
+  }
+
   function updateOutline() {
-    const kind = shapes[shape];
-    const size = shuttle.size * kind.vertexScale * (activeEffect?.id === 'balloon' ? 2 : 1);
-    const cos = Math.cos(shuttle.angle);
-    const sin = Math.sin(shuttle.angle);
-    outline = kind.rings.map(ring => ring.map(([x, y]) => ({
-      x: (x * cos - y * sin) * size,
-      y: (x * sin + y * cos) * size
-    })));
+    outline = shuttleOutline(shuttlePose());
     outlinePoints = outline.flat();
   }
 
@@ -417,10 +427,9 @@ export function createGame({ withCpu = false } = {}) {
     const visible = shuttle && phase !== 'starting' && activeEffect?.id !== 'invisible';
     const position = (racket) => racket && { x: racket.x, y: racket.y };
     return {
-      phase, score, message, winner, eventText, eventWind, flash,
+      phase, score, pointsToWin, message, winner, eventText, eventWind, flash,
       shake: activeEffect?.id === 'shock' ? activeEffect.remaining : 0,
-      shuttle: visible ? position(shuttle) : undefined,
-      outline: visible ? outline : undefined,
+      shuttle: visible ? shuttlePose() : undefined,
       left: position(rackets.left),
       right: position(cpu ?? rackets.right)
     };

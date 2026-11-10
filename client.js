@@ -1,9 +1,11 @@
-import { center, clamp, createGame, floor, height, leftLine, netTop, racketRadius, rightLine, step, width } from './game.js';
+import { center, clamp, createGame, floor, height, leftLine, netTop, racketRadius, rightLine, shuttleOutline, step, width } from './game.js';
+import { createPlayback } from './playback.js';
 
 const court = document.querySelector('#court');
 const ctx = court.getContext('2d');
 const stage = document.querySelector('#stage');
 const scoreboard = document.querySelector('#score');
+const targetScore = document.querySelector('#target-score');
 const sideLabel = document.querySelector('#side-label');
 const winnerLabel = document.querySelector('#winner');
 const status = document.querySelector('#status');
@@ -40,6 +42,7 @@ const solo = createGame({ withCpu: true });
 const ready = { phase: 'ready' };
 let socket;
 let onlineView;
+const playback = createPlayback();
 let mode = 'menu';
 let localSide = 'left';
 let localRacket;
@@ -77,6 +80,7 @@ function leave(message = '') {
   socket = undefined;
   previous?.close();
   onlineView = undefined;
+  playback.reset();
   localRacket = undefined;
   localSide = 'left';
   setMode('menu', message);
@@ -105,10 +109,13 @@ function connect(request) {
         localSide = message.side;
         localRacket = undefined;
         onlineView = message.state;
+        playback.reset();
+        playback.push(message.time, message.state, performance.now());
         setMode('online');
         break;
       case 'state':
         onlineView = message.state;
+        playback.push(message.time, message.state, performance.now());
         break;
       case 'error':
         leave();
@@ -128,9 +135,11 @@ function connect(request) {
 }
 
 function updateHud(view) {
-  const { phase, score, eventText = '', eventWind = false, winner, message = '' } = view;
+  const { phase, score, pointsToWin, eventText = '', eventWind = false, winner, message = '' } = view;
   if (stage.dataset.phase !== phase) stage.dataset.phase = phase;
   scoreboard.hidden = !score;
+  targetScore.hidden = !pointsToWin || phase === 'finished';
+  setText(targetScore, pointsToWin ? 'FIRST TO ' + pointsToWin : '');
   sideLabel.hidden = mode !== 'online';
   sideLabel.dataset.side = localSide;
   if (score) {
@@ -215,7 +224,7 @@ function draw(view) {
   ctx.restore();
 }
 
-function drawShuttle({ flash, phase, shuttle, outline }) {
+function drawShuttle({ flash, phase, shuttle }) {
   if (flash > 0 && phase === 'live') {
     ctx.beginPath();
     ctx.arc(shuttle.x, shuttle.y, 26 + (0.22 - flash) * 105, 0, Math.PI * 2);
@@ -226,7 +235,7 @@ function drawShuttle({ flash, phase, shuttle, outline }) {
     ctx.globalAlpha = 1;
   }
   ctx.beginPath();
-  for (const ring of outline) {
+  for (const ring of shuttleOutline(shuttle)) {
     ring.forEach((point, index) => {
       const x = shuttle.x + point.x;
       const y = shuttle.y + point.y;
@@ -248,7 +257,7 @@ function frame(time) {
     }
   }
   lastFrame = time;
-  const view = currentView();
+  const view = mode === 'online' ? playback.at(time) ?? currentView() : currentView();
   updateHud(view);
   draw(view);
   requestAnimationFrame(frame);
