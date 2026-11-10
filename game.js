@@ -514,22 +514,23 @@ export function createGame({ withCpu = false } = {}) {
     const lead = anticipates ? clamp((floor - tracked.y) / tracked.vy, 0, 0.14) : 0;
     const projectedX = tracked.x + tracked.vx * flightScale(lead, shuttle.airDrag);
     const preparing = anticipates && tracked.vx > 0 && projectedX >= center;
-    const tracking = defending || preparing;
+    const { speed, spikeChance, outChance, outMargin, liftChance, doubleLiftChance = 0 } = cpuLevels[cpuLevel - 1];
+    let leavingOut = false;
+    if (outMargin !== undefined && lastHitter === 'left' && tracked.vx > 0 && tracked.vy > 0) {
+      // Even the earliest possible floor contact must land past the line.
+      const radius = Math.max(...outlinePoints.map(point => Math.hypot(point.x, point.y)));
+      const landingX = tracked.x + tracked.vx * landingScale(tracked.y, tracked.vy, floor - radius);
+      leavingOut = landingX > rightLine + outMargin;
+    }
+    const tracking = !leavingOut && (defending || preparing);
     const targetX = tracking ? clamp(defending ? tracked.x : projectedX, center + racketRadius, rightLine - 24) : 660;
     const targetY = tracking ? clamp(tracked.y + 24, 205, floor - 14) : 300;
-    const { speed, spikeChance, outChance, outMargin, liftChance, doubleLiftChance = 0 } = cpuLevels[cpuLevel - 1];
     const travel = speed * dt;
     cpu.x += clamp(targetX - cpu.x, -290 * travel, 290 * travel);
     cpu.y += clamp(targetY - cpu.y, -340 * travel, 340 * travel);
-    if (defending && tracked.x <= rightLine && shuttle.x >= center && shuttle.x <= rightLine &&
+    if (!leavingOut && defending && tracked.x <= rightLine && shuttle.x >= center && shuttle.x <= rightLine &&
         (lastHitter !== 'right' || cpuFollowUps > 0) && hitCooldown <= 0 &&
         racketContact(cpu, cpu)) {
-      if (outMargin !== undefined && lastHitter === 'left' && tracked.vx > 0) {
-        // Even the earliest possible floor contact must land past the line.
-        const radius = Math.max(...outlinePoints.map(point => Math.hypot(point.x, point.y)));
-        const landingX = tracked.x + tracked.vx * landingScale(tracked.y, tracked.vy, floor - radius);
-        if (landingX > rightLine + outMargin) return;
-      }
       const followUp = cpuFollowUps > 0;
       if (followUp) {
         cpuFollowUps--;
