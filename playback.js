@@ -1,3 +1,5 @@
+import { projectStrike } from './game.js';
+
 const bufferMs = 70;
 
 function mix(a, b, fraction) {
@@ -14,12 +16,14 @@ export function createPlayback() {
   let clockOffset;
   let lastRendered = -Infinity;
   let displayedTime;
+  let latestStrike;
 
   function reset() {
     samples.length = 0;
     clockOffset = undefined;
     lastRendered = -Infinity;
     displayedTime = undefined;
+    latestStrike = undefined;
   }
 
   function push(time, view, receivedAt) {
@@ -28,6 +32,7 @@ export function createPlayback() {
     const offset = receivedAt - time;
     // Follow the fastest recent arrivals without letting a burst of late packets shift playback.
     clockOffset = clockOffset === undefined ? offset : Math.min(offset, clockOffset + 0.35);
+    if (view.strike && view.strike.flight !== latestStrike?.flight) latestStrike = view.strike;
     samples.push({ time, view });
     if (samples.length > 32) samples.shift();
   }
@@ -41,17 +46,25 @@ export function createPlayback() {
     displayedTime = earlier.time;
     if (!later || target <= earlier.time || earlier.view.phase !== later.view.phase) return earlier.view;
 
+    const strike = latestStrike;
     const fraction = (target - earlier.time) / (later.time - earlier.time);
     const a = earlier.view;
     const b = later.view;
     const sameShuttle = a.shuttle && b.shuttle &&
       a.shuttle.flight === b.shuttle.flight && a.shuttle.shape === b.shuttle.shape && a.shuttle.size === b.shuttle.size;
-    if (sameShuttle) displayedTime = target;
+    const followsStrike = a.shuttle && b.shuttle && strike && target >= strike.time &&
+      strike.fromFlight === a.shuttle.flight &&
+      (strike.fromFlight === b.shuttle.flight || strike.flight === b.shuttle.flight);
+    if (sameShuttle || followsStrike) displayedTime = target;
     return {
       ...a,
       left: position(a.left, b.left, fraction),
       right: position(a.right, b.right, fraction),
-      shuttle: sameShuttle ? {
+      shuttle: followsStrike ? {
+        ...projectStrike(strike.pose, strike.motion, (target - strike.time) / 1000),
+        flight: strike.flight,
+        canHit: target - strike.time >= 140
+      } : sameShuttle ? {
         ...a.shuttle,
         ...position(a.shuttle, b.shuttle, fraction),
         angle: mix(a.shuttle.angle, b.shuttle.angle, fraction)

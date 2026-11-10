@@ -1,4 +1,4 @@
-import { center, clamp, createGame, floor, height, leftLine, netTop, racketRadius, rightLine, shuttleOutline, step, width, contactMotion, isSwing, projectStrike, racketTouches, swingMotion } from './game.js';
+import { center, clamp, createGame, floor, height, leftLine, netTop, racketRadius, rightLine, shuttleOutline, step, width, contactMotion, isSwing, projectStrike, racketTouches, supportedShuttleY, swingMotion } from './game.js';
 import { createPlayback } from './playback.js';
 
 const court = document.querySelector('#court');
@@ -226,6 +226,9 @@ function setRacket(input) {
     const motion = input && !displayedFrozen ? swingMotion(previous ?? input, input) : { vx: 0, vy: 0 };
     localRacket = input ? { ...input, ...motion } : undefined;
     if (!input) localOverlap = false;
+    if (previous && localRacket && displayedShuttle && localRacket.vy < 0 && !isSwing(localRacket) &&
+        (displayedShuttle.x < center ? 'left' : 'right') === localSide &&
+        supportedShuttleY(displayedShuttle, previous, localRacket) !== undefined) localOverlap = true;
     if (input && previous) {
       if (isSwing(localRacket)) predictContact(previous, input, localRacket, performance.now());
     }
@@ -339,7 +342,15 @@ function frame(time) {
     }
   }
   updateHud(view);
-  draw(mode === 'online' ? predictedView(view, time) : view);
+  let drawing = mode === 'online' ? predictedView(view, time) : view;
+  const pose = drawing.shuttle;
+  if (mode === 'online' && !view.frozen && pose && localRacket &&
+      (pose.x < center ? 'left' : 'right') === localSide &&
+      (view.support === localSide || (localOverlap && localRacket.vy < 0 && !isSwing(localRacket)))) {
+    const y = supportedShuttleY(pose, localRacket, localRacket);
+    if (y !== undefined) drawing = { ...drawing, shuttle: { ...pose, y } };
+  }
+  draw(drawing);
   requestAnimationFrame(frame);
 }
 

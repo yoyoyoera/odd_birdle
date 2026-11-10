@@ -47,10 +47,11 @@ export function createRooms(randomIndex) {
     const next = after?.frame;
     if (!frame) return undefined;
     if (!next || frame.flight !== next.flight || frame.size !== next.size ||
-        frame.canHit !== next.canHit) return { ...frame, age: (now - before.time) / 1000 };
+        frame.canHit !== next.canHit) return { ...frame, time: before.time, age: (now - before.time) / 1000 };
     const fraction = (seenTime - before.time) / (after.time - before.time);
     return {
       ...frame,
+      time: seenTime,
       age: (now - seenTime) / 1000,
       x: frame.x + (next.x - frame.x) * fraction,
       y: frame.y + (next.y - frame.y) * fraction,

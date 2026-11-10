@@ -136,6 +136,23 @@ export function racketTouches(shuttle, from, to = from) {
   return outlineContact(from, to, racketRadius, shuttle.x, shuttle.y, shuttleOutline(shuttle));
 }
 
+export function supportedShuttleY(pose, from, to) {
+  if (pose.y > from.y || to.y > from.y) return undefined;
+  const rings = shuttleOutline(pose);
+  const overlapsAt = y => outlineContact(to, to, racketRadius, pose.x, y, rings);
+  if (!overlapsAt(pose.y)) return undefined;
+
+  // Move only as far up as needed for the racket and outline to separate.
+  let low = pose.y - pose.size * 2 - racketRadius * 2;
+  let high = pose.y;
+  for (let i = 0; i < 12; i++) {
+    const y = (low + high) / 2;
+    if (overlapsAt(y)) high = y;
+    else low = y;
+  }
+  return low;
+}
+
 export function projectStrike(pose, motion, seconds) {
   const velocity = swingVelocity(motion.vx, motion.vy);
   const { gravity, airDrag } = flightProfile(shapes[pose.shape], pose.baseSize);
@@ -172,6 +189,8 @@ export function createGame({ withCpu = false } = {}) {
   let cpuPrediction;
   let flight = 0;
   let warp = 0;
+  let strike;
+  let support;
   let pendingLanding;
 
   const opponent = (side) => side === 'left' ? 'right' : 'left';
@@ -179,6 +198,8 @@ export function createGame({ withCpu = false } = {}) {
   function serve() {
     flight++;
     pendingLanding = undefined;
+    support = undefined;
+    strike = undefined;
     showEvent('');
     shape = shape < 0
       ? Math.floor(Math.random() * shapes.length)
@@ -252,7 +273,7 @@ export function createGame({ withCpu = false } = {}) {
 
   function startEffect() {
     const effect = effects[Math.floor(Math.random() * effects.length)];
-    activeEffect = { id: effect.id, remaining: effect.duration ?? (0.4 + Math.random() * 0.5) };
+    activeEffect = { id: effect.id, remaining: effect.duration ?? (0.5 + Math.random() * 4.5) };
     let label = effect.label;
     switch (activeEffect.id) {
       case 'mirror':
@@ -260,6 +281,7 @@ export function createGame({ withCpu = false } = {}) {
         shuttle.vx = -shuttle.vx;
         flight++;
         warp++;
+        support = undefined;
         touching.left = touching.right = false;
         flash = 0;
         break;
@@ -332,6 +354,8 @@ export function createGame({ withCpu = false } = {}) {
   }
 
   function launch(vx, vy, hitter) {
+    support = undefined;
+    strike = undefined;
     flight++;
     pendingLanding = undefined;
     shuttle.vx = vx;
@@ -370,7 +394,7 @@ export function createGame({ withCpu = false } = {}) {
     const onCourt = onSide(side);
     const overlap = onCourt && racketContact(to, to);
     if (phase === 'live' && onCourt && hitCooldown <= 0 &&
-        !touching[side] && racketContact(from, to)) {
+        (!touching[side] || (support === side && isSwing({ vx: swingX, vy: swingY }))) && racketContact(from, to)) {
       playerHit(side, swingX, swingY);
       touching[side] = overlap;
     } else if (!overlap) {
@@ -391,7 +415,7 @@ export function createGame({ withCpu = false } = {}) {
     }
     const rings = shuttleOutline(frame);
     const overlaps = outlineContact(to, to, racketRadius, frame.x, frame.y, rings);
-    if (touching[side]) {
+    if (touching[side] && !(support === side && !hold && isSwing(to))) {
       if (!overlaps) touching[side] = false;
       return;
     }
@@ -404,6 +428,10 @@ export function createGame({ withCpu = false } = {}) {
     // Start at the same contact pose the striker saw, then catch up to the server clock.
     Object.assign(shuttle, { x: frame.x, y: frame.y, angle: frame.angle });
     playerHit(side, to.vx, to.vy);
+    if (Number.isFinite(frame.time)) {
+      strike = { flight, time: frame.time, fromFlight: frame.flight,
+        pose: { ...shuttlePose(), baseSize: shuttle.size }, motion: { vx: to.vx, vy: to.vy } };
+    }
     touching[side] = overlaps;
     updateOutline();
     let elapsed = frame.age ?? 0;
@@ -419,10 +447,26 @@ export function createGame({ withCpu = false } = {}) {
     if (racket) onlineContact(side, racket, { ...racket, ...contactMotion(racket, time) }, frame, true);
   }
 
+  function supportShuttle(side, from, to) {
+    if (phase !== 'live' || pendingLanding || !onSide(side)) return false;
+    const y = supportedShuttleY(shuttlePose(), from, to);
+    if (y === undefined) return false;
+    shuttle.y = y;
+    shuttle.vy = Math.min(shuttle.vy, to.vy, 0);
+    if (support !== side) {
+      support = side;
+      strike = undefined;
+    }
+    touching[side] = true;
+    updateOutline();
+    return true;
+  }
+
   function moveRacket(side, input, frame) {
     if (phase !== 'live' && phase !== 'between' && phase !== 'starting') return;
     if (!input) {
       rackets[side] = undefined;
+      if (support === side) support = undefined;
       touching[side] = false;
       return;
     }
@@ -439,6 +483,7 @@ export function createGame({ withCpu = false } = {}) {
     rackets[side] = next;
     if (activeEffect?.id === 'freeze') return;
     Object.assign(next, swingMotion(previous, next));
+    if (next.vy < 0 && !isSwing(next) && supportShuttle(side, previous, next)) return;
     if (withCpu) checkContact(side, previous, next, next.vx, next.vy);
     else onlineContact(side, previous, next, frame);
   }
@@ -532,6 +577,13 @@ export function createGame({ withCpu = false } = {}) {
     updateEvent(dt);
     if (activeEffect?.id === 'freeze') return;
     advanceShuttle(dt);
+    if (support) {
+      const racket = rackets[support];
+      if (!racket || !supportShuttle(support, racket, { ...racket, vy: 0 })) {
+        if (!racket || !onSide(support) || shuttle.y > racket.y ||
+            !outlineContact(racket, racket, racketRadius + 3, shuttle.x, shuttle.y, outline)) support = undefined;
+      }
+    }
     if (phase !== 'live' || pendingLanding) return;
 
     if (withCpu) {
@@ -551,7 +603,8 @@ export function createGame({ withCpu = false } = {}) {
     const visible = shuttle && phase !== 'starting' && activeEffect?.id !== 'invisible';
     const position = (racket) => racket && { x: racket.x, y: racket.y };
     return {
-      phase, score, message, winner, eventText, eventWind, flash, frozen, warp,
+      phase, score, message, winner, eventText, eventWind, flash, frozen, warp, support,
+      strike: strike?.flight === flight ? strike : undefined,
       shake: activeEffect?.id === 'shock' ? activeEffect.remaining : 0,
       shuttle: visible ? { ...shuttlePose(), flight, baseSize: shuttle.size, canHit: hitCooldown <= 0 && !pendingLanding && !frozen } : undefined,
       left: position(rackets.left),
