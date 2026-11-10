@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Odd Birdle — 연습장</title>
+  <title>Odd Birdle — 배드민턴</title>
   <style>
     * { box-sizing: border-box; }
     body { margin: 0; background: #182223; color: #f7f6e9; font: 16px system-ui, sans-serif; }
@@ -14,8 +14,12 @@
     .score { display: flex; gap: 16px; margin-bottom: 12px; }
     .score div { min-width: 78px; color: #d4dfd8; }
     output { display: block; color: #f7f6e9; font-size: 1.65rem; font-weight: 800; }
-    canvas { display: block; width: 100%; height: clamp(300px, 62vh, 560px); background: #e8ebd6;
+    canvas { display: block; width: 100%; aspect-ratio: 9 / 5; background: #e8ebd6;
       border-radius: 16px; touch-action: none; cursor: none; }
+    [hidden] { display: none !important; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    #mode { background: #334445; color: #f7f6e9; }
+    #status { margin: 0 0 10px; min-height: 1.5em; color: #d4dfd8; }
     footer { margin-top: 12px; color: #d4dfd8; }
     button { border: 0; border-radius: 8px; padding: 10px 16px; background: #c5ea8f;
       color: #182223; font: inherit; font-weight: 700; cursor: pointer; }
@@ -24,170 +28,346 @@
 <body>
 <main>
   <header>
-    <div><small>STUDIYO / 연습장</small><h1>Odd Birdle</h1></div>
-    <div class="score">
+    <div><small>STUDIYO / ARCADE BADMINTON</small><h1>Odd Birdle</h1></div>
+    <div class="score" id="match-score">
+      <div>나<output id="player-score">0</output></div>
+      <div>CPU<output id="cpu-score">0</output></div>
+    </div>
+    <div class="score" id="practice-score" hidden>
       <div>콤보<output id="combo" aria-live="off">0</output></div>
       <div>최고<output id="best" aria-live="off">0</output></div>
     </div>
   </header>
-  <canvas id="court" aria-label="마우스나 손가락으로 떨어지는 셔틀을 받아치는 연습장"></canvas>
+  <p id="status" role="status"></p>
+  <canvas id="court" aria-label="마우스나 손가락으로 셔틀을 받아치는 배드민턴 코트"></canvas>
   <footer>
-    <span>아래에서 위로 쓸어 올려 보세요. 옆으로 휘두르면 낮게 날아갑니다.</span>
-    <button id="restart" type="button">다시 시작</button>
+    <span>닿으면 기본 리턴. 위로 쓸면 높게, 옆으로 빠르게 휘두르면 강하게.</span>
+    <div class="actions">
+      <button id="mode" type="button">연습장</button>
+      <button id="restart" type="button">다시 시작</button>
+    </div>
   </footer>
 </main>
 <script type="module">
   const court = document.querySelector('#court');
   const ctx = court.getContext('2d');
+  const status = document.querySelector('#status');
+  const modeButton = document.querySelector('#mode');
+  const scoreLabels = {
+    player: document.querySelector('#player-score'),
+    cpu: document.querySelector('#cpu-score')
+  };
   const comboLabel = document.querySelector('#combo');
   const bestLabel = document.querySelector('#best');
   const shapes = ['▲', '{', '▮', '}'];
+  const width = 900;
+  const height = 500;
+  const center = width / 2;
+  const floor = 448;
+  const netTop = 342;
+  const leftLine = 64;
+  const rightLine = width - leftLine;
   const shuttleRadius = 18;
   const racketRadius = 22;
+  const contactRadius = shuttleRadius + racketRadius;
+  const gravity = 760;
+  const airDrag = 0.6;
   const step = 1 / 120;
+  const pointsToWin = 7;
 
-  let width = 0;
-  let height = 0;
+  let practice = false;
+  let score;
   let combo = 0;
   let best = 0;
   let shape = -1;
   let shuttle;
   let racket;
+  let cpu;
+  let server;
+  let lastHitter;
+  let phase;
+  let phaseTime;
   let hitCooldown;
-  let serveDelay;
+  let touchingPlayer;
   let flash;
   let lastFrame;
   let accumulator = 0;
 
-  function serve() {
-    // Choose a different appearance each round while keeping the same hitbox.
-    shape = shape < 0
-      ? Math.floor(Math.random() * shapes.length)
-      : (shape + 1 + Math.floor(Math.random() * (shapes.length - 1))) % shapes.length;
-    shuttle = { x: width * (0.36 + Math.random() * 0.28), y: 40, vx: 0, vy: 45, angle: 0, spin: 0.8 };
-    combo = 0;
-    comboLabel.value = combo;
-    hitCooldown = 0;
-    serveDelay = 0;
-    flash = 0;
-  }
+  const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+  const opponent = (side) => side === 'player' ? 'cpu' : 'player';
 
   function resize() {
     const bounds = court.getBoundingClientRect();
-    const pixelRatio = Math.min(devicePixelRatio || 1, 2);
-    const oldWidth = width;
-    const oldHeight = height;
-    width = bounds.width;
-    height = bounds.height;
-    court.width = Math.round(width * pixelRatio);
-    court.height = Math.round(height * pixelRatio);
-    ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-    if (shuttle) {
-      shuttle.x *= width / oldWidth;
-      shuttle.y *= height / oldHeight;
-    }
+    const ratio = Math.min(devicePixelRatio || 1, 2);
+    court.width = Math.round(bounds.width * ratio);
+    court.height = Math.round(bounds.height * ratio);
+    ctx.setTransform(court.width / width, 0, 0, court.height / height, 0, 0);
     racket = undefined;
+  }
+
+  function serve() {
+    shape = shape < 0
+      ? Math.floor(Math.random() * shapes.length)
+      : (shape + 1 + Math.floor(Math.random() * (shapes.length - 1))) % shapes.length;
+    const x = practice ? width * (0.36 + Math.random() * 0.28) : server === 'player' ? 245 : 660;
+    shuttle = { x, y: 56, vx: 0, vy: 35, angle: 0, spin: 0.8 };
+    cpu = { x: 660, y: 300 };
+    phase = 'live';
+    lastHitter = undefined;
+    hitCooldown = 0;
+    touchingPlayer = false;
+    flash = 0;
+    combo = 0;
+    comboLabel.value = combo;
+    status.textContent = practice ? '셔틀을 연속으로 띄워 보세요.' : server === 'player' ? '내 서브 · 떨어지는 셔틀을 받아치세요' : 'CPU 서브';
+  }
+
+  function restart() {
+    score = { player: 0, cpu: 0 };
+    scoreLabels.player.value = 0;
+    scoreLabels.cpu.value = 0;
+    server = 'player';
+    serve();
+  }
+
+  function finishPoint(winner, reason) {
+    if (practice) {
+      phase = 'between';
+      phaseTime = 0.55;
+      return;
+    }
+
+    scoreLabels[winner].value = ++score[winner];
+    server = winner;
+    if (score[winner] === pointsToWin) {
+      phase = 'finished';
+      status.textContent = winner === 'player' ? '승리! 다시 시작으로 한 경기 더' : 'CPU 승리 · 다시 시작으로 재도전';
+      return;
+    }
+    phase = 'between';
+    phaseTime = 0.85;
+    status.textContent = reason + ' · ' + (winner === 'player' ? '내 득점' : 'CPU 득점');
+  }
+
+  function flightScale(time) {
+    return -Math.expm1(-airDrag * time) / airDrag;
+  }
+
+  function velocityToLandAt(targetX, vy) {
+    let low = 0;
+    let high = 3;
+    for (let i = 0; i < 12; i++) {
+      const time = (low + high) / 2;
+      const terminalVelocity = gravity / airDrag;
+      const y = shuttle.y + terminalVelocity * time + (vy - terminalVelocity) * flightScale(time);
+      if (y < floor - shuttleRadius) low = time;
+      else high = time;
+    }
+    return (targetX - shuttle.x) / flightScale(high);
+  }
+
+  function launch(vx, vy, hitter) {
+    shuttle.vx = vx;
+    shuttle.vy = vy;
+    shuttle.spin = vx / 92 + 1.4;
+    lastHitter = hitter;
+    hitCooldown = 0.14;
+    flash = 0.22;
+    if (!practice) status.textContent = '랠리 중 · 먼저 7점';
+  }
+
+  function playerHit(swingX, swingY) {
+    const vy = practice
+      ? clamp(-340 + swingY * 0.32, -740, -155)
+      : clamp(-485 + swingY * 0.32, -740, -200);
+    const baseX = practice ? 0 : velocityToLandAt(715, vy);
+    launch(clamp(baseX + swingX * 0.92, -1800, 1800), vy, 'player');
+    if (practice) {
+      comboLabel.value = ++combo;
+      best = Math.max(best, combo);
+      bestLabel.value = best;
+    }
+  }
+
+  function onPlayerSide() {
+    return practice || shuttle.x < center;
+  }
+
+  function racketContact(from, to) {
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const lengthSquared = dx * dx + dy * dy;
+    const t = lengthSquared === 0 ? 0 : clamp(
+      ((shuttle.x - from.x) * dx + (shuttle.y - from.y) * dy) / lengthSquared, 0, 1
+    );
+    const gap = Math.hypot(shuttle.x - (from.x + dx * t), shuttle.y - (from.y + dy * t));
+    return gap <= contactRadius;
+  }
+
+  function checkPlayerContact(from, to, swingX, swingY) {
+    const touching = onPlayerSide() && racketContact(to, to);
+    if (phase === 'live' && onPlayerSide() && hitCooldown <= 0 &&
+        !touchingPlayer && racketContact(from, to)) {
+      playerHit(swingX, swingY);
+      touchingPlayer = touching;
+    } else if (!touching) {
+      touchingPlayer = false;
+    }
   }
 
   function moveRacket(event) {
     if (!event.isPrimary || (event.pointerType !== 'mouse' && event.buttons === 0)) return;
     const bounds = court.getBoundingClientRect();
-    const next = { x: event.clientX - bounds.left, y: event.clientY - bounds.top, time: event.timeStamp };
-    const previous = racket;
-    racket = next;
-    if (!previous || hitCooldown > 0 || serveDelay > 0) return;
-
-    const dx = next.x - previous.x;
-    const dy = next.y - previous.y;
-    const distanceSquared = dx * dx + dy * dy;
-    if (distanceSquared < 1) return;
+    const maxX = practice ? width : center - racketRadius;
+    const next = {
+      x: clamp((event.clientX - bounds.left) * width / bounds.width, 0, maxX),
+      y: clamp((event.clientY - bounds.top) * height / bounds.height, 0, floor),
+      time: event.timeStamp,
+      vx: 0,
+      vy: 0,
+      age: 0
+    };
+    const previous = racket ?? next;
     const elapsed = Math.max(8, next.time - previous.time) / 1000;
-    const speed = Math.hypot(dx, dy) / elapsed;
-    if (speed < 100) return;
+    next.vx = (next.x - previous.x) / elapsed;
+    next.vy = (next.y - previous.y) / elapsed;
+    racket = next;
+    checkPlayerContact(previous, next, next.vx, next.vy);
+  }
 
-    // Check the entire sweep so quick strokes can hit between pointer samples.
-    const projection = ((shuttle.x - previous.x) * dx + (shuttle.y - previous.y) * dy) / distanceSquared;
-    const t = Math.max(0, Math.min(1, projection));
-    const gap = Math.hypot(shuttle.x - (previous.x + dx * t), shuttle.y - (previous.y + dy * t));
-    if (gap > shuttleRadius + racketRadius) return;
-
-    const distance = Math.sqrt(distanceSquared);
-    const power = Math.min(720, 190 + speed * 0.45);
-    shuttle.vx = dx / distance * power * 0.83;
-    shuttle.vy = Math.min(-155, dy / distance * power - 165);
-    shuttle.spin = shuttle.vx / 80 + 1.4;
-    hitCooldown = 0.16;
-    flash = 0.22;
-    comboLabel.value = ++combo;
-    best = Math.max(best, combo);
-    bestLabel.value = best;
+  function moveCpu(dt) {
+    const defending = shuttle.x >= center && shuttle.vy > 0;
+    const targetX = defending ? clamp(shuttle.x, center + racketRadius, rightLine - 24) : 660;
+    const targetY = defending ? clamp(shuttle.y + 24, 205, floor - 14) : 300;
+    cpu.x += clamp(targetX - cpu.x, -290 * dt, 290 * dt);
+    cpu.y += clamp(targetY - cpu.y, -340 * dt, 340 * dt);
+    if (defending && shuttle.x <= rightLine && lastHitter !== 'cpu' && hitCooldown <= 0 &&
+        racketContact(cpu, cpu)) {
+      const vy = -485 - Math.random() * 45;
+      launch(velocityToLandAt(160 + Math.random() * 165, vy), vy, 'cpu');
+    }
   }
 
   function simulate(dt) {
-    if (serveDelay > 0) {
-      serveDelay -= dt;
-      if (serveDelay <= 0) serve();
+    if (phase === 'finished') return;
+    if (phase === 'between') {
+      phaseTime -= dt;
+      if (phaseTime <= 0) serve();
       return;
     }
 
     hitCooldown = Math.max(0, hitCooldown - dt);
     flash = Math.max(0, flash - dt);
-    const drag = Math.exp(-0.6 * dt);
+    const previousX = shuttle.x;
+    const previousY = shuttle.y;
+    const drag = Math.exp(-airDrag * dt);
     shuttle.vx *= drag;
-    shuttle.vy = shuttle.vy * drag + 760 * dt;
+    shuttle.vy = shuttle.vy * drag + gravity * dt;
     shuttle.x += shuttle.vx * dt;
     shuttle.y += shuttle.vy * dt;
     shuttle.angle += shuttle.spin * dt;
 
-    if (shuttle.x < shuttleRadius || shuttle.x > width - shuttleRadius) {
-      shuttle.x = Math.max(shuttleRadius, Math.min(width - shuttleRadius, shuttle.x));
-      shuttle.vx *= -0.65;
+    if (practice) {
+      if (shuttle.x < shuttleRadius || shuttle.x > width - shuttleRadius) {
+        shuttle.x = clamp(shuttle.x, shuttleRadius, width - shuttleRadius);
+        shuttle.vx *= -0.65;
+      }
+      if (shuttle.y < shuttleRadius) {
+        shuttle.y = shuttleRadius;
+        shuttle.vy = Math.abs(shuttle.vy) * 0.25;
+      }
+    } else {
+      const netEdge = shuttle.vx > 0 ? center - shuttleRadius : center + shuttleRadius;
+      const crossedNetEdge = shuttle.vx > 0
+        ? previousX < netEdge && shuttle.x >= netEdge
+        : previousX > netEdge && shuttle.x <= netEdge;
+      const overlapsNet = Math.abs(shuttle.x - center) <= shuttleRadius;
+      if (lastHitter && (crossedNetEdge || overlapsNet)) {
+        const t = crossedNetEdge ? (netEdge - previousX) / (shuttle.x - previousX) : 1;
+        const contactY = previousY + (shuttle.y - previousY) * t;
+        if (contactY + shuttleRadius >= netTop) {
+          shuttle.x = crossedNetEdge ? netEdge : shuttle.x;
+          shuttle.y = contactY;
+          finishPoint(opponent(lastHitter), '네트');
+          return;
+        }
+      }
+      if (lastHitter && (shuttle.x < -shuttleRadius || shuttle.x > width + shuttleRadius)) {
+        shuttle.x = clamp(shuttle.x, shuttleRadius, width - shuttleRadius);
+        finishPoint(opponent(lastHitter), '아웃');
+        return;
+      }
     }
-    if (shuttle.y < shuttleRadius) {
-      shuttle.y = shuttleRadius;
-      shuttle.vy = Math.abs(shuttle.vy) * 0.25;
-    }
-    const floor = height - 24;
+
     if (shuttle.y + shuttleRadius >= floor) {
       shuttle.y = floor - shuttleRadius;
-      serveDelay = 0.55;
+      const out = shuttle.x < leftLine || shuttle.x > rightLine;
+      const landingSide = shuttle.x < center ? 'player' : 'cpu';
+      finishPoint(out ? opponent(lastHitter ?? server) : opponent(landingSide), out ? '아웃' : '착지');
+      return;
     }
+
+    if (racket) {
+      racket.age += dt;
+      const remainingSwing = Math.max(0, 1 - racket.age / 0.085);
+      checkPlayerContact(racket, racket, racket.vx * remainingSwing, racket.vy * remainingSwing);
+    }
+    if (!practice) moveCpu(dt);
+  }
+
+  function drawRacket(position, fill, stroke) {
+    ctx.beginPath();
+    ctx.arc(position.x, position.y, racketRadius, 0, Math.PI * 2);
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = stroke;
+    ctx.stroke();
+  }
+
+  function drawCourt() {
+    ctx.fillStyle = '#e8ebd6';
+    ctx.fillRect(0, 0, width, height);
+    ctx.fillStyle = '#c0cbb4';
+    ctx.fillRect(0, floor, width, height - floor);
+    ctx.fillStyle = '#6d8e72';
+    ctx.fillRect(practice ? 0 : leftLine, floor, practice ? width : rightLine - leftLine, 8);
+    if (practice) return;
+
+    ctx.fillStyle = '#476755';
+    ctx.fillRect(center - 2, netTop, 4, floor - netTop);
+    ctx.fillRect(center - 9, netTop, 18, 4);
+    ctx.fillStyle = '#f7f6e9';
+    for (const x of [leftLine, center, rightLine]) ctx.fillRect(x - 2, floor, 4, 8);
+    ctx.font = '700 16px system-ui';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('YOU', center / 2, 475);
+    ctx.fillText('CPU', center * 1.5, 475);
   }
 
   function draw() {
-    ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = '#cbd6ba';
-    ctx.fillRect(0, height - 24, width, 24);
-    ctx.fillStyle = '#a9b997';
-    ctx.fillRect(0, height - 25, width, 1);
+    drawCourt();
+    if (!practice) drawRacket(cpu, '#cf936b99', '#774935');
+    if (racket) drawRacket(racket, '#a9d67877', '#274d3b');
 
-    if (flash > 0 && serveDelay <= 0) {
+    const displayY = Math.max(18, shuttle.y);
+    if (flash > 0 && phase === 'live') {
       ctx.beginPath();
-      ctx.arc(shuttle.x, shuttle.y, 26 + (0.22 - flash) * 105, 0, Math.PI * 2);
+      ctx.arc(shuttle.x, displayY, 26 + (0.22 - flash) * 105, 0, Math.PI * 2);
       ctx.strokeStyle = 'rgba(33, 102, 64, ' + flash / 0.22 + ')';
       ctx.lineWidth = 2;
       ctx.stroke();
     }
-
     ctx.save();
-    ctx.translate(shuttle.x, shuttle.y);
+    ctx.translate(shuttle.x, displayY);
     ctx.rotate(shuttle.angle);
-    ctx.fillStyle = serveDelay > 0 ? '#667165' : '#274d3b';
+    ctx.fillStyle = phase === 'live' ? '#274d3b' : '#667165';
     ctx.font = 'bold 38px system-ui';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(shapes[shape], 0, 1);
     ctx.restore();
-
-    if (racket) {
-      ctx.beginPath();
-      ctx.arc(racket.x, racket.y, racketRadius, 0, Math.PI * 2);
-      ctx.fillStyle = '#a9d67877';
-      ctx.fill();
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = '#274d3b';
-      ctx.stroke();
-    }
   }
 
   function frame(time) {
@@ -201,17 +381,33 @@
     requestAnimationFrame(frame);
   }
 
+  function clearRacket() {
+    racket = undefined;
+    touchingPlayer = false;
+  }
+
+  court.addEventListener('pointerenter', (event) => {
+    if (event.pointerType === 'mouse') moveRacket(event);
+  });
   court.addEventListener('pointermove', moveRacket);
   court.addEventListener('pointerdown', moveRacket);
   for (const event of ['pointerleave', 'pointercancel', 'lostpointercapture']) {
-    court.addEventListener(event, () => { racket = undefined; });
+    court.addEventListener(event, clearRacket);
   }
   court.addEventListener('pointerup', (event) => {
-    if (event.pointerType !== 'mouse') racket = undefined;
+    if (event.pointerType !== 'mouse') clearRacket();
   });
-  document.querySelector('#restart').addEventListener('click', serve);
+  modeButton.addEventListener('click', () => {
+    practice = !practice;
+    modeButton.textContent = practice ? '경기장' : '연습장';
+    document.querySelector('#match-score').hidden = practice;
+    document.querySelector('#practice-score').hidden = !practice;
+    clearRacket();
+    restart();
+  });
+  document.querySelector('#restart').addEventListener('click', restart);
   resize();
-  serve();
+  restart();
   new ResizeObserver(resize).observe(court);
   requestAnimationFrame(frame);
 </script>
