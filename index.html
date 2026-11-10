@@ -12,9 +12,6 @@
     body { margin: 0; min-height: 100vh; min-height: 100svh; display: grid; place-items: center;
       background: var(--page); font: 16px "Space Grotesk", system-ui, sans-serif; }
     main { width: min(940px, 100% - 32px); padding-block: 24px; }
-    @media (orientation: landscape) and (pointer: coarse) {
-      main { width: min(940px, 100% - 24px, calc((100svh - 64px) * 1.8)); padding-block: 6px; }
-    }
     h1 { position: absolute; top: 17%; left: 50%; transform: translate(-50%, -50%);
       margin: 0; color: var(--ink); text-align: center; white-space: nowrap; pointer-events: none;
       font-size: clamp(2rem, 8vw, 5rem); font-weight: 650; line-height: 1; letter-spacing: -.04em; }
@@ -24,6 +21,12 @@
     #studio-links a { display: grid; place-items: center; width: 44px; height: 44px; color: var(--court); }
     #studio-links a:hover { background: var(--page-hover); }
     #studio-links a:focus-visible { outline: 2px solid currentColor; outline-offset: -3px; }
+    @media (orientation: landscape) and (pointer: coarse) {
+      main { display: grid; grid-template-columns: minmax(0, 1fr) 44px; align-items: center;
+        column-gap: 8px; width: min(992px, 100% - 24px, calc((100svh - 12px) * 1.8 + 52px));
+        padding-block: 6px; }
+      #studio-links { flex-direction: column; margin-top: 0; }
+    }
     canvas { display: block; width: 100%; aspect-ratio: 9 / 5; background: var(--court);
       touch-action: none; cursor: none; }
     #stage[data-phase="ready"] canvas, #stage[data-phase="finished"] canvas { cursor: default; }
