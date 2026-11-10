@@ -15,18 +15,15 @@ test('remote racket uses the contact scene clock instead of server receipt time'
   assert.equal(playback.at(100).right.x, 610);
 });
 
-test('remote movement bridges late packets, stays bounded and stops on a heartbeat', () => {
+test('late stationary packets do not make the remote racket overshoot and recoil', () => {
   const playback = createPlayback();
   playback.push(0, { phase: 'live' }, 0);
   playback.push(100, state(600, 20), 100);
   playback.push(120, state(620, 40), 120);
-  const x = playback.at(130).right.x;
-  assert.ok(x > 620 && x <= 638);
-  const later = playback.at(170).right.x;
-  assert.ok(later >= x && later <= 638);
+  assert.equal(playback.at(130).right.x, 620);
+  assert.equal(playback.at(170).right.x, 620);
   playback.push(180, state(620, 100), 180);
-  playback.push(200, state(620, 120), 200);
-  assert.equal(playback.at(220).right.x, 620);
+  assert.equal(playback.at(200).right.x, 620);
 });
 
 test('same-tick immediate hit replaces an existing snapshot', () => {
@@ -47,13 +44,6 @@ test('reset clears the opponent and old timing', () => {
   assert.equal(playback.at(200), undefined);
   playback.push(0, { phase: 'starting' }, 1000);
   assert.equal(playback.at(1100).right, undefined);
-});
-
-test('prediction stays within the opponent court', () => {
-  const playback = createPlayback();
-  playback.push(100, state(480, 20), 100);
-  playback.push(120, state(473, 40), 120);
-  assert.ok(playback.at(170).right.x >= 472);
 });
 
 test('confirmed contact anchors racket and shuttle to the same instant', () => {

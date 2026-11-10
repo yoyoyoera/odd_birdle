@@ -37,6 +37,7 @@ export const rightLine = width - leftLine;
 export const racketRadius = 22;
 const baseGravity = 760;
 export const step = 1 / 120;
+const ownCourtReactions = ['Pardon?', 'LOL', 'Oops!', 'Nice try.', 'Wrong way.'];
 const effects = [
   { id: 'shock', label: 'SHOCK', duration: 0.55 },
   { id: 'invisible', label: 'INVISIBLE', duration: 1 },
@@ -239,6 +240,9 @@ export function createGame({ withCpu = false } = {}) {
     clearEffect();
     updateOutline();
     if (reason === 'out') showEvent('out');
+    if (reason === 'own court') {
+      showEvent(ownCourtReactions[Math.floor(Math.random() * ownCourtReactions.length)]);
+    }
     score[side]++;
     server = side;
     if (score[side] === pointsToWin) {
@@ -532,7 +536,7 @@ export function createGame({ withCpu = false } = {}) {
       const out = shuttle.x < leftLine || shuttle.x > rightLine;
       const landingSide = shuttle.x < center ? 'left' : 'right';
       const winner = out ? opponent(lastHitter ?? server) : opponent(landingSide);
-      const reason = out ? 'out' : 'Landed';
+      const reason = out ? 'out' : landingSide === lastHitter ? 'own court' : 'Landed';
       if (withCpu) finishPoint(winner, reason);
       else pendingLanding = { winner, reason, remaining: 0.24 };
       return;

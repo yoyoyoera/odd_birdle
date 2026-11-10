@@ -1,4 +1,4 @@
-import { projectStrike, clamp, center, floor, racketRadius, width } from './game.js';
+import { projectStrike } from './game.js';
 
 const bufferMs = 70;
 
@@ -37,22 +37,8 @@ export function createPlayback() {
     const b = track[index + 1];
     if (!a.point) return undefined;
     if (b?.point) return position(a.point, b.point, (target - a.time) / (b.time - a.time));
-    const previous = track[index - 1];
-    const gap = previous ? a.time - previous.time : 0;
-    const age = target - a.time;
-    // Short, bounded prediction bridges packet gaps. Ease to a stop rather than
-    // snapping back to the last packet when movement stops or a packet is late.
-    if (!previous?.point || gap <= 0 || gap > 150) return a.point;
-    const horizon = 40;
-    const travel = horizon * (1 - Math.exp(-Math.max(0, age) / horizon));
-    let dx = (a.point.x - previous.point.x) * travel / gap;
-    let dy = (a.point.y - previous.point.y) * travel / gap;
-    const scale = Math.min(1, 18 / (Math.hypot(dx, dy) || 1));
-    return {
-      x: clamp(a.point.x + dx * scale, side === 'left' ? 0 : center + racketRadius,
-        side === 'left' ? center - racketRadius : width),
-      y: clamp(a.point.y + dy * scale, 0, floor)
-    };
+    // Hold the last confirmed position until there is another sample to blend toward.
+    return a.point;
   }
 
   function withRackets(view, target) {
