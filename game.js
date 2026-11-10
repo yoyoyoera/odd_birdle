@@ -37,7 +37,7 @@ export const rightLine = width - leftLine;
 export const racketRadius = 22;
 const baseGravity = 760;
 export const step = 1 / 120;
-const ownCourtReactions = ['Pardon?', 'LOL', 'Oops!', 'Nice try.', 'Wrong way.'];
+const faultReactions = ['Pardon?', 'LOL', 'Oops!', 'Nice try.', 'Wrong way.'];
 const effects = [
   { id: 'shock', label: 'SHOCK', duration: 0.55 },
   { id: 'invisible', label: 'INVISIBLE', duration: 1 },
@@ -241,8 +241,8 @@ export function createGame({ withCpu = false } = {}) {
     updateOutline();
     if (reason === 'out') showEvent('out');
     const matchPoint = Math.max(score.left, score.right) === pointsToWin - 1;
-    if (!matchPoint && reason === 'own court') {
-      showEvent(ownCourtReactions[Math.floor(Math.random() * ownCourtReactions.length)]);
+    if (!matchPoint && (reason === 'own court' || reason === 'Net')) {
+      showEvent(faultReactions[Math.floor(Math.random() * faultReactions.length)]);
     }
     if (!matchPoint && reason === 'missed serve') showEvent('Sleepy?');
     score[side]++;
