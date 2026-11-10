@@ -129,7 +129,11 @@ export function createRooms(randomIndex) {
         send(peer, { type: 'room', code });
       } else if (message.type === 'join') {
         const target = rooms.get(message.code);
-        if (!target || target.right || target.expiresAt <= Date.now() || target.left.readyState !== 1) {
+        if (target?.right) {
+          send(peer, { type: 'error', message: 'Room is full.' });
+          return;
+        }
+        if (!target || target.expiresAt <= Date.now() || target.left.readyState !== 1) {
           send(peer, { type: 'error', message: 'Room not found.' });
           return;
         }
