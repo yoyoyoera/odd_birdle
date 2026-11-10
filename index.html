@@ -41,7 +41,7 @@
   <p id="status" role="status"></p>
   <canvas id="court" aria-label="마우스나 손가락으로 셔틀을 받아치는 배드민턴 코트"></canvas>
   <footer>
-    <span>닿으면 기본 리턴. 위로 쓸면 높게, 옆으로 빠르게 휘두르면 강하게.</span>
+    <span>가만히 닿으면 살짝 튕겨요. 원하는 방향으로 휘두르세요. 아래로 내리치면 스파이크!</span>
     <div class="actions">
       <button id="mode" type="button">연습장</button>
       <button id="restart" type="button">다시 시작</button>
@@ -59,17 +59,30 @@
   };
   const comboLabel = document.querySelector('#combo');
   const bestLabel = document.querySelector('#best');
-  const shapes = ['▲', '{', '▮', '}'];
+  // Vertices are shared by the renderer and collision checks.
+  const shapes = [
+    [[0, -1], [0.94, 0.76], [-0.94, 0.76]],
+    Array.from({ length: 32 }, (_, i) => {
+      const angle = i * Math.PI / 16;
+      return [Math.cos(angle), Math.sin(angle)];
+    }),
+    [[-0.72, -0.72], [0.72, -0.72], [0.72, 0.72], [-0.72, 0.72]],
+    [[-1.38, -0.30], [1.38, -0.30], [1.38, 0.30], [-1.38, 0.30]],
+    [[0, -1.13], [0.75, 0], [0, 1.13], [-0.75, 0]],
+    [[-0.88, -0.50], [0, -1], [0.88, -0.50], [0.88, 0.50], [0, 1], [-0.88, 0.50]],
+    [[-0.9, -0.85], [-0.23, -0.85], [0, -0.18], [0.23, -0.85],
+      [0.9, -0.85], [0.4, 0.45], [0, 0.95], [-0.4, 0.45]]
+  ];
   const width = 900;
   const height = 500;
   const center = width / 2;
   const floor = 448;
   const netTop = 342;
+  const netStart = { x: center, y: netTop };
+  const netEnd = { x: center, y: floor };
   const leftLine = 64;
   const rightLine = width - leftLine;
-  const shuttleRadius = 18;
   const racketRadius = 22;
-  const contactRadius = shuttleRadius + racketRadius;
   const gravity = 760;
   const airDrag = 0.6;
   const step = 1 / 120;
@@ -81,6 +94,7 @@
   let best = 0;
   let shape = -1;
   let shuttle;
+  let outline;
   let racket;
   let cpu;
   let server;
@@ -110,7 +124,8 @@
       ? Math.floor(Math.random() * shapes.length)
       : (shape + 1 + Math.floor(Math.random() * (shapes.length - 1))) % shapes.length;
     const x = practice ? width * (0.36 + Math.random() * 0.28) : server === 'player' ? 245 : 660;
-    shuttle = { x, y: 56, vx: 0, vy: 35, angle: 0, spin: 0.8 };
+    shuttle = { x, y: 56, vx: 0, vy: 35, angle: 0, spin: 0.8, size: 13 + Math.random() * 16 };
+    updateOutline();
     cpu = { x: 660, y: 300 };
     phase = 'live';
     lastHitter = undefined;
@@ -154,13 +169,14 @@
   }
 
   function velocityToLandAt(targetX, vy) {
+    const landingY = floor - Math.max(...outline.map(point => point.y));
     let low = 0;
     let high = 3;
     for (let i = 0; i < 12; i++) {
       const time = (low + high) / 2;
       const terminalVelocity = gravity / airDrag;
       const y = shuttle.y + terminalVelocity * time + (vy - terminalVelocity) * flightScale(time);
-      if (y < floor - shuttleRadius) low = time;
+      if (y < landingY) low = time;
       else high = time;
     }
     return (targetX - shuttle.x) / flightScale(high);
@@ -177,11 +193,10 @@
   }
 
   function playerHit(swingX, swingY) {
-    const vy = practice
-      ? clamp(-340 + swingY * 0.32, -740, -155)
-      : clamp(-485 + swingY * 0.32, -740, -200);
-    const baseX = practice ? 0 : velocityToLandAt(715, vy);
-    launch(clamp(baseX + swingX * 0.92, -1800, 1800), vy, 'player');
+    const speed = Math.hypot(swingX, swingY);
+    const lift = 130 * (1 - clamp(speed / 400, 0, 1));
+    launch(clamp(swingX * 0.92, -1800, 1800),
+      clamp(swingY * 0.82 - lift, -880, 1100), 'player');
     if (practice) {
       comboLabel.value = ++combo;
       best = Math.max(best, combo);
@@ -193,15 +208,52 @@
     return practice || shuttle.x < center;
   }
 
-  function racketContact(from, to) {
+  function updateOutline() {
+    const cos = Math.cos(shuttle.angle);
+    const sin = Math.sin(shuttle.angle);
+    outline = shapes[shape].map(([x, y]) => ({
+      x: (x * cos - y * sin) * shuttle.size,
+      y: (x * sin + y * cos) * shuttle.size
+    }));
+  }
+
+  function pointSegmentDistanceSquared(point, from, to) {
     const dx = to.x - from.x;
     const dy = to.y - from.y;
     const lengthSquared = dx * dx + dy * dy;
     const t = lengthSquared === 0 ? 0 : clamp(
-      ((shuttle.x - from.x) * dx + (shuttle.y - from.y) * dy) / lengthSquared, 0, 1
+      ((point.x - from.x) * dx + (point.y - from.y) * dy) / lengthSquared, 0, 1
     );
-    const gap = Math.hypot(shuttle.x - (from.x + dx * t), shuttle.y - (from.y + dy * t));
-    return gap <= contactRadius;
+    return (point.x - from.x - dx * t) ** 2 + (point.y - from.y - dy * t) ** 2;
+  }
+
+  function cross(from, to, point) {
+    return (to.x - from.x) * (point.y - from.y) - (to.y - from.y) * (point.x - from.x);
+  }
+
+  function outlineContact(from, to, radius, x = shuttle.x, y = shuttle.y) {
+    const start = { x: from.x - x, y: from.y - y };
+    const end = { x: to.x - x, y: to.y - y };
+    const radiusSquared = radius * radius;
+    let inside = false;
+    for (let i = 0; i < outline.length; i++) {
+      const a = outline[i];
+      const b = outline[(i + 1) % outline.length];
+      if ((a.y > start.y) !== (b.y > start.y) &&
+          start.x < a.x + (b.x - a.x) * (start.y - a.y) / (b.y - a.y)) {
+        inside = !inside;
+      }
+      if (cross(start, end, a) * cross(start, end, b) < 0 &&
+          cross(a, b, start) * cross(a, b, end) < 0) return true;
+      if (pointSegmentDistanceSquared(a, start, end) <= radiusSquared ||
+          pointSegmentDistanceSquared(start, a, b) <= radiusSquared ||
+          pointSegmentDistanceSquared(end, a, b) <= radiusSquared) return true;
+    }
+    return inside;
+  }
+
+  function racketContact(from, to) {
+    return outlineContact(from, to, racketRadius);
   }
 
   function checkPlayerContact(from, to, swingX, swingY) {
@@ -266,41 +318,33 @@
     shuttle.x += shuttle.vx * dt;
     shuttle.y += shuttle.vy * dt;
     shuttle.angle += shuttle.spin * dt;
+    updateOutline();
+    const left = Math.min(...outline.map(point => point.x));
+    const right = Math.max(...outline.map(point => point.x));
+    const bottom = Math.max(...outline.map(point => point.y));
 
     if (practice) {
-      if (shuttle.x < shuttleRadius || shuttle.x > width - shuttleRadius) {
-        shuttle.x = clamp(shuttle.x, shuttleRadius, width - shuttleRadius);
+      if (shuttle.x + left < 0 || shuttle.x + right > width) {
+        shuttle.x = clamp(shuttle.x, -left, width - right);
         shuttle.vx *= -0.65;
       }
-      if (shuttle.y < shuttleRadius) {
-        shuttle.y = shuttleRadius;
-        shuttle.vy = Math.abs(shuttle.vy) * 0.25;
-      }
     } else {
-      const netEdge = shuttle.vx > 0 ? center - shuttleRadius : center + shuttleRadius;
-      const crossedNetEdge = shuttle.vx > 0
-        ? previousX < netEdge && shuttle.x >= netEdge
-        : previousX > netEdge && shuttle.x <= netEdge;
-      const overlapsNet = Math.abs(shuttle.x - center) <= shuttleRadius;
-      if (lastHitter && (crossedNetEdge || overlapsNet)) {
-        const t = crossedNetEdge ? (netEdge - previousX) / (shuttle.x - previousX) : 1;
-        const contactY = previousY + (shuttle.y - previousY) * t;
-        if (contactY + shuttleRadius >= netTop) {
-          shuttle.x = crossedNetEdge ? netEdge : shuttle.x;
-          shuttle.y = contactY;
-          finishPoint(opponent(lastHitter), '네트');
-          return;
-        }
+      const crossesCenter = (previousX - center) * (shuttle.x - center) < 0;
+      const crossesNet = crossesCenter && outlineContact(netStart, netEnd, 2, center,
+        previousY + (shuttle.y - previousY) * (center - previousX) / (shuttle.x - previousX));
+      if (lastHitter && (crossesNet || outlineContact(netStart, netEnd, 2))) {
+        finishPoint(opponent(lastHitter), '네트');
+        return;
       }
-      if (lastHitter && (shuttle.x < -shuttleRadius || shuttle.x > width + shuttleRadius)) {
-        shuttle.x = clamp(shuttle.x, shuttleRadius, width - shuttleRadius);
+      if (lastHitter && (shuttle.x + right < 0 || shuttle.x + left > width)) {
+        shuttle.x = clamp(shuttle.x, -left, width - right);
         finishPoint(opponent(lastHitter), '아웃');
         return;
       }
     }
 
-    if (shuttle.y + shuttleRadius >= floor) {
-      shuttle.y = floor - shuttleRadius;
+    if (shuttle.y + bottom >= floor) {
+      shuttle.y = floor - bottom;
       const out = shuttle.x < leftLine || shuttle.x > rightLine;
       const landingSide = shuttle.x < center ? 'player' : 'cpu';
       finishPoint(out ? opponent(lastHitter ?? server) : opponent(landingSide), out ? '아웃' : '착지');
@@ -351,23 +395,23 @@
     if (!practice) drawRacket(cpu, '#cf936b99', '#774935');
     if (racket) drawRacket(racket, '#a9d67877', '#274d3b');
 
-    const displayY = Math.max(18, shuttle.y);
     if (flash > 0 && phase === 'live') {
       ctx.beginPath();
-      ctx.arc(shuttle.x, displayY, 26 + (0.22 - flash) * 105, 0, Math.PI * 2);
+      ctx.arc(shuttle.x, shuttle.y, 26 + (0.22 - flash) * 105, 0, Math.PI * 2);
       ctx.strokeStyle = 'rgba(33, 102, 64, ' + flash / 0.22 + ')';
       ctx.lineWidth = 2;
       ctx.stroke();
     }
-    ctx.save();
-    ctx.translate(shuttle.x, displayY);
-    ctx.rotate(shuttle.angle);
+    ctx.beginPath();
+    outline.forEach((point, index) => {
+      const x = shuttle.x + point.x;
+      const y = shuttle.y + point.y;
+      if (index === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.closePath();
     ctx.fillStyle = phase === 'live' ? '#274d3b' : '#667165';
-    ctx.font = 'bold 38px system-ui';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(shapes[shape], 0, 1);
-    ctx.restore();
+    ctx.fill();
   }
 
   function frame(time) {
