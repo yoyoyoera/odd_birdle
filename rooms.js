@@ -26,8 +26,8 @@ export function createRooms(randomIndex) {
     return code;
   }
 
-  function start(room) {
-    room.game.restart();
+  function start(room, firstMatch = false) {
+    room.game.restart(firstMatch ? 3 : 0);
     const state = room.game.view();
     send(room.left, { type: 'start', side: 'left', state });
     send(room.right, { type: 'start', side: 'right', state });
@@ -101,7 +101,7 @@ export function createRooms(randomIndex) {
         side = 'right';
         room.right = peer;
         room.game = createGame();
-        start(room);
+        start(room, true);
       }
     });
   }

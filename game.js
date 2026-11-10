@@ -101,7 +101,7 @@ export function createGame({ withCpu = false } = {}) {
     message = server + ' serve';
   }
 
-  function restart() {
+  function restart(openingCountdown = 0) {
     winner = undefined;
     score = { left: 0, right: 0 };
     rackets.left = rackets.right = undefined;
@@ -109,6 +109,11 @@ export function createGame({ withCpu = false } = {}) {
     clearEffect();
     scheduleEvent();
     serve();
+    if (openingCountdown > 0) {
+      phase = 'starting';
+      phaseTime = openingCountdown;
+      showEvent(String(openingCountdown));
+    }
   }
 
   function finishPoint(side, reason) {
@@ -297,7 +302,7 @@ export function createGame({ withCpu = false } = {}) {
   }
 
   function moveRacket(side, input) {
-    if (phase !== 'live' && phase !== 'between') return;
+    if (phase !== 'live' && phase !== 'between' && phase !== 'starting') return;
     if (!input) {
       rackets[side] = undefined;
       touching[side] = false;
@@ -344,6 +349,16 @@ export function createGame({ withCpu = false } = {}) {
 
   function simulate(dt) {
     if (phase === 'ready' || phase === 'finished') return;
+    if (phase === 'starting') {
+      phaseTime -= dt;
+      if (phaseTime <= 1e-9) {
+        phase = 'live';
+        showEvent('');
+      } else {
+        showEvent(String(Math.ceil(phaseTime - 1e-9)));
+      }
+      return;
+    }
     if (phase === 'between') {
       phaseTime -= dt;
       if (phaseTime <= 0) serve();
@@ -399,7 +414,7 @@ export function createGame({ withCpu = false } = {}) {
   }
 
   function view() {
-    const visible = shuttle && activeEffect?.id !== 'invisible';
+    const visible = shuttle && phase !== 'starting' && activeEffect?.id !== 'invisible';
     const position = (racket) => racket && { x: racket.x, y: racket.y };
     return {
       phase, score, message, winner, eventText, eventWind, flash,

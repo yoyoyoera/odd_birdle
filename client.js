@@ -4,6 +4,7 @@ const court = document.querySelector('#court');
 const ctx = court.getContext('2d');
 const stage = document.querySelector('#stage');
 const scoreboard = document.querySelector('#score');
+const sideLabel = document.querySelector('#side-label');
 const winnerLabel = document.querySelector('#winner');
 const status = document.querySelector('#status');
 const eventBanner = document.querySelector('#event-banner');
@@ -130,6 +131,8 @@ function updateHud(view) {
   const { phase, score, eventText = '', eventWind = false, winner, message = '' } = view;
   if (stage.dataset.phase !== phase) stage.dataset.phase = phase;
   scoreboard.hidden = !score;
+  sideLabel.hidden = mode !== 'online';
+  sideLabel.dataset.side = localSide;
   if (score) {
     const value = score.left + ':' + score.right;
     if (scoreboard.value !== value) scoreboard.value = value;
@@ -158,7 +161,7 @@ function setRacket(input) {
 
 function moveRacket(event) {
   const phase = currentView().phase;
-  if ((phase !== 'live' && phase !== 'between') || !event.isPrimary ||
+  if ((phase !== 'live' && phase !== 'between' && phase !== 'starting') || !event.isPrimary ||
       (event.pointerType !== 'mouse' && event.buttons === 0)) return;
   const bounds = court.getBoundingClientRect();
   const x = (event.clientX - bounds.left) * width / bounds.width;
