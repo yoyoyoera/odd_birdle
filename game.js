@@ -240,9 +240,11 @@ export function createGame({ withCpu = false } = {}) {
     clearEffect();
     updateOutline();
     if (reason === 'out') showEvent('out');
-    if (reason === 'own court' && Math.max(score.left, score.right) < pointsToWin - 1) {
+    const matchPoint = Math.max(score.left, score.right) === pointsToWin - 1;
+    if (!matchPoint && reason === 'own court') {
       showEvent(ownCourtReactions[Math.floor(Math.random() * ownCourtReactions.length)]);
     }
+    if (!matchPoint && reason === 'missed serve') showEvent('Sleepy?');
     score[side]++;
     server = side;
     if (score[side] === pointsToWin) {
@@ -536,7 +538,10 @@ export function createGame({ withCpu = false } = {}) {
       const out = shuttle.x < leftLine || shuttle.x > rightLine;
       const landingSide = shuttle.x < center ? 'left' : 'right';
       const winner = out ? opponent(lastHitter ?? server) : opponent(landingSide);
-      const reason = out ? 'out' : landingSide === lastHitter ? 'own court' : 'Landed';
+      let reason = 'Landed';
+      if (out) reason = 'out';
+      else if (!lastHitter) reason = 'missed serve';
+      else if (landingSide === lastHitter) reason = 'own court';
       if (withCpu) finishPoint(winner, reason);
       else pendingLanding = { winner, reason, remaining: 0.24 };
       return;
