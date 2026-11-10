@@ -58,6 +58,91 @@ export function shuttleOutline({ shape, size, angle }) {
   })));
 }
 
+function pointSegmentDistanceSquared(point, from, to) {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const lengthSquared = dx * dx + dy * dy;
+  const t = lengthSquared === 0 ? 0 : clamp(
+    ((point.x - from.x) * dx + (point.y - from.y) * dy) / lengthSquared, 0, 1
+  );
+  return (point.x - from.x - dx * t) ** 2 + (point.y - from.y - dy * t) ** 2;
+}
+
+function cross(from, to, point) {
+  return (to.x - from.x) * (point.y - from.y) - (to.y - from.y) * (point.x - from.x);
+}
+
+function outlineContact(from, to, radius, x, y, rings) {
+  const start = { x: from.x - x, y: from.y - y };
+  const end = { x: to.x - x, y: to.y - y };
+  const radiusSquared = radius * radius;
+  let inside = false;
+  for (const ring of rings) {
+    for (let i = 0; i < ring.length; i++) {
+      const a = ring[i];
+      const b = ring[(i + 1) % ring.length];
+      if ((a.y > start.y) !== (b.y > start.y) &&
+          start.x < a.x + (b.x - a.x) * (start.y - a.y) / (b.y - a.y)) {
+        inside = !inside;
+      }
+      if (cross(start, end, a) * cross(start, end, b) < 0 &&
+          cross(a, b, start) * cross(a, b, end) < 0) return true;
+      if (pointSegmentDistanceSquared(a, start, end) <= radiusSquared ||
+          pointSegmentDistanceSquared(start, a, b) <= radiusSquared ||
+          pointSegmentDistanceSquared(end, a, b) <= radiusSquared) return true;
+    }
+  }
+  return inside;
+}
+
+function flightProfile(kind, size) {
+  const sizeOffset = (size - 21) / 13;
+  return { gravity: baseGravity * kind.fall, airDrag: kind.drag * (1 + sizeOffset * 0.16) };
+}
+
+function advanceFlight(body, dt, scale, drag, terminalVelocity) {
+  body.x += body.vx * scale;
+  body.y += terminalVelocity * dt + (body.vy - terminalVelocity) * scale;
+  body.vx *= drag;
+  body.vy = terminalVelocity + (body.vy - terminalVelocity) * drag;
+}
+
+function flightScale(time, airDrag) {
+  return -Math.expm1(-airDrag * time) / airDrag;
+}
+
+function swingVelocity(x, y) {
+  const lift = 130 * (1 - clamp(Math.hypot(x, y) / 400, 0, 1));
+  return { vx: clamp(x * 0.92, -1800, 1800), vy: clamp(y * 0.82 - lift, -880, 1100) };
+}
+
+export function swingMotion(from, to) {
+  const elapsed = Math.max(8, to.time - from.time) / 1000;
+  return { vx: (to.x - from.x) / elapsed, vy: (to.y - from.y) / elapsed };
+}
+
+export function isSwing({ vx, vy }) {
+  return Math.hypot(vx, vy) >= 110;
+}
+
+export function contactMotion(racket, time) {
+  const age = time - racket.time;
+  return age >= 0 && age <= 48 && isSwing(racket) ? racket : { vx: 0, vy: 0 };
+}
+
+export function racketTouches(shuttle, from, to = from) {
+  return outlineContact(from, to, racketRadius, shuttle.x, shuttle.y, shuttleOutline(shuttle));
+}
+
+export function projectStrike(pose, motion, seconds) {
+  const velocity = swingVelocity(motion.vx, motion.vy);
+  const { gravity, airDrag } = flightProfile(shapes[pose.shape], pose.baseSize);
+  const result = { ...pose, ...velocity };
+  advanceFlight(result, seconds, flightScale(seconds, airDrag), Math.exp(-airDrag * seconds), gravity / airDrag);
+  result.angle += (velocity.vx / 92 + 1.4) * seconds;
+  return result;
+}
+
 export function createGame({ withCpu = false } = {}) {
   let winner;
   let message = '';
@@ -85,19 +170,12 @@ export function createGame({ withCpu = false } = {}) {
   let cpuPrediction;
   let flight = 0;
   let pendingLanding;
-  const holdStarted = {};
 
   const opponent = (side) => side === 'left' ? 'right' : 'left';
-
-  function flightProfile(kind, size) {
-    const sizeOffset = (size - 21) / 13;
-    return { gravity: baseGravity * kind.fall, airDrag: kind.drag * (1 + sizeOffset * 0.16) };
-  }
 
   function serve() {
     flight++;
     pendingLanding = undefined;
-    holdStarted.left = holdStarted.right = undefined;
     showEvent('');
     shape = shape < 0
       ? Math.floor(Math.random() * shapes.length)
@@ -214,10 +292,6 @@ export function createGame({ withCpu = false } = {}) {
     showEvent(String(Math.ceil(countdown - 1e-9)));
   }
 
-  function flightScale(time, airDrag) {
-    return -Math.expm1(-airDrag * time) / airDrag;
-  }
-
   function velocityToLandAt(targetX, vy) {
     const { gravity, airDrag } = shuttle;
     const terminalVelocity = gravity / airDrag;
@@ -236,7 +310,6 @@ export function createGame({ withCpu = false } = {}) {
   function launch(vx, vy, hitter) {
     flight++;
     pendingLanding = undefined;
-    holdStarted.left = holdStarted.right = undefined;
     shuttle.vx = vx;
     shuttle.vy = vy;
     shuttle.spin = vx / 92 + 1.4;
@@ -247,10 +320,8 @@ export function createGame({ withCpu = false } = {}) {
   }
 
   function playerHit(side, swingX, swingY) {
-    const speed = Math.hypot(swingX, swingY);
-    const lift = 130 * (1 - clamp(speed / 400, 0, 1));
-    launch(clamp(swingX * 0.92, -1800, 1800),
-      clamp(swingY * 0.82 - lift, -880, 1100), side);
+    const { vx, vy } = swingVelocity(swingX, swingY);
+    launch(vx, vy, side);
   }
 
   function onSide(side) {
@@ -267,45 +338,8 @@ export function createGame({ withCpu = false } = {}) {
     outlinePoints = outline.flat();
   }
 
-  function pointSegmentDistanceSquared(point, from, to) {
-    const dx = to.x - from.x;
-    const dy = to.y - from.y;
-    const lengthSquared = dx * dx + dy * dy;
-    const t = lengthSquared === 0 ? 0 : clamp(
-      ((point.x - from.x) * dx + (point.y - from.y) * dy) / lengthSquared, 0, 1
-    );
-    return (point.x - from.x - dx * t) ** 2 + (point.y - from.y - dy * t) ** 2;
-  }
-
-  function cross(from, to, point) {
-    return (to.x - from.x) * (point.y - from.y) - (to.y - from.y) * (point.x - from.x);
-  }
-
-  function outlineContact(from, to, radius, x = shuttle.x, y = shuttle.y, rings = outline) {
-    const start = { x: from.x - x, y: from.y - y };
-    const end = { x: to.x - x, y: to.y - y };
-    const radiusSquared = radius * radius;
-    let inside = false;
-    for (const ring of rings) {
-      for (let i = 0; i < ring.length; i++) {
-        const a = ring[i];
-        const b = ring[(i + 1) % ring.length];
-        if ((a.y > start.y) !== (b.y > start.y) &&
-            start.x < a.x + (b.x - a.x) * (start.y - a.y) / (b.y - a.y)) {
-          inside = !inside;
-        }
-        if (cross(start, end, a) * cross(start, end, b) < 0 &&
-            cross(a, b, start) * cross(a, b, end) < 0) return true;
-        if (pointSegmentDistanceSquared(a, start, end) <= radiusSquared ||
-            pointSegmentDistanceSquared(start, a, b) <= radiusSquared ||
-            pointSegmentDistanceSquared(end, a, b) <= radiusSquared) return true;
-      }
-    }
-    return inside;
-  }
-
   function racketContact(from, to) {
-    return outlineContact(from, to, racketRadius);
+    return outlineContact(from, to, racketRadius, shuttle.x, shuttle.y, outline);
   }
 
   function checkContact(side, from, to, swingX, swingY) {
@@ -325,11 +359,10 @@ export function createGame({ withCpu = false } = {}) {
     return { ...shuttlePose(), flight, canHit: hitCooldown <= 0 };
   }
 
-  function onlineContact(side, from, to, frame, sampleTime, hold = false) {
+  function onlineContact(side, from, to, frame, hold = false) {
     if (phase !== 'live' || !frame || frame.flight !== flight) return;
     if ((frame.x < center ? 'left' : 'right') !== side || !onSide(side)) {
       touching[side] = false;
-      holdStarted[side] = undefined;
       return;
     }
     const rings = shuttleOutline(frame);
@@ -339,24 +372,20 @@ export function createGame({ withCpu = false } = {}) {
       return;
     }
     if (!frame.canHit || !outlineContact(from, to, racketRadius, frame.x, frame.y, rings)) {
-      holdStarted[side] = undefined;
       return;
     }
-    if (hold) {
-      holdStarted[side] ??= sampleTime;
-      if (sampleTime - holdStarted[side] < 85) return;
-    } else if (Math.hypot(to.vx, to.vy) < 110) {
+    if (!hold && !isSwing(to)) {
       return;
     }
     // Rewind only the contact test. The new velocity starts at the current
     // position so all clients see a continuous path, including late saves.
-    playerHit(side, hold ? 0 : to.vx, hold ? 0 : to.vy);
+    playerHit(side, to.vx, to.vy);
     touching[side] = overlaps;
   }
 
-  function holdRacket(side, frame, sampleTime) {
+  function holdRacket(side, frame, time) {
     const racket = rackets[side];
-    if (racket) onlineContact(side, racket, racket, frame, sampleTime, true);
+    if (racket) onlineContact(side, racket, { ...racket, ...contactMotion(racket, time) }, frame, true);
   }
 
   function moveRacket(side, input, frame) {
@@ -364,7 +393,6 @@ export function createGame({ withCpu = false } = {}) {
     if (!input) {
       rackets[side] = undefined;
       touching[side] = false;
-      holdStarted[side] = undefined;
       return;
     }
     const next = {
@@ -377,9 +405,7 @@ export function createGame({ withCpu = false } = {}) {
       age: 0
     };
     const previous = rackets[side] ?? next;
-    const elapsed = Math.max(8, next.time - previous.time) / 1000;
-    next.vx = (next.x - previous.x) / elapsed;
-    next.vy = (next.y - previous.y) / elapsed;
+    Object.assign(next, swingMotion(previous, next));
     rackets[side] = next;
     if (withCpu) checkContact(side, previous, next, next.vx, next.vy);
     else onlineContact(side, previous, next, frame);
@@ -398,13 +424,6 @@ export function createGame({ withCpu = false } = {}) {
       const vy = -485 - Math.random() * 45;
       launch(velocityToLandAt(160 + Math.random() * 165, vy), vy, 'right');
     }
-  }
-
-  function advanceFlight(body, dt, scale, drag, terminalVelocity) {
-    body.x += body.vx * scale;
-    body.y += terminalVelocity * dt + (body.vy - terminalVelocity) * scale;
-    body.vx *= drag;
-    body.vy = terminalVelocity + (body.vy - terminalVelocity) * drag;
   }
 
   function simulate(dt) {
@@ -454,8 +473,8 @@ export function createGame({ withCpu = false } = {}) {
 
     const crossesCenter = (previousX - center) * (shuttle.x - center) < 0;
     const crossesNet = crossesCenter && outlineContact(netStart, netEnd, 2, center,
-      previousY + (shuttle.y - previousY) * (center - previousX) / (shuttle.x - previousX));
-    if (lastHitter && (crossesNet || outlineContact(netStart, netEnd, 2))) {
+      previousY + (shuttle.y - previousY) * (center - previousX) / (shuttle.x - previousX), outline);
+    if (lastHitter && (crossesNet || outlineContact(netStart, netEnd, 2, shuttle.x, shuttle.y, outline))) {
       finishPoint(opponent(lastHitter), 'Net');
       return;
     }
@@ -494,7 +513,7 @@ export function createGame({ withCpu = false } = {}) {
     return {
       phase, score, message, winner, eventText, eventWind, flash,
       shake: activeEffect?.id === 'shock' ? activeEffect.remaining : 0,
-      shuttle: visible ? shuttlePose() : undefined,
+      shuttle: visible ? { ...shuttlePose(), flight, baseSize: shuttle.size, canHit: hitCooldown <= 0 && !pendingLanding } : undefined,
       left: position(rackets.left),
       right: position(cpu ?? rackets.right)
     };

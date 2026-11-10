@@ -1,4 +1,4 @@
-import { center, clamp, createGame, floor, height, leftLine, netTop, racketRadius, rightLine, shuttleOutline, step, width } from './game.js';
+import { center, clamp, createGame, floor, height, leftLine, netTop, racketRadius, rightLine, shuttleOutline, step, width, contactMotion, isSwing, projectStrike, racketTouches, swingMotion } from './game.js';
 import { createPlayback } from './playback.js';
 
 const court = document.querySelector('#court');
@@ -47,6 +47,10 @@ let localSide = 'left';
 let localRacket;
 let lastFrame;
 let lastHold = -Infinity;
+let displayedShuttle;
+let prediction;
+let predictedFlight;
+let localOverlap = false;
 let accumulator = 0;
 
 function resize() {
@@ -75,12 +79,21 @@ function send(message) {
   if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
 }
 
+function resetPrediction() {
+  displayedShuttle = undefined;
+  prediction = undefined;
+  predictedFlight = undefined;
+  localOverlap = false;
+  lastHold = -Infinity;
+}
+
 function leave(message = '') {
   const previous = socket;
   socket = undefined;
   previous?.close();
   onlineView = undefined;
   playback.reset();
+  resetPrediction();
   localRacket = undefined;
   localSide = 'left';
   setMode('menu', message);
@@ -110,6 +123,7 @@ function connect(request) {
         localRacket = undefined;
         onlineView = message.state;
         playback.reset();
+        resetPrediction();
         playback.push(message.time, message.state, performance.now());
         setMode('online');
         break;
@@ -157,10 +171,59 @@ function currentView() {
   return mode === 'solo' ? solo.view() : onlineView ?? ready;
 }
 
+function predictContact(from, to, motion, time) {
+  const shuttle = displayedShuttle;
+  if (!shuttle || (shuttle.x < center ? 'left' : 'right') !== localSide) {
+    localOverlap = false;
+    return false;
+  }
+  const overlaps = racketTouches(shuttle, to);
+  if (localOverlap) {
+    if (!overlaps) localOverlap = false;
+    return false;
+  }
+  if (!shuttle.canHit || prediction || predictedFlight === shuttle.flight ||
+      (!overlaps && !racketTouches(shuttle, from, to))) return false;
+  localOverlap = overlaps;
+  predictedFlight = shuttle.flight;
+  prediction = { shuttle, motion, started: time };
+  return true;
+}
+
+function predictedView(view, time) {
+  if (!prediction) return view;
+  if (view.phase !== 'live' || !view.shuttle) {
+    prediction = undefined;
+    return view;
+  }
+  const elapsed = Math.max(0, time - prediction.started);
+  if (!prediction.correction) {
+    const projected = projectStrike(prediction.shuttle, prediction.motion, Math.min(elapsed, 280) / 1000);
+    const bottom = Math.max(...shuttleOutline(projected).flat().map(point => point.y));
+    projected.y = Math.min(projected.y, floor - bottom);
+    if (view.shuttle.flight === prediction.shuttle.flight && elapsed < 280) {
+      return { ...view, shuttle: projected, flash: Math.max(0, 0.22 - elapsed / 1000) };
+    }
+    prediction.correction = { started: time, x: projected.x - view.shuttle.x, y: projected.y - view.shuttle.y };
+  }
+  const { started, x, y } = prediction.correction;
+  const weight = Math.max(0, 1 - (time - started) / 70);
+  if (!weight) {
+    prediction = undefined;
+    return view;
+  }
+  return { ...view, shuttle: { ...view.shuttle, x: view.shuttle.x + x * weight, y: view.shuttle.y + y * weight } };
+}
+
 function setRacket(input) {
   if (mode === 'solo') solo.moveRacket('left', input);
   if (mode === 'online') {
-    localRacket = input;
+    const previous = localRacket;
+    localRacket = input ? { ...input, ...swingMotion(previous ?? input, input) } : undefined;
+    if (!input) localOverlap = false;
+    if (input && previous) {
+      if (isSwing(localRacket)) predictContact(previous, input, localRacket, performance.now());
+    }
     send({ type: 'racket', input, seenTime: playback.displayedTime });
   }
 }
@@ -255,12 +318,16 @@ function frame(time) {
   }
   lastFrame = time;
   const view = mode === 'online' ? playback.at(time) ?? currentView() : currentView();
-  if (mode === 'online' && localRacket && view.phase === 'live' && time - lastHold >= 45) {
-    lastHold = time;
-    send({ type: 'hold', seenTime: playback.displayedTime });
+  displayedShuttle = view.phase === 'live' ? view.shuttle : undefined;
+  if (mode === 'online' && localRacket && view.phase === 'live') {
+    const hit = predictContact(localRacket, localRacket, contactMotion(localRacket, time), time);
+    if (hit || time - lastHold >= 45) {
+      lastHold = time;
+      send({ type: 'hold', seenTime: playback.displayedTime, time });
+    }
   }
   updateHud(view);
-  draw(view);
+  draw(mode === 'online' ? predictedView(view, time) : view);
   requestAnimationFrame(frame);
 }
 
@@ -281,7 +348,7 @@ document.querySelector('#join').addEventListener('click', () => {
   codeInput.focus();
 });
 document.querySelector('#cpu').addEventListener('click', () => {
-  solo.restart();
+  solo.restart(3);
   accumulator = 0;
   setMode('solo');
 });

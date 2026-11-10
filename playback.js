@@ -40,13 +40,13 @@ export function createPlayback() {
     lastRendered = Math.min(target, (later ?? earlier).time);
     displayedTime = earlier.time;
     if (!later || target <= earlier.time || earlier.view.phase !== later.view.phase) return earlier.view;
-    displayedTime = target;
 
     const fraction = (target - earlier.time) / (later.time - earlier.time);
     const a = earlier.view;
     const b = later.view;
     const sameShuttle = a.shuttle && b.shuttle &&
-      a.shuttle.shape === b.shuttle.shape && a.shuttle.size === b.shuttle.size;
+      a.shuttle.flight === b.shuttle.flight && a.shuttle.shape === b.shuttle.shape && a.shuttle.size === b.shuttle.size;
+    if (sameShuttle) displayedTime = target;
     return {
       ...a,
       left: position(a.left, b.left, fraction),

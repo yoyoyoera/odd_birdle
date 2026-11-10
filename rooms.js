@@ -105,7 +105,7 @@ export function createRooms(randomIndex) {
           }
         }
         if (message.type === 'hold') {
-          room.game.holdRacket(side, frameAt(room, message.seenTime), message.seenTime);
+          room.game.holdRacket(side, frameAt(room, message.seenTime), message.time);
         }
         return;
       }
