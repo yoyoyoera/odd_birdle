@@ -1,5 +1,5 @@
 import { center, clamp, createGame, floor, height, leftLine, netTop, racketRadius, rightLine, shuttleOutline, step, width, contactMotion, isSwing, projectStrike, racketTouches, supportedShuttleY, swingMotion } from './game.js';
-import { createPlayback } from './playback.js';
+import { createPlayback, followStrikeClock } from './playback.js';
 
 const court = document.querySelector('#court');
 const ctx = court.getContext('2d');
@@ -50,6 +50,7 @@ let lastFrame;
 let lastHold = -Infinity;
 let displayedShuttle;
 let displayedFrozen = false;
+let displayedSupport;
 let prediction;
 let predictedFlight;
 let localOverlap = false;
@@ -84,6 +85,7 @@ function send(message) {
 function resetPrediction() {
   displayedShuttle = undefined;
   displayedFrozen = false;
+  displayedSupport = undefined;
   prediction = undefined;
   predictedFlight = undefined;
   localOverlap = false;
@@ -176,14 +178,14 @@ function currentView() {
   return mode === 'solo' ? solo.view() : onlineView ?? ready;
 }
 
-function predictContact(from, to, motion, time) {
+function predictContact(from, to, motion, time, moving = false) {
   const shuttle = displayedShuttle;
   if (!shuttle || (shuttle.x < center ? 'left' : 'right') !== localSide) {
     localOverlap = false;
     return false;
   }
   const overlaps = racketTouches(shuttle, to);
-  if (localOverlap) {
+  if (localOverlap && !(moving && displayedSupport === localSide && isSwing(motion))) {
     if (!overlaps) localOverlap = false;
     return false;
   }
@@ -195,6 +197,13 @@ function predictContact(from, to, motion, time) {
   return true;
 }
 
+function drawStrike(pose, motion, elapsed) {
+  const projected = projectStrike(pose, motion, elapsed / 1000);
+  const bottom = Math.max(...shuttleOutline(projected).flat().map(point => point.y));
+  projected.y = Math.min(projected.y, floor - bottom);
+  return projected;
+}
+
 function predictedView(view, time) {
   if (!prediction) return view;
   if (view.phase !== 'live' || !view.shuttle) {
@@ -202,17 +211,46 @@ function predictedView(view, time) {
     return view;
   }
   const elapsed = Math.max(0, time - prediction.started);
+  const strike = onlineView?.strike;
+  const confirmed = strike?.side === localSide && strike.fromFlight === prediction.shuttle.flight &&
+    view.shuttle.flight === strike.flight && !view.support;
+  if (confirmed && !prediction.correction) {
+    const targetAge = Math.max(0, playback.displayedTime - strike.time);
+    if (!prediction.confirmed) {
+      const local = drawStrike(prediction.shuttle, prediction.motion, elapsed);
+      const server = drawStrike(strike.pose, strike.motion, elapsed);
+      prediction.confirmed = {
+        age: elapsed, time, started: time, x: local.x - server.x, y: local.y - server.y,
+        angle: local.angle - server.angle
+      };
+    }
+    const sync = prediction.confirmed;
+    sync.age = followStrikeClock(sync.age, targetAge, time - sync.time);
+    sync.time = time;
+    const weight = Math.max(0, 1 - (time - sync.started) / 90);
+    const shuttle = drawStrike(strike.pose, strike.motion, sync.age);
+    if (!weight && Math.abs(sync.age - targetAge) <= 1) {
+      prediction = undefined;
+      return view;
+    }
+    prediction.lastPose = {
+      ...shuttle, x: shuttle.x + sync.x * weight, y: shuttle.y + sync.y * weight,
+      angle: shuttle.angle + sync.angle * weight
+    };
+    return { ...view, shuttle: prediction.lastPose };
+  }
+
   if (!prediction.correction) {
-    const projected = projectStrike(prediction.shuttle, prediction.motion, Math.min(elapsed, 280) / 1000);
-    const bottom = Math.max(...shuttleOutline(projected).flat().map(point => point.y));
-    projected.y = Math.min(projected.y, floor - bottom);
-    if (view.shuttle.flight === prediction.shuttle.flight && elapsed < 280) {
+    const projected = drawStrike(prediction.shuttle, prediction.motion, Math.min(elapsed, 280));
+    if (!prediction.confirmed && view.shuttle.flight === prediction.shuttle.flight && elapsed < 280) {
+      prediction.lastPose = projected;
       return { ...view, shuttle: projected, flash: Math.max(0, 0.22 - elapsed / 1000) };
     }
-    prediction.correction = { started: time, x: projected.x - view.shuttle.x, y: projected.y - view.shuttle.y };
+    const pose = prediction.lastPose ?? projected;
+    prediction.correction = { started: time, x: pose.x - view.shuttle.x, y: pose.y - view.shuttle.y };
   }
   const { started, x, y } = prediction.correction;
-  const weight = Math.max(0, 1 - (time - started) / 70);
+  const weight = Math.max(0, 1 - (time - started) / 90);
   if (!weight) {
     prediction = undefined;
     return view;
@@ -229,9 +267,10 @@ function setRacket(input) {
     if (!input) localOverlap = false;
     if (previous && localRacket && displayedShuttle && localRacket.vy < 0 && !isSwing(localRacket) &&
         (displayedShuttle.x < center ? 'left' : 'right') === localSide &&
-        supportedShuttleY(displayedShuttle, previous, localRacket) !== undefined) localOverlap = true;
-    if (input && previous) {
-      if (isSwing(localRacket)) predictContact(previous, input, localRacket, performance.now());
+        supportedShuttleY(displayedShuttle, previous, localRacket) !== undefined) {
+      localOverlap = true;
+    } else if (input) {
+      predictContact(previous ?? input, input, localRacket, performance.now(), true);
     }
     send({ type: 'racket', input, seenTime: playback.displayedTime });
   }
@@ -333,6 +372,7 @@ function frame(time) {
   }
   if (view.frozen && localRacket) Object.assign(localRacket, { vx: 0, vy: 0 });
   displayedFrozen = view.frozen;
+  displayedSupport = view.support;
   displayedShuttle = view.phase === 'live' && !view.frozen ? view.shuttle : undefined;
   if (mode === 'online' && localRacket && view.phase === 'live' && !view.frozen) {
     const hit = predictContact(localRacket, localRacket, contactMotion(localRacket, time), time);

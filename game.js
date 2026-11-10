@@ -136,7 +136,8 @@ export function isSwing({ vx, vy }) {
 
 export function contactMotion(racket, time) {
   const age = time - racket.time;
-  return age >= 0 && age <= 48 && isSwing(racket) ? racket : { vx: 0, vy: 0 };
+  const weight = Number.isFinite(age) ? clamp(1 - age / 85, 0, 1) : 0;
+  return { vx: racket.vx * weight, vy: racket.vy * weight };
 }
 
 export function racketTouches(shuttle, from, to = from) {
@@ -441,9 +442,6 @@ export function createGame({ withCpu = false } = {}) {
     if (!frame.canHit || !outlineContact(from, to, racketRadius, frame.x, frame.y, rings)) {
       return;
     }
-    if (!hold && !isSwing(to)) {
-      return;
-    }
     // Start at the same contact pose the striker saw, then catch up to the server clock.
     Object.assign(shuttle, { x: frame.x, y: frame.y, angle: frame.angle });
     playerHit(side, to.vx, to.vy);
@@ -686,8 +684,8 @@ export function createGame({ withCpu = false } = {}) {
       const racket = rackets[side];
       if (racket) {
         racket.age += dt;
-        const remainingSwing = Math.max(0, 1 - racket.age / 0.085);
-        checkContact(side, racket, racket, racket.vx * remainingSwing, racket.vy * remainingSwing);
+        const motion = contactMotion(racket, racket.time + racket.age * 1000);
+        checkContact(side, racket, racket, motion.vx, motion.vy);
       }
       moveCpu(dt);
     }

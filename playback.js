@@ -2,6 +2,12 @@ import { projectStrike } from './game.js';
 
 const bufferMs = 70;
 
+// Approach the buffered clock along the confirmed flight, without rewinding it.
+export function followStrikeClock(age, targetAge, elapsed) {
+  const dt = Math.max(0, elapsed);
+  return age + Math.max(dt * 0.5, Math.min(targetAge - age, dt * 1.5));
+}
+
 function mix(a, b, fraction) {
   return a + (b - a) * fraction;
 }
