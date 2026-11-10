@@ -13,6 +13,10 @@
     h1 { margin: 0 0 clamp(12px, 2vw, 20px); color: #e8ebd6; text-align: center;
       font-size: clamp(2rem, 8vw, 5rem); font-weight: 650; line-height: 1; letter-spacing: -.04em; }
     #stage { position: relative; }
+    #studio-link { display: grid; place-items: center; width: 44px; height: 44px;
+      margin: 8px auto 0; color: #e8ebd6; }
+    #studio-link:hover { background: #293737; }
+    #studio-link:focus-visible { outline: 2px solid currentColor; outline-offset: -3px; }
     canvas { display: block; width: 100%; aspect-ratio: 9 / 5; background: #e8ebd6;
       touch-action: none; cursor: none; }
     #stage[data-phase="ready"] canvas, #stage[data-phase="finished"] canvas { cursor: default; }
@@ -83,6 +87,15 @@
       </svg>
     </button>
   </section>
+  <a id="studio-link" href="https://studiyo.pages.dev/" target="_blank" rel="noopener"
+    aria-label="studiyo website (opens in a new tab)" title="studiyo website">
+    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.6" aria-hidden="true">
+      <circle cx="12" cy="12" r="9"/>
+      <ellipse cx="12" cy="12" rx="4" ry="9"/>
+      <path d="M3 12h18"/>
+    </svg>
+  </a>
 </main>
 <script type="module" src="./client.js"></script>
 </body>
