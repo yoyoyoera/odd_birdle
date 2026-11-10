@@ -39,11 +39,11 @@ const baseGravity = 760;
 export const step = 1 / 120;
 const faultReactions = ['Pardon?', 'LOL', 'Oops!', 'Nice try.', 'Wrong way.'];
 const cpuLevels = [
-  { speed: 0.65, spikeChance: 0.04 },
-  { speed: 0.82, spikeChance: 0.12 },
+  { speed: 0.65, spikeChance: 0.04, outChance: 0.15 },
+  { speed: 0.82, spikeChance: 0.12, outChance: 0.08 },
   { speed: 1, spikeChance: 0.25 },
-  { speed: 1.16, spikeChance: 0.40 },
-  { speed: 1.60, spikeChance: 0.60 }
+  { speed: 1.16, spikeChance: 0.40, outMargin: 32 },
+  { speed: 1.60, spikeChance: 0.60, outMargin: 8 }
 ];
 const effects = [
   { id: 'shock', label: 'SHOCK', duration: 0.55 },
@@ -345,19 +345,23 @@ export function createGame({ withCpu = false } = {}) {
     showEvent(String(Math.ceil(countdown - 1e-9)));
   }
 
-  function velocityToLandAt(targetX, vy) {
+  function landingScale(y, vy, landingY) {
     const { gravity, airDrag } = shuttle;
     const terminalVelocity = gravity / airDrag;
-    const landingY = floor - Math.max(...outlinePoints.map(point => point.y));
     let low = 0;
     let high = 3;
     for (let i = 0; i < 12; i++) {
       const time = (low + high) / 2;
-      const y = shuttle.y + terminalVelocity * time + (vy - terminalVelocity) * flightScale(time, airDrag);
-      if (y < landingY) low = time;
+      const predictedY = y + terminalVelocity * time + (vy - terminalVelocity) * flightScale(time, airDrag);
+      if (predictedY < landingY) low = time;
       else high = time;
     }
-    return (targetX - shuttle.x) / flightScale(high, airDrag);
+    return flightScale(high, airDrag);
+  }
+
+  function velocityToLandAt(targetX, vy) {
+    const landingY = floor - Math.max(...outlinePoints.map(point => point.y));
+    return (targetX - shuttle.x) / landingScale(shuttle.y, vy, landingY);
   }
 
   function launch(vx, vy, hitter) {
@@ -510,13 +514,19 @@ export function createGame({ withCpu = false } = {}) {
     const tracking = defending || preparing;
     const targetX = tracking ? clamp(defending ? tracked.x : projectedX, center + racketRadius, rightLine - 24) : 660;
     const targetY = tracking ? clamp(tracked.y + 24, 205, floor - 14) : 300;
-    const { speed, spikeChance } = cpuLevels[cpuLevel - 1];
+    const { speed, spikeChance, outChance, outMargin } = cpuLevels[cpuLevel - 1];
     const travel = speed * dt;
     cpu.x += clamp(targetX - cpu.x, -290 * travel, 290 * travel);
     cpu.y += clamp(targetY - cpu.y, -340 * travel, 340 * travel);
     if (defending && tracked.x <= rightLine && shuttle.x >= center && shuttle.x <= rightLine &&
         lastHitter !== 'right' && hitCooldown <= 0 &&
         racketContact(cpu, cpu)) {
+      if (outMargin !== undefined && lastHitter === 'left' && tracked.vx > 0) {
+        // Even the earliest possible floor contact must land past the line.
+        const radius = Math.max(...outlinePoints.map(point => Math.hypot(point.x, point.y)));
+        const landingX = tracked.x + tracked.vx * landingScale(tracked.y, tracked.vy, floor - radius);
+        if (landingX > rightLine + outMargin) return;
+      }
       if (lastHitter === 'left' && shuttle.y <= netTop - 65 && Math.random() < spikeChance) {
         const target = 205 + Math.random() * 120;
         const vy = 110;
@@ -531,7 +541,10 @@ export function createGame({ withCpu = false } = {}) {
         }
       }
       const vy = -485 - Math.random() * 45;
-      launch(velocityToLandAt(160 + Math.random() * 165, vy), vy, 'right');
+      const target = outChance && Math.random() < outChance
+        ? leftLine - 16 - Math.random() * 20
+        : 160 + Math.random() * 165;
+      launch(velocityToLandAt(target, vy), vy, 'right');
     }
   }
 
