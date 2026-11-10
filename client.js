@@ -5,7 +5,6 @@ const court = document.querySelector('#court');
 const ctx = court.getContext('2d');
 const stage = document.querySelector('#stage');
 const scoreboard = document.querySelector('#score');
-const targetScore = document.querySelector('#target-score');
 const sideLabel = document.querySelector('#side-label');
 const winnerLabel = document.querySelector('#winner');
 const status = document.querySelector('#status');
@@ -47,6 +46,7 @@ let mode = 'menu';
 let localSide = 'left';
 let localRacket;
 let lastFrame;
+let lastHold = -Infinity;
 let accumulator = 0;
 
 function resize() {
@@ -135,11 +135,9 @@ function connect(request) {
 }
 
 function updateHud(view) {
-  const { phase, score, pointsToWin, eventText = '', eventWind = false, winner, message = '' } = view;
+  const { phase, score, eventText = '', eventWind = false, winner, message = '' } = view;
   if (stage.dataset.phase !== phase) stage.dataset.phase = phase;
   scoreboard.hidden = !score;
-  targetScore.hidden = !pointsToWin || phase === 'finished';
-  setText(targetScore, pointsToWin ? 'FIRST TO ' + pointsToWin : '');
   sideLabel.hidden = mode !== 'online';
   sideLabel.dataset.side = localSide;
   if (score) {
@@ -164,7 +162,7 @@ function setRacket(input) {
   if (mode === 'solo') solo.moveRacket('left', input);
   if (mode === 'online') {
     localRacket = input;
-    send({ type: 'racket', input });
+    send({ type: 'racket', input, seenTime: playback.displayedTime });
   }
 }
 
@@ -258,6 +256,10 @@ function frame(time) {
   }
   lastFrame = time;
   const view = mode === 'online' ? playback.at(time) ?? currentView() : currentView();
+  if (mode === 'online' && localRacket && view.phase === 'live' && time - lastHold >= 45) {
+    lastHold = time;
+    send({ type: 'hold', seenTime: playback.displayedTime });
+  }
   updateHud(view);
   draw(view);
   requestAnimationFrame(frame);

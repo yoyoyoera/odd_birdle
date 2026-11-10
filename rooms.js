@@ -29,10 +29,18 @@ export function createRooms(randomIndex) {
 
   function start(room, firstMatch = false) {
     room.game.restart(firstMatch ? 3 : 0);
+    room.history = [];
     const state = room.game.view();
     const time = simulationTick * step * 1000;
     send(room.left, { type: 'start', side: 'left', time, state });
     send(room.right, { type: 'start', side: 'right', time, state });
+  }
+
+  function frameAt(room, seenTime) {
+    const now = simulationTick * step * 1000;
+    if (!Number.isFinite(seenTime) || seenTime > now || now - seenTime > 320) return undefined;
+    const sample = room.history.findLast(entry => entry.time <= seenTime);
+    return sample?.frame;
   }
 
   function closeRoom(room, departing) {
@@ -80,8 +88,11 @@ export function createRooms(randomIndex) {
         if (message.type === 'racket') {
           const input = message.input;
           if (input === null || (input && [input.x, input.y, input.time].every(Number.isFinite))) {
-            room.game.moveRacket(side, input);
+            room.game.moveRacket(side, input, frameAt(room, message.seenTime));
           }
+        }
+        if (message.type === 'hold') {
+          room.game.holdRacket(side, frameAt(room, message.seenTime), message.seenTime);
         }
         return;
       }
@@ -115,9 +126,14 @@ export function createRooms(randomIndex) {
     accumulator += elapsed;
     snapshotTime += elapsed;
     while (accumulator >= step) {
-      for (const room of rooms.values()) room.game?.simulate(step);
-      accumulator -= step;
       simulationTick++;
+      for (const room of rooms.values()) {
+        if (!room.game) continue;
+        room.game.simulate(step);
+        room.history.push({ time: simulationTick * step * 1000, frame: room.game.contactFrame() });
+        if (room.history.length > 42) room.history.shift();
+      }
+      accumulator -= step;
     }
     if (snapshotTime >= 1 / 60) {
       snapshotTime %= 1 / 60;

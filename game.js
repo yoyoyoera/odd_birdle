@@ -83,6 +83,9 @@ export function createGame({ withCpu = false } = {}) {
   let countdown;
   let activeEffect;
   let cpuPrediction;
+  let flight = 0;
+  let pendingLanding;
+  const holdStarted = {};
 
   const opponent = (side) => side === 'left' ? 'right' : 'left';
 
@@ -92,6 +95,9 @@ export function createGame({ withCpu = false } = {}) {
   }
 
   function serve() {
+    flight++;
+    pendingLanding = undefined;
+    holdStarted.left = holdStarted.right = undefined;
     showEvent('');
     shape = shape < 0
       ? Math.floor(Math.random() * shapes.length)
@@ -228,6 +234,9 @@ export function createGame({ withCpu = false } = {}) {
   }
 
   function launch(vx, vy, hitter) {
+    flight++;
+    pendingLanding = undefined;
+    holdStarted.left = holdStarted.right = undefined;
     shuttle.vx = vx;
     shuttle.vy = vy;
     shuttle.spin = vx / 92 + 1.4;
@@ -272,12 +281,12 @@ export function createGame({ withCpu = false } = {}) {
     return (to.x - from.x) * (point.y - from.y) - (to.y - from.y) * (point.x - from.x);
   }
 
-  function outlineContact(from, to, radius, x = shuttle.x, y = shuttle.y) {
+  function outlineContact(from, to, radius, x = shuttle.x, y = shuttle.y, rings = outline) {
     const start = { x: from.x - x, y: from.y - y };
     const end = { x: to.x - x, y: to.y - y };
     const radiusSquared = radius * radius;
     let inside = false;
-    for (const ring of outline) {
+    for (const ring of rings) {
       for (let i = 0; i < ring.length; i++) {
         const a = ring[i];
         const b = ring[(i + 1) % ring.length];
@@ -311,11 +320,45 @@ export function createGame({ withCpu = false } = {}) {
     }
   }
 
-  function moveRacket(side, input) {
+  function contactFrame() {
+    if (phase !== 'live' || pendingLanding) return undefined;
+    return { ...shuttlePose(), flight, canHit: hitCooldown <= 0 };
+  }
+
+  function onlineContact(side, from, to, frame, sampleTime, hold = false) {
+    if (phase !== 'live' || !frame?.canHit || frame.flight !== flight ||
+        (frame.x < center ? 'left' : 'right') !== side) {
+      holdStarted[side] = undefined;
+      return;
+    }
+    const rings = shuttleOutline(frame);
+    if (!outlineContact(from, to, racketRadius, frame.x, frame.y, rings)) {
+      holdStarted[side] = undefined;
+      return;
+    }
+    if (hold) {
+      holdStarted[side] ??= sampleTime;
+      if (sampleTime - holdStarted[side] < 85) return;
+    } else if (Math.hypot(to.vx, to.vy) < 110) {
+      return;
+    }
+    // Start the new flight at the verified contact point, even if it has since landed.
+    Object.assign(shuttle, { x: frame.x, y: frame.y, angle: frame.angle });
+    playerHit(side, hold ? 0 : to.vx, hold ? 0 : to.vy);
+    updateOutline();
+  }
+
+  function holdRacket(side, frame, sampleTime) {
+    const racket = rackets[side];
+    if (racket) onlineContact(side, racket, racket, frame, sampleTime, true);
+  }
+
+  function moveRacket(side, input, frame) {
     if (phase !== 'live' && phase !== 'between' && phase !== 'starting') return;
     if (!input) {
       rackets[side] = undefined;
       touching[side] = false;
+      holdStarted[side] = undefined;
       return;
     }
     const next = {
@@ -332,7 +375,8 @@ export function createGame({ withCpu = false } = {}) {
     next.vx = (next.x - previous.x) / elapsed;
     next.vy = (next.y - previous.y) / elapsed;
     rackets[side] = next;
-    checkContact(side, previous, next, next.vx, next.vy);
+    if (withCpu) checkContact(side, previous, next, next.vx, next.vy);
+    else onlineContact(side, previous, next, frame);
   }
 
   function moveCpu(dt) {
@@ -375,6 +419,16 @@ export function createGame({ withCpu = false } = {}) {
       return;
     }
 
+    if (pendingLanding) {
+      pendingLanding.remaining -= dt;
+      if (pendingLanding.remaining <= 0) {
+        const { winner, reason } = pendingLanding;
+        pendingLanding = undefined;
+        finishPoint(winner, reason);
+      }
+      return;
+    }
+
     updateEvent(dt);
     hitCooldown = Math.max(0, hitCooldown - dt);
     flash = Math.max(0, flash - dt);
@@ -409,25 +463,30 @@ export function createGame({ withCpu = false } = {}) {
       shuttle.y = floor - bottom;
       const out = shuttle.x < leftLine || shuttle.x > rightLine;
       const landingSide = shuttle.x < center ? 'left' : 'right';
-      finishPoint(out ? opponent(lastHitter ?? server) : opponent(landingSide), out ? 'out' : 'Landed');
+      const winner = out ? opponent(lastHitter ?? server) : opponent(landingSide);
+      const reason = out ? 'out' : 'Landed';
+      if (withCpu) finishPoint(winner, reason);
+      else pendingLanding = { winner, reason, remaining: 0.24 };
       return;
     }
 
-    for (const side of ['left', 'right']) {
+    if (withCpu) {
+      const side = 'left';
       const racket = rackets[side];
-      if (!racket) continue;
-      racket.age += dt;
-      const remainingSwing = Math.max(0, 1 - racket.age / 0.085);
-      checkContact(side, racket, racket, racket.vx * remainingSwing, racket.vy * remainingSwing);
+      if (racket) {
+        racket.age += dt;
+        const remainingSwing = Math.max(0, 1 - racket.age / 0.085);
+        checkContact(side, racket, racket, racket.vx * remainingSwing, racket.vy * remainingSwing);
+      }
+      moveCpu(dt);
     }
-    if (withCpu) moveCpu(dt);
   }
 
   function view() {
     const visible = shuttle && phase !== 'starting' && activeEffect?.id !== 'invisible';
     const position = (racket) => racket && { x: racket.x, y: racket.y };
     return {
-      phase, score, pointsToWin, message, winner, eventText, eventWind, flash,
+      phase, score, message, winner, eventText, eventWind, flash,
       shake: activeEffect?.id === 'shock' ? activeEffect.remaining : 0,
       shuttle: visible ? shuttlePose() : undefined,
       left: position(rackets.left),
@@ -435,5 +494,5 @@ export function createGame({ withCpu = false } = {}) {
     };
   }
 
-  return { restart, moveRacket, simulate, view };
+  return { restart, moveRacket, holdRacket, contactFrame, simulate, view };
 }

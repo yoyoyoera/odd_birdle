@@ -13,11 +13,13 @@ export function createPlayback() {
   const samples = [];
   let clockOffset;
   let lastRendered = -Infinity;
+  let displayedTime;
 
   function reset() {
     samples.length = 0;
     clockOffset = undefined;
     lastRendered = -Infinity;
+    displayedTime = undefined;
   }
 
   function push(time, view, receivedAt) {
@@ -36,7 +38,9 @@ export function createPlayback() {
     while (samples.length > 1 && samples[1].time <= target) samples.shift();
     const [earlier, later] = samples;
     lastRendered = Math.min(target, (later ?? earlier).time);
+    displayedTime = earlier.time;
     if (!later || target <= earlier.time || earlier.view.phase !== later.view.phase) return earlier.view;
+    displayedTime = target;
 
     const fraction = (target - earlier.time) / (later.time - earlier.time);
     const a = earlier.view;
@@ -55,5 +59,5 @@ export function createPlayback() {
     };
   }
 
-  return { reset, push, at };
+  return { reset, push, at, get displayedTime() { return displayedTime; } };
 }
