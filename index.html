@@ -6,54 +6,45 @@
   <title>Odd Birdle — 배드민턴</title>
   <style>
     * { box-sizing: border-box; }
-    body { margin: 0; background: #182223; color: #f7f6e9; font: 16px system-ui, sans-serif; }
-    main { width: min(940px, 100% - 32px); margin: 32px auto; }
-    header, footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
-    h1 { margin: 4px 0 16px; font-size: clamp(2rem, 6vw, 4rem); line-height: 1; }
-    small { color: #c5ea8f; font-weight: 700; letter-spacing: .14em; }
-    .score { display: flex; gap: 16px; margin-bottom: 12px; }
-    .score div { min-width: 78px; color: #d4dfd8; }
-    output { display: block; color: #f7f6e9; font-size: 1.65rem; font-weight: 800; }
+    body { margin: 0; min-height: 100vh; min-height: 100svh; display: grid; place-items: center;
+      background: #182223; font: 16px system-ui, sans-serif; }
+    main { position: relative; width: min(940px, 100% - 32px); }
     canvas { display: block; width: 100%; aspect-ratio: 9 / 5; background: #e8ebd6;
-      border-radius: 16px; touch-action: none; cursor: none; }
-    .court-wrap { position: relative; }
-    #event-banner { position: absolute; top: 8%; left: 50%; transform: translateX(-50%);
-      z-index: 1; padding: 8px 15px; border-radius: 999px; color: #f7f6e9; background: #203a31;
-      font-size: clamp(.75rem, 3vw, 1rem); font-weight: 800; white-space: nowrap; pointer-events: none; }
+      touch-action: none; cursor: none; }
+    main[data-phase="ready"] canvas, main[data-phase="finished"] canvas { cursor: default; }
+    #score { position: absolute; inset: 50% auto auto 50%; transform: translate(-50%, -50%);
+      color: #274d3b; opacity: .45; font: 650 clamp(1.5rem, 6vw, 3.5rem)/1 system-ui, sans-serif;
+      font-variant-numeric: tabular-nums; pointer-events: none; }
+    main[data-phase="ready"] #score, main[data-phase="finished"] #score { opacity: 1; }
+    #event-banner { position: absolute; top: 7%; left: 50%; transform: translateX(-50%);
+      color: #274d3b; background: #e8ebd6; padding: 3px 7px;
+      font-size: clamp(.75rem, 3vw, 1rem); font-weight: 650; white-space: nowrap; pointer-events: none; }
+    #game-control { position: absolute; top: 8px; right: 8px; display: grid; place-items: center;
+      width: 44px; height: 44px; border: 0; background: #e8ebd6; color: #274d3b; cursor: pointer; }
+    #game-control:hover { background: #d7dec6; }
+    #game-control:focus-visible { outline: 2px solid currentColor; outline-offset: -3px; }
+    main[data-phase="ready"] #game-control, main[data-phase="finished"] #game-control {
+      top: calc(50% + clamp(1rem, 4vw, 2rem)); right: auto; left: 50%; transform: translateX(-50%); }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden;
+      clip-path: inset(50%); white-space: nowrap; }
     [hidden] { display: none !important; }
-    .actions { display: flex; flex-wrap: wrap; gap: 8px; }
-    #mode { background: #334445; color: #f7f6e9; }
-    #status { margin: 0 0 10px; min-height: 1.5em; color: #d4dfd8; }
-    footer { margin-top: 12px; color: #d4dfd8; }
-    button { border: 0; border-radius: 8px; padding: 10px 16px; background: #c5ea8f;
-      color: #182223; font: inherit; font-weight: 700; cursor: pointer; }
   </style>
 </head>
 <body>
-<main>
-  <header>
-    <div><small>STUDIYO / ARCADE BADMINTON</small><h1>Odd Birdle</h1></div>
-    <div class="score" id="match-score">
-      <div>나<output id="player-score">0</output></div>
-      <div>CPU<output id="cpu-score">0</output></div>
-    </div>
-    <div class="score" id="practice-score" hidden>
-      <div>콤보<output id="combo" aria-live="off">0</output></div>
-      <div>최고<output id="best" aria-live="off">0</output></div>
-    </div>
-  </header>
-  <p id="status" role="status"></p>
-  <div class="court-wrap">
-    <canvas id="court" aria-label="마우스나 손가락으로 셔틀을 받아치는 배드민턴 코트"></canvas>
-    <div id="event-banner" role="status" hidden></div>
-  </div>
-  <footer>
-    <span>가만히 닿으면 살짝 튕겨요. 원하는 방향으로 휘두르세요. 아래로 내리치면 스파이크!</span>
-    <div class="actions">
-      <button id="mode" type="button">연습장</button>
-      <button id="restart" type="button">다시 시작</button>
-    </div>
-  </footer>
+<main data-phase="ready">
+  <canvas id="court" aria-label="마우스나 손가락으로 셔틀을 받아치는 배드민턴 코트"></canvas>
+  <output id="score" aria-label="나와 CPU의 점수">0:0</output>
+  <span id="status" class="sr-only" role="status"></span>
+  <div id="event-banner" role="status" hidden></div>
+  <button id="game-control" type="button" aria-label="시작" title="시작">
+    <svg id="play-icon" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+      <path fill="currentColor" d="M8 4v16l12-8z"/>
+    </svg>
+    <svg id="restart-icon" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" hidden>
+      <path d="M4 5v5h5M4.7 10a7.5 7.5 0 1 1 .7 7" fill="none" stroke="currentColor"
+        stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </button>
 </main>
 <script type="module">
   const court = document.querySelector('#court');
@@ -61,13 +52,11 @@
   const status = document.querySelector('#status');
   const eventBanner = document.querySelector('#event-banner');
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-  const modeButton = document.querySelector('#mode');
-  const scoreLabels = {
-    player: document.querySelector('#player-score'),
-    cpu: document.querySelector('#cpu-score')
-  };
-  const comboLabel = document.querySelector('#combo');
-  const bestLabel = document.querySelector('#best');
+  const stage = document.querySelector('main');
+  const scoreboard = document.querySelector('#score');
+  const gameControl = document.querySelector('#game-control');
+  const playIcon = document.querySelector('#play-icon');
+  const restartIcon = document.querySelector('#restart-icon');
   // Vertices are shared by the renderer and collision checks.
   const shapes = [
     [[0, -1], [0.94, 0.76], [-0.94, 0.76]],
@@ -103,10 +92,7 @@
     { id: 'balloon', label: '벌룬', duration: 2 }
   ];
 
-  let practice = false;
   let score;
-  let combo = 0;
-  let best = 0;
   let shape = -1;
   let shuttle;
   let outline;
@@ -114,7 +100,7 @@
   let cpu;
   let server;
   let lastHitter;
-  let phase;
+  let phase = 'ready';
   let phaseTime;
   let hitCooldown;
   let touchingPlayer;
@@ -143,24 +129,36 @@
     shape = shape < 0
       ? Math.floor(Math.random() * shapes.length)
       : (shape + 1 + Math.floor(Math.random() * (shapes.length - 1))) % shapes.length;
-    const x = practice ? width * (0.36 + Math.random() * 0.28) : server === 'player' ? 245 : 660;
+    const x = server === 'player' ? 245 : 660;
     shuttle = { x, y: 56, vx: 0, vy: 35, angle: 0, spin: 0.8, size: 13 + Math.random() * 16 };
     updateOutline();
     cpu = { x: 660, y: 300 };
-    phase = 'live';
+    setPhase('live');
     lastHitter = undefined;
     hitCooldown = 0;
     touchingPlayer = false;
     flash = 0;
-    combo = 0;
-    comboLabel.value = combo;
-    status.textContent = practice ? '셔틀을 연속으로 띄워 보세요.' : server === 'player' ? '내 서브 · 떨어지는 셔틀을 받아치세요' : 'CPU 서브';
+    status.textContent = server === 'player' ? '내 서브' : 'CPU 서브';
+  }
+
+  function setPhase(next) {
+    phase = next;
+    stage.dataset.phase = next;
+    const ready = next === 'ready';
+    const label = ready ? '시작' : '다시 시작';
+    gameControl.setAttribute('aria-label', label);
+    gameControl.title = label;
+    playIcon.toggleAttribute('hidden', !ready);
+    restartIcon.toggleAttribute('hidden', ready);
+  }
+
+  function updateScore() {
+    scoreboard.value = score.player + ':' + score.cpu;
   }
 
   function restart() {
     score = { player: 0, cpu: 0 };
-    scoreLabels.player.value = 0;
-    scoreLabels.cpu.value = 0;
+    updateScore();
     server = 'player';
     pendingEffect = undefined;
     clearEffect();
@@ -169,22 +167,17 @@
   }
 
   function finishPoint(winner, reason) {
-    if (practice) {
-      phase = 'between';
-      phaseTime = 0.55;
-      return;
-    }
-
     clearEffect();
     updateOutline();
-    scoreLabels[winner].value = ++score[winner];
+    score[winner]++;
+    updateScore();
     server = winner;
     if (score[winner] === pointsToWin) {
-      phase = 'finished';
+      setPhase('finished');
       status.textContent = winner === 'player' ? '승리! 다시 시작으로 한 경기 더' : 'CPU 승리 · 다시 시작으로 재도전';
       return;
     }
-    phase = 'between';
+    setPhase('between');
     phaseTime = 0.85;
     status.textContent = reason + ' · ' + (winner === 'player' ? '내 득점' : 'CPU 득점');
   }
@@ -225,7 +218,6 @@
   }
 
   function updateEvent(dt) {
-    if (practice) return;
     if (activeEffect) {
       activeEffect.remaining -= dt;
       if (activeEffect.remaining <= 1e-9) clearEffect();
@@ -274,7 +266,7 @@
     lastHitter = hitter;
     hitCooldown = 0.14;
     flash = 0.22;
-    if (!practice) status.textContent = '랠리 중 · 먼저 7점';
+    status.textContent = '랠리 중';
   }
 
   function playerHit(swingX, swingY) {
@@ -282,15 +274,10 @@
     const lift = 130 * (1 - clamp(speed / 400, 0, 1));
     launch(clamp(swingX * 0.92, -1800, 1800),
       clamp(swingY * 0.82 - lift, -880, 1100), 'player');
-    if (practice) {
-      comboLabel.value = ++combo;
-      best = Math.max(best, combo);
-      bestLabel.value = best;
-    }
   }
 
   function onPlayerSide() {
-    return practice || shuttle.x < center;
+    return shuttle.x < center;
   }
 
   function updateOutline() {
@@ -354,9 +341,10 @@
   }
 
   function moveRacket(event) {
+    if (phase === 'ready' || phase === 'finished') return;
     if (!event.isPrimary || (event.pointerType !== 'mouse' && event.buttons === 0)) return;
     const bounds = court.getBoundingClientRect();
-    const maxX = practice ? width : center - racketRadius;
+    const maxX = center - racketRadius;
     const next = {
       x: clamp((event.clientX - bounds.left) * width / bounds.width, 0, maxX),
       y: clamp((event.clientY - bounds.top) * height / bounds.height, 0, floor),
@@ -396,7 +384,7 @@
   }
 
   function simulate(dt) {
-    if (phase === 'finished') return;
+    if (phase === 'ready' || phase === 'finished') return;
     if (phase === 'between') {
       phaseTime -= dt;
       if (phaseTime <= 0) serve();
@@ -417,24 +405,17 @@
     const right = Math.max(...outline.map(point => point.x));
     const bottom = Math.max(...outline.map(point => point.y));
 
-    if (practice) {
-      if (shuttle.x + left < 0 || shuttle.x + right > width) {
-        shuttle.x = clamp(shuttle.x, -left, width - right);
-        shuttle.vx *= -0.65;
-      }
-    } else {
-      const crossesCenter = (previousX - center) * (shuttle.x - center) < 0;
-      const crossesNet = crossesCenter && outlineContact(netStart, netEnd, 2, center,
-        previousY + (shuttle.y - previousY) * (center - previousX) / (shuttle.x - previousX));
-      if (lastHitter && (crossesNet || outlineContact(netStart, netEnd, 2))) {
-        finishPoint(opponent(lastHitter), '네트');
-        return;
-      }
-      if (lastHitter && (shuttle.x + right < 0 || shuttle.x + left > width)) {
-        shuttle.x = clamp(shuttle.x, -left, width - right);
-        finishPoint(opponent(lastHitter), '아웃');
-        return;
-      }
+    const crossesCenter = (previousX - center) * (shuttle.x - center) < 0;
+    const crossesNet = crossesCenter && outlineContact(netStart, netEnd, 2, center,
+      previousY + (shuttle.y - previousY) * (center - previousX) / (shuttle.x - previousX));
+    if (lastHitter && (crossesNet || outlineContact(netStart, netEnd, 2))) {
+      finishPoint(opponent(lastHitter), '네트');
+      return;
+    }
+    if (lastHitter && (shuttle.x + right < 0 || shuttle.x + left > width)) {
+      shuttle.x = clamp(shuttle.x, -left, width - right);
+      finishPoint(opponent(lastHitter), '아웃');
+      return;
     }
 
     if (shuttle.y + bottom >= floor) {
@@ -450,7 +431,7 @@
       const remainingSwing = Math.max(0, 1 - racket.age / 0.085);
       checkPlayerContact(racket, racket, racket.vx * remainingSwing, racket.vy * remainingSwing);
     }
-    if (!practice) moveCpu(dt);
+    moveCpu(dt);
   }
 
   function drawRacket(position, fill, stroke) {
@@ -469,19 +450,13 @@
     ctx.fillStyle = '#c0cbb4';
     ctx.fillRect(0, floor, width, height - floor);
     ctx.fillStyle = '#6d8e72';
-    ctx.fillRect(practice ? 0 : leftLine, floor, practice ? width : rightLine - leftLine, 8);
-    if (practice) return;
+    ctx.fillRect(leftLine, floor, rightLine - leftLine, 8);
 
     ctx.fillStyle = '#476755';
     ctx.fillRect(center - 2, netTop, 4, floor - netTop);
     ctx.fillRect(center - 9, netTop, 18, 4);
     ctx.fillStyle = '#f7f6e9';
     for (const x of [leftLine, center, rightLine]) ctx.fillRect(x - 2, floor, 4, 8);
-    ctx.font = '700 16px system-ui';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('YOU', center / 2, 475);
-    ctx.fillText('CPU', center * 1.5, 475);
   }
 
   function draw() {
@@ -492,10 +467,11 @@
       ctx.translate(Math.sin(t * 91) * 17 * t, Math.cos(t * 117) * 12 * t);
     }
     drawCourt();
-    if (!practice) drawRacket(cpu, '#cf936b99', '#774935');
-    if (racket) drawRacket(racket, '#a9d67877', '#274d3b');
-
-    if (!cpuPrediction) drawShuttle();
+    if (phase !== 'ready') {
+      drawRacket(cpu, '#cf936b99', '#774935');
+      if (racket && phase !== 'finished') drawRacket(racket, '#a9d67877', '#274d3b');
+      if (!cpuPrediction) drawShuttle();
+    }
     ctx.restore();
   }
 
@@ -546,17 +522,9 @@
   court.addEventListener('pointerup', (event) => {
     if (event.pointerType !== 'mouse') clearRacket();
   });
-  modeButton.addEventListener('click', () => {
-    practice = !practice;
-    modeButton.textContent = practice ? '경기장' : '연습장';
-    document.querySelector('#match-score').hidden = practice;
-    document.querySelector('#practice-score').hidden = !practice;
-    clearRacket();
-    restart();
-  });
-  document.querySelector('#restart').addEventListener('click', restart);
+  gameControl.addEventListener('click', restart);
   resize();
-  restart();
+  setPhase('ready');
   new ResizeObserver(resize).observe(court);
   requestAnimationFrame(frame);
 </script>
