@@ -41,7 +41,9 @@ const effects = [
   { id: 'shock', label: 'SHOCK', duration: 0.55 },
   { id: 'invisible', label: 'INVISIBLE', duration: 1 },
   { id: 'wind', label: 'GUST', duration: 0.65 },
-  { id: 'balloon', label: 'BALLOON', duration: 2 }
+  { id: 'balloon', label: 'BALLOON', duration: 2 },
+  { id: 'mirror', label: 'MIRROR', duration: 0.65 },
+  { id: 'freeze', label: 'FREEZE' }
 ];
 
 
@@ -169,6 +171,7 @@ export function createGame({ withCpu = false } = {}) {
   let activeEffect;
   let cpuPrediction;
   let flight = 0;
+  let warp = 0;
   let pendingLanding;
 
   const opponent = (side) => side === 'left' ? 'right' : 'left';
@@ -241,6 +244,7 @@ export function createGame({ withCpu = false } = {}) {
   }
 
   function clearEffect() {
+    if (activeEffect?.id === 'freeze') flight++;
     activeEffect = undefined;
     cpuPrediction = undefined;
     showEvent('');
@@ -248,9 +252,24 @@ export function createGame({ withCpu = false } = {}) {
 
   function startEffect() {
     const effect = effects[Math.floor(Math.random() * effects.length)];
-    activeEffect = { id: effect.id, remaining: effect.duration };
+    activeEffect = { id: effect.id, remaining: effect.duration ?? (0.4 + Math.random() * 0.5) };
     let label = effect.label;
     switch (activeEffect.id) {
+      case 'mirror':
+        shuttle.x = 2 * center - shuttle.x;
+        shuttle.vx = -shuttle.vx;
+        flight++;
+        warp++;
+        touching.left = touching.right = false;
+        flash = 0;
+        break;
+      case 'freeze':
+        flight++;
+        flash = 0;
+        for (const racket of Object.values(rackets)) {
+          if (racket) Object.assign(racket, { vx: 0, vy: 0 });
+        }
+        break;
       case 'shock':
         shuttle.vx = 0;
         shuttle.vy = Math.max(0, shuttle.vy) + 135;
@@ -355,12 +374,12 @@ export function createGame({ withCpu = false } = {}) {
   }
 
   function contactFrame() {
-    if (phase !== 'live' || pendingLanding) return undefined;
+    if (phase !== 'live' || pendingLanding || activeEffect?.id === 'freeze') return undefined;
     return { ...shuttlePose(), flight, canHit: hitCooldown <= 0 };
   }
 
   function onlineContact(side, from, to, frame, hold = false) {
-    if (phase !== 'live' || !frame || frame.flight !== flight) return;
+    if (phase !== 'live' || activeEffect?.id === 'freeze' || !frame || frame.flight !== flight) return;
     if ((frame.x < center ? 'left' : 'right') !== side || !onSide(side)) {
       touching[side] = false;
       return;
@@ -405,8 +424,9 @@ export function createGame({ withCpu = false } = {}) {
       age: 0
     };
     const previous = rackets[side] ?? next;
-    Object.assign(next, swingMotion(previous, next));
     rackets[side] = next;
+    if (activeEffect?.id === 'freeze') return;
+    Object.assign(next, swingMotion(previous, next));
     if (withCpu) checkContact(side, previous, next, next.vx, next.vy);
     else onlineContact(side, previous, next, frame);
   }
@@ -455,6 +475,7 @@ export function createGame({ withCpu = false } = {}) {
     }
 
     updateEvent(dt);
+    if (activeEffect?.id === 'freeze') return;
     hitCooldown = Math.max(0, hitCooldown - dt);
     flash = Math.max(0, flash - dt);
     const previousX = shuttle.x;
@@ -508,12 +529,13 @@ export function createGame({ withCpu = false } = {}) {
   }
 
   function view() {
+    const frozen = activeEffect?.id === 'freeze';
     const visible = shuttle && phase !== 'starting' && activeEffect?.id !== 'invisible';
     const position = (racket) => racket && { x: racket.x, y: racket.y };
     return {
-      phase, score, message, winner, eventText, eventWind, flash,
+      phase, score, message, winner, eventText, eventWind, flash, frozen, warp,
       shake: activeEffect?.id === 'shock' ? activeEffect.remaining : 0,
-      shuttle: visible ? { ...shuttlePose(), flight, baseSize: shuttle.size, canHit: hitCooldown <= 0 && !pendingLanding } : undefined,
+      shuttle: visible ? { ...shuttlePose(), flight, baseSize: shuttle.size, canHit: hitCooldown <= 0 && !pendingLanding && !frozen } : undefined,
       left: position(rackets.left),
       right: position(cpu ?? rackets.right)
     };

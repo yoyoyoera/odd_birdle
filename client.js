@@ -48,6 +48,8 @@ let localRacket;
 let lastFrame;
 let lastHold = -Infinity;
 let displayedShuttle;
+let displayedWarp;
+let displayedFrozen = false;
 let prediction;
 let predictedFlight;
 let localOverlap = false;
@@ -81,6 +83,8 @@ function send(message) {
 
 function resetPrediction() {
   displayedShuttle = undefined;
+  displayedWarp = undefined;
+  displayedFrozen = false;
   prediction = undefined;
   predictedFlight = undefined;
   localOverlap = false;
@@ -219,7 +223,8 @@ function setRacket(input) {
   if (mode === 'solo') solo.moveRacket('left', input);
   if (mode === 'online') {
     const previous = localRacket;
-    localRacket = input ? { ...input, ...swingMotion(previous ?? input, input) } : undefined;
+    const motion = input && !displayedFrozen ? swingMotion(previous ?? input, input) : { vx: 0, vy: 0 };
+    localRacket = input ? { ...input, ...motion } : undefined;
     if (!input) localOverlap = false;
     if (input && previous) {
       if (isSwing(localRacket)) predictContact(previous, input, localRacket, performance.now());
@@ -318,8 +323,15 @@ function frame(time) {
   }
   lastFrame = time;
   const view = mode === 'online' ? playback.at(time) ?? currentView() : currentView();
-  displayedShuttle = view.phase === 'live' ? view.shuttle : undefined;
-  if (mode === 'online' && localRacket && view.phase === 'live') {
+  if (view.frozen || view.warp !== displayedWarp) {
+    prediction = undefined;
+    localOverlap = false;
+  }
+  if (view.frozen && localRacket) Object.assign(localRacket, { vx: 0, vy: 0 });
+  displayedWarp = view.warp;
+  displayedFrozen = view.frozen;
+  displayedShuttle = view.phase === 'live' && !view.frozen ? view.shuttle : undefined;
+  if (mode === 'online' && localRacket && view.phase === 'live' && !view.frozen) {
     const hit = predictContact(localRacket, localRacket, contactMotion(localRacket, time), time);
     if (hit || time - lastHold >= 45) {
       lastHold = time;
