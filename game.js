@@ -498,6 +498,19 @@ export function createGame({ withCpu = false } = {}) {
     if (defending && tracked.x <= rightLine && shuttle.x >= center && shuttle.x <= rightLine &&
         lastHitter !== 'right' && hitCooldown <= 0 &&
         racketContact(cpu, cpu)) {
+      if (lastHitter === 'left' && shuttle.y <= netTop - 65 && Math.random() < 0.25) {
+        const target = 205 + Math.random() * 120;
+        const vy = 110;
+        const vx = velocityToLandAt(target, vy);
+        // Budget for the rotating outline until it has fully cleared the net.
+        const radius = Math.max(...outlinePoints.map(point => Math.hypot(point.x, point.y)));
+        const netFraction = (shuttle.x - center + radius + 2) / (shuttle.x - target);
+        const clearanceY = shuttle.y + (floor - shuttle.y) * netFraction + radius;
+        if (clearanceY < netTop && Math.abs(vx) <= 1050) {
+          launch(vx, vy, 'right');
+          return;
+        }
+      }
       const vy = -485 - Math.random() * 45;
       launch(velocityToLandAt(160 + Math.random() * 165, vy), vy, 'right');
     }
