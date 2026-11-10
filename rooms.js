@@ -100,6 +100,7 @@ export function createRooms(randomIndex) {
       if (!message || typeof message !== 'object') return;
 
       if (room?.game) {
+        const previousStrike = room.game.view().strike?.flight;
         if (message.type === 'restart' && room.game.view().phase === 'finished') start(room);
         if (message.type === 'racket') {
           const input = message.input;
@@ -109,6 +110,12 @@ export function createRooms(randomIndex) {
         }
         if (message.type === 'hold') {
           room.game.holdRacket(side, frameAt(room, message.seenTime), message.time);
+        }
+        const state = room.game.view();
+        if (state.strike && state.strike.flight !== previousStrike) {
+          const update = { type: 'state', time: simulationTick * step * 1000, state };
+          send(room.left, update);
+          send(room.right, update);
         }
         return;
       }

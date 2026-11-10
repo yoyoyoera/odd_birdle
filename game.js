@@ -418,7 +418,8 @@ export function createGame({ withCpu = false } = {}) {
     Object.assign(shuttle, { x: frame.x, y: frame.y, angle: frame.angle });
     playerHit(side, to.vx, to.vy);
     if (Number.isFinite(frame.time)) {
-      strike = { flight, time: frame.time, fromFlight: frame.flight,
+      strike = { flight, time: frame.time, fromFlight: frame.flight, side,
+        racket: { x: to.x, y: to.y },
         pose: { ...shuttlePose(), baseSize: shuttle.size }, motion: { vx: to.vx, vy: to.vy } };
     }
     touching[side] = overlaps;
@@ -433,7 +434,10 @@ export function createGame({ withCpu = false } = {}) {
 
   function holdRacket(side, frame, time) {
     const racket = rackets[side];
-    if (racket) onlineContact(side, racket, { ...racket, ...contactMotion(racket, time) }, frame, true);
+    if (racket) {
+      if (Number.isFinite(frame?.time)) racket.seenTime = frame.time;
+      onlineContact(side, racket, { ...racket, ...contactMotion(racket, time) }, frame, true);
+    }
   }
 
   function supportShuttle(side, from, to) {
@@ -464,6 +468,7 @@ export function createGame({ withCpu = false } = {}) {
         : clamp(input.x, center + racketRadius, width),
       y: clamp(input.y, 0, floor),
       time: input.time,
+      seenTime: frame?.time,
       vx: 0,
       vy: 0,
       age: 0
@@ -590,7 +595,7 @@ export function createGame({ withCpu = false } = {}) {
   function view() {
     const frozen = activeEffect?.id === 'freeze';
     const visible = shuttle && phase !== 'starting' && activeEffect?.id !== 'invisible';
-    const position = (racket) => racket && { x: racket.x, y: racket.y };
+    const position = (racket) => racket && { x: racket.x, y: racket.y, seenTime: racket.seenTime };
     return {
       phase, score, message, winner, eventText, eventWind, flash, frozen, support,
       strike: strike?.flight === flight ? strike : undefined,
