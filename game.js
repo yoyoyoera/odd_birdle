@@ -528,9 +528,16 @@ export function createGame({ withCpu = false } = {}) {
     const travel = speed * dt;
     cpu.x += clamp(targetX - cpu.x, -290 * travel, 290 * travel);
     cpu.y += clamp(targetY - cpu.y, -340 * travel, 340 * travel);
-    if (!leavingOut && defending && tracked.x <= rightLine && shuttle.x >= center && shuttle.x <= rightLine &&
+    const inReach = defending && tracked.x <= rightLine && shuttle.x <= rightLine;
+    if ((inReach || leavingOut) && shuttle.x >= center &&
         (lastHitter !== 'right' || cpuFollowUps > 0) && hitCooldown <= 0 &&
         racketContact(cpu, cpu)) {
+      if (leavingOut) {
+        // The CPU tried to leave it, but the racket was still in the way.
+        const vy = -485;
+        launch(velocityToLandAt(245, vy), vy, 'right');
+        return;
+      }
       const followUp = cpuFollowUps > 0;
       if (followUp) {
         cpuFollowUps--;
