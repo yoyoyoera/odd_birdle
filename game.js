@@ -244,7 +244,7 @@ export function createGame({ withCpu = false } = {}) {
   }
 
   function clearEffect() {
-    if (activeEffect?.id === 'freeze') flight++;
+    if (activeEffect?.id === 'freeze' || activeEffect?.id === 'balloon') flight++;
     activeEffect = undefined;
     cpuPrediction = undefined;
     showEvent('');
@@ -270,7 +270,11 @@ export function createGame({ withCpu = false } = {}) {
           if (racket) Object.assign(racket, { vx: 0, vy: 0 });
         }
         break;
+      case 'balloon':
+        flight++;
+        break;
       case 'shock':
+        flight++;
         shuttle.vx = 0;
         shuttle.vy = Math.max(0, shuttle.vy) + 135;
         break;
@@ -279,6 +283,7 @@ export function createGame({ withCpu = false } = {}) {
         flash = 0;
         break;
       case 'wind': {
+        flight++;
         const direction = Math.random() < 0.5 ? -1 : 1;
         shuttle.vx = clamp(shuttle.vx + direction * 290, -1800, 1800);
         label += direction < 0 ? ' ←' : ' →';
@@ -380,7 +385,7 @@ export function createGame({ withCpu = false } = {}) {
 
   function onlineContact(side, from, to, frame, hold = false) {
     if (phase !== 'live' || activeEffect?.id === 'freeze' || !frame || frame.flight !== flight) return;
-    if ((frame.x < center ? 'left' : 'right') !== side || !onSide(side)) {
+    if ((frame.x < center ? 'left' : 'right') !== side) {
       touching[side] = false;
       return;
     }
@@ -396,10 +401,17 @@ export function createGame({ withCpu = false } = {}) {
     if (!hold && !isSwing(to)) {
       return;
     }
-    // Rewind only the contact test. The new velocity starts at the current
-    // position so all clients see a continuous path, including late saves.
+    // Start at the same contact pose the striker saw, then catch up to the server clock.
+    Object.assign(shuttle, { x: frame.x, y: frame.y, angle: frame.angle });
     playerHit(side, to.vx, to.vy);
     touching[side] = overlaps;
+    updateOutline();
+    let elapsed = frame.age ?? 0;
+    while (elapsed > 1e-9 && phase === 'live' && !pendingLanding) {
+      const slice = Math.min(elapsed, step);
+      advanceShuttle(slice);
+      elapsed -= slice;
+    }
   }
 
   function holdRacket(side, frame, time) {
@@ -446,36 +458,7 @@ export function createGame({ withCpu = false } = {}) {
     }
   }
 
-  function simulate(dt) {
-    if (phase === 'ready' || phase === 'finished') return;
-    if (phase === 'starting') {
-      phaseTime -= dt;
-      if (phaseTime <= 1e-9) {
-        phase = 'live';
-        showEvent('');
-      } else {
-        showEvent(String(Math.ceil(phaseTime - 1e-9)));
-      }
-      return;
-    }
-    if (phase === 'between') {
-      phaseTime -= dt;
-      if (phaseTime <= 0) serve();
-      return;
-    }
-
-    if (pendingLanding) {
-      pendingLanding.remaining -= dt;
-      if (pendingLanding.remaining <= 0) {
-        const { winner, reason } = pendingLanding;
-        pendingLanding = undefined;
-        finishPoint(winner, reason);
-      }
-      return;
-    }
-
-    updateEvent(dt);
-    if (activeEffect?.id === 'freeze') return;
+  function advanceShuttle(dt) {
     hitCooldown = Math.max(0, hitCooldown - dt);
     flash = Math.max(0, flash - dt);
     const previousX = shuttle.x;
@@ -515,6 +498,41 @@ export function createGame({ withCpu = false } = {}) {
       else pendingLanding = { winner, reason, remaining: 0.24 };
       return;
     }
+
+  }
+
+  function simulate(dt) {
+    if (phase === 'ready' || phase === 'finished') return;
+    if (phase === 'starting') {
+      phaseTime -= dt;
+      if (phaseTime <= 1e-9) {
+        phase = 'live';
+        showEvent('');
+      } else {
+        showEvent(String(Math.ceil(phaseTime - 1e-9)));
+      }
+      return;
+    }
+    if (phase === 'between') {
+      phaseTime -= dt;
+      if (phaseTime <= 0) serve();
+      return;
+    }
+
+    if (pendingLanding) {
+      pendingLanding.remaining -= dt;
+      if (pendingLanding.remaining <= 0) {
+        const { winner, reason } = pendingLanding;
+        pendingLanding = undefined;
+        finishPoint(winner, reason);
+      }
+      return;
+    }
+
+    updateEvent(dt);
+    if (activeEffect?.id === 'freeze') return;
+    advanceShuttle(dt);
+    if (phase !== 'live' || pendingLanding) return;
 
     if (withCpu) {
       const side = 'left';

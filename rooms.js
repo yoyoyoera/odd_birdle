@@ -45,11 +45,13 @@ export function createRooms(randomIndex) {
     const after = room.history[index + 1];
     const frame = before.frame;
     const next = after?.frame;
-    if (!frame || !next || frame.flight !== next.flight || frame.size !== next.size ||
-        frame.canHit !== next.canHit) return frame;
+    if (!frame) return undefined;
+    if (!next || frame.flight !== next.flight || frame.size !== next.size ||
+        frame.canHit !== next.canHit) return { ...frame, age: (now - before.time) / 1000 };
     const fraction = (seenTime - before.time) / (after.time - before.time);
     return {
       ...frame,
+      age: (now - seenTime) / 1000,
       x: frame.x + (next.x - frame.x) * fraction,
       y: frame.y + (next.y - frame.y) * fraction,
       angle: frame.angle + (next.angle - frame.angle) * fraction
