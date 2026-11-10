@@ -16,6 +16,9 @@
       color: #274d3b; opacity: .45; font: 650 clamp(1.5rem, 6vw, 3.5rem)/1 system-ui, sans-serif;
       font-variant-numeric: tabular-nums; pointer-events: none; }
     main[data-phase="ready"] #score, main[data-phase="finished"] #score { opacity: 1; }
+    #winner { position: absolute; bottom: calc(50% + clamp(1rem, 5vw, 2.25rem)); left: 50%;
+      transform: translateX(-50%); margin: 0; color: #274d3b;
+      font-size: clamp(1rem, 3.8vw, 1.75rem); font-weight: 650; white-space: nowrap; pointer-events: none; }
     #event-banner { position: absolute; top: 7%; left: 50%; transform: translateX(-50%);
       color: #274d3b; background: #e8ebd6; padding: 3px 7px;
       font-size: clamp(.75rem, 3vw, 1rem); font-weight: 650; white-space: nowrap; pointer-events: none; }
@@ -34,6 +37,7 @@
 <main data-phase="ready">
   <canvas id="court" aria-label="마우스나 손가락으로 셔틀을 받아치는 배드민턴 코트"></canvas>
   <output id="score" aria-label="나와 CPU의 점수">0:0</output>
+  <p id="winner" role="status" hidden></p>
   <span id="status" class="sr-only" role="status"></span>
   <div id="event-banner" role="status" hidden></div>
   <button id="game-control" type="button" aria-label="시작" title="시작">
@@ -54,6 +58,7 @@
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   const stage = document.querySelector('main');
   const scoreboard = document.querySelector('#score');
+  const winnerLabel = document.querySelector('#winner');
   const gameControl = document.querySelector('#game-control');
   const playIcon = document.querySelector('#play-icon');
   const restartIcon = document.querySelector('#restart-icon');
@@ -85,6 +90,7 @@
   const airDrag = 0.6;
   const step = 1 / 120;
   const pointsToWin = 7;
+  const nicknames = { player: 'YOU', cpu: 'CPU' };
   const effects = [
     { id: 'shock', label: '충격', duration: 0.55 },
     { id: 'invisible', label: '1초 투명', duration: 1 },
@@ -126,6 +132,7 @@
   }
 
   function serve() {
+    showEvent('');
     shape = shape < 0
       ? Math.floor(Math.random() * shapes.length)
       : (shape + 1 + Math.floor(Math.random() * (shapes.length - 1))) % shapes.length;
@@ -157,6 +164,8 @@
   }
 
   function restart() {
+    winnerLabel.hidden = true;
+    winnerLabel.textContent = '';
     score = { player: 0, cpu: 0 };
     updateScore();
     server = 'player';
@@ -169,12 +178,15 @@
   function finishPoint(winner, reason) {
     clearEffect();
     updateOutline();
+    if (reason === 'out') showEvent('out');
     score[winner]++;
     updateScore();
     server = winner;
     if (score[winner] === pointsToWin) {
       setPhase('finished');
-      status.textContent = winner === 'player' ? '승리! 다시 시작으로 한 경기 더' : 'CPU 승리 · 다시 시작으로 재도전';
+      status.textContent = '';
+      winnerLabel.textContent = nicknames[winner] + ' win!';
+      winnerLabel.hidden = false;
       return;
     }
     setPhase('between');
@@ -414,7 +426,7 @@
     }
     if (lastHitter && (shuttle.x + right < 0 || shuttle.x + left > width)) {
       shuttle.x = clamp(shuttle.x, -left, width - right);
-      finishPoint(opponent(lastHitter), '아웃');
+      finishPoint(opponent(lastHitter), 'out');
       return;
     }
 
@@ -422,7 +434,7 @@
       shuttle.y = floor - bottom;
       const out = shuttle.x < leftLine || shuttle.x > rightLine;
       const landingSide = shuttle.x < center ? 'player' : 'cpu';
-      finishPoint(out ? opponent(lastHitter ?? server) : opponent(landingSide), out ? '아웃' : '착지');
+      finishPoint(out ? opponent(lastHitter ?? server) : opponent(landingSide), out ? 'out' : '착지');
       return;
     }
 
