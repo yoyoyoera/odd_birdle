@@ -39,8 +39,21 @@ export function createRooms(randomIndex) {
   function frameAt(room, seenTime) {
     const now = simulationTick * step * 1000;
     if (!Number.isFinite(seenTime) || seenTime > now || now - seenTime > 320) return undefined;
-    const sample = room.history.findLast(entry => entry.time <= seenTime);
-    return sample?.frame;
+    const index = room.history.findLastIndex(entry => entry.time <= seenTime);
+    if (index < 0) return undefined;
+    const before = room.history[index];
+    const after = room.history[index + 1];
+    const frame = before.frame;
+    const next = after?.frame;
+    if (!frame || !next || frame.flight !== next.flight || frame.size !== next.size ||
+        frame.canHit !== next.canHit) return frame;
+    const fraction = (seenTime - before.time) / (after.time - before.time);
+    return {
+      ...frame,
+      x: frame.x + (next.x - frame.x) * fraction,
+      y: frame.y + (next.y - frame.y) * fraction,
+      angle: frame.angle + (next.angle - frame.angle) * fraction
+    };
   }
 
   function closeRoom(room, departing) {

@@ -145,8 +145,7 @@ function updateHud(view) {
     if (scoreboard.value !== value) scoreboard.value = value;
   }
   winnerLabel.hidden = !winner;
-  const name = winner === localSide ? 'YOU' : mode === 'solo' ? 'CPU' : 'P' + (winner === 'left' ? '1' : '2');
-  setText(winnerLabel, winner ? name + ' win!' : '');
+  setText(winnerLabel, winner ? (winner === localSide ? 'You Win!' : 'You Lose..') : '');
   setText(status, message);
   eventBanner.hidden = !eventText;
   eventBanner.toggleAttribute('data-wind', eventWind);

@@ -327,7 +327,7 @@ export function createGame({ withCpu = false } = {}) {
 
   function onlineContact(side, from, to, frame, sampleTime, hold = false) {
     if (phase !== 'live' || !frame?.canHit || frame.flight !== flight ||
-        (frame.x < center ? 'left' : 'right') !== side) {
+        (frame.x < center ? 'left' : 'right') !== side || !onSide(side)) {
       holdStarted[side] = undefined;
       return;
     }
@@ -342,10 +342,9 @@ export function createGame({ withCpu = false } = {}) {
     } else if (Math.hypot(to.vx, to.vy) < 110) {
       return;
     }
-    // Start the new flight at the verified contact point, even if it has since landed.
-    Object.assign(shuttle, { x: frame.x, y: frame.y, angle: frame.angle });
+    // Rewind only the contact test. The new velocity starts at the current
+    // position so all clients see a continuous path, including late saves.
     playerHit(side, hold ? 0 : to.vx, hold ? 0 : to.vy);
-    updateOutline();
   }
 
   function holdRacket(side, frame, sampleTime) {
