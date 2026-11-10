@@ -43,7 +43,7 @@ const cpuLevels = [
   { speed: 0.82, spikeChance: 0.12 },
   { speed: 1, spikeChance: 0.25 },
   { speed: 1.16, spikeChance: 0.40 },
-  { speed: 1.32, spikeChance: 0.60 }
+  { speed: 1.60, spikeChance: 0.60 }
 ];
 const effects = [
   { id: 'shock', label: 'SHOCK', duration: 0.55 },
@@ -199,10 +199,12 @@ export function createGame({ withCpu = false } = {}) {
   let strike;
   let support;
   let pendingLanding;
+  let settledSize;
 
   const opponent = (side) => side === 'left' ? 'right' : 'left';
 
   function serve() {
+    settledSize = undefined;
     flight++;
     pendingLanding = undefined;
     support = undefined;
@@ -246,6 +248,7 @@ export function createGame({ withCpu = false } = {}) {
 
   function finishPoint(side, reason) {
     if (countdown > 0) scheduleEvent();
+    settledSize = shuttlePose().size;
     clearEffect();
     updateOutline();
     if (reason === 'out') showEvent('out');
@@ -382,7 +385,7 @@ export function createGame({ withCpu = false } = {}) {
 
   function shuttlePose() {
     return { x: shuttle.x, y: shuttle.y, shape, angle: shuttle.angle,
-      size: shuttle.size * (activeEffect?.id === 'balloon' ? 2 : 1) };
+      size: settledSize ?? shuttle.size * (activeEffect?.id === 'balloon' ? 2 : 1) };
   }
 
   function updateOutline() {
@@ -500,8 +503,13 @@ export function createGame({ withCpu = false } = {}) {
   function moveCpu(dt) {
     const tracked = cpuPrediction ?? shuttle;
     const defending = tracked.x >= center && tracked.vy > 0;
-    const targetX = defending ? clamp(tracked.x, center + racketRadius, rightLine - 24) : 660;
-    const targetY = defending ? clamp(tracked.y + 24, 205, floor - 14) : 300;
+    const anticipates = cpuLevel === 5 && lastHitter === 'left' && tracked.vy > 0;
+    const lead = anticipates ? clamp((floor - tracked.y) / tracked.vy, 0, 0.14) : 0;
+    const projectedX = tracked.x + tracked.vx * flightScale(lead, shuttle.airDrag);
+    const preparing = anticipates && tracked.vx > 0 && projectedX >= center;
+    const tracking = defending || preparing;
+    const targetX = tracking ? clamp(defending ? tracked.x : projectedX, center + racketRadius, rightLine - 24) : 660;
+    const targetY = tracking ? clamp(tracked.y + 24, 205, floor - 14) : 300;
     const { speed, spikeChance } = cpuLevels[cpuLevel - 1];
     const travel = speed * dt;
     cpu.x += clamp(targetX - cpu.x, -290 * travel, 290 * travel);
