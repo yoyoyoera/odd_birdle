@@ -6,52 +6,58 @@
   <title>ODD BRIDGE</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@650&amp;display=swap">
   <style>
+    :root { --page: #182223; --court: #e8ebd6; --ink: #274d3b;
+      --page-hover: #293737; --court-hover: #d7dec6; }
     * { box-sizing: border-box; }
     body { margin: 0; min-height: 100vh; min-height: 100svh; display: grid; place-items: center;
-      background: #182223; font: 16px "Space Grotesk", system-ui, sans-serif; }
+      background: var(--page); font: 16px "Space Grotesk", system-ui, sans-serif; }
     main { width: min(940px, 100% - 32px); padding-block: 24px; }
-    h1 { margin: 0 0 clamp(12px, 2vw, 20px); color: #e8ebd6; text-align: center;
+    h1 { position: absolute; top: 17%; left: 50%; transform: translate(-50%, -50%);
+      margin: 0; color: var(--ink); text-align: center; white-space: nowrap; pointer-events: none;
       font-size: clamp(2rem, 8vw, 5rem); font-weight: 650; line-height: 1; letter-spacing: -.04em; }
     #stage { position: relative; }
+    #stage:not([data-phase="ready"]) h1 { display: none; }
     #studio-link { display: grid; place-items: center; width: 44px; height: 44px;
-      margin: 8px auto 0; color: #e8ebd6; }
-    #studio-link:hover { background: #293737; }
+      margin: 8px auto 0; color: var(--court); }
+    #studio-link:hover { background: var(--page-hover); }
     #studio-link:focus-visible { outline: 2px solid currentColor; outline-offset: -3px; }
-    canvas { display: block; width: 100%; aspect-ratio: 9 / 5; background: #e8ebd6;
+    canvas { display: block; width: 100%; aspect-ratio: 9 / 5; background: var(--court);
       touch-action: none; cursor: none; }
     #stage[data-phase="ready"] canvas, #stage[data-phase="finished"] canvas { cursor: default; }
     #score { position: absolute; inset: 50% auto auto 50%; transform: translate(-50%, -50%);
-      color: #274d3b; opacity: .45; font-size: clamp(1.5rem, 6vw, 3.5rem); font-weight: 650; line-height: 1;
+      color: var(--ink); opacity: .45; font-size: clamp(1.5rem, 6vw, 3.5rem); font-weight: 650; line-height: 1;
       font-variant-numeric: tabular-nums; pointer-events: none; }
     #stage[data-phase="ready"] #score, #stage[data-phase="finished"] #score { opacity: 1; }
     #winner { position: absolute; bottom: calc(50% + clamp(1rem, 5vw, 2.25rem)); left: 50%;
-      transform: translateX(-50%); margin: 0; color: #274d3b;
+      transform: translateX(-50%); margin: 0; color: var(--ink);
       font-size: clamp(1rem, 3.8vw, 1.75rem); font-weight: 650; white-space: nowrap; pointer-events: none; }
     #event-banner { position: absolute; top: 7%; left: 50%; transform: translateX(-50%);
-      color: #274d3b; background: #e8ebd6; padding: 3px 7px;
+      color: var(--ink); background: var(--court); padding: 3px 7px;
       font-size: clamp(1.25rem, 5.5vw, 3.25rem); line-height: 1.05;
       font-weight: 650; white-space: nowrap; pointer-events: none; }
     #event-banner[data-wind] { font-size: clamp(1.4rem, 6vw, 3.6rem); }
     #game-control { position: absolute; top: 8px; right: 8px; display: grid; place-items: center;
-      width: 44px; height: 44px; border: 0; background: #e8ebd6; color: #274d3b; cursor: pointer; }
-    #game-control:hover { background: #d7dec6; }
+      width: 44px; height: 44px; border: 0; background: var(--court); color: var(--ink); cursor: pointer; }
+    #game-control:hover { background: var(--court-hover); }
     #game-control:focus-visible { outline: 2px solid currentColor; outline-offset: -3px; }
     #stage[data-phase="ready"] #game-control, #stage[data-phase="finished"] #game-control {
       top: calc(50% + clamp(1rem, 4vw, 2rem)); right: auto; left: 50%; transform: translateX(-50%); }
-    #menu, #join-form, #room-code { position: absolute; top: 50%; left: 50%;
+    #menu, #join-form, #room-display { position: absolute; top: 50%; left: 50%;
       transform: translate(-50%, -50%); white-space: nowrap; }
     #menu, #join-form { display: flex; align-items: center; gap: clamp(4px, 2vw, 16px); }
     #join-form { flex-wrap: wrap; justify-content: center; width: min(96%, 420px); }
-    #room-code { font-size: clamp(1.6rem, 8vw, 4rem); font-weight: 650; letter-spacing: .12em; color: #274d3b; }
+    #room-display { text-align: center; color: var(--ink); }
+    #room-display > span { display: block; font-size: clamp(.75rem, 2vw, 1rem); }
+    #room-code { display: block; font-size: clamp(1.6rem, 8vw, 4rem); font-weight: 650; letter-spacing: .12em; color: var(--ink); }
     #menu button, #join-form button, #back { border: 0; background: transparent;
-      color: #274d3b; min-height: 44px; padding: 0 8px; font: inherit; font-weight: 650; cursor: pointer; }
-    #menu button:hover, #join-form button:hover, #back:hover { background: #d7dec6; }
-    #join-form label { color: #274d3b; }
-    #code-input { min-width: 0; width: 7.5em; background: transparent; border: 0; border-bottom: 1px solid #274d3b;
-      color: #274d3b; text-transform: uppercase; font: inherit; }
+      color: var(--ink); min-height: 44px; padding: 0 8px; font: inherit; font-weight: 650; cursor: pointer; }
+    #menu button:hover, #join-form button:hover, #back:hover { background: var(--court-hover); }
+    #join-form label { color: var(--ink); }
+    #code-input { min-width: 0; width: 7.5em; background: transparent; border: 0; border-bottom: 1px solid var(--ink);
+      color: var(--ink); text-transform: uppercase; font: inherit; }
     #back { position: absolute; top: 8px; left: 8px; min-width: 44px; }
-    #lobby-message { position: absolute; top: 65%; width: 100%; margin: 0; text-align: center;
-      color: #274d3b; font-size: .875rem; pointer-events: none; }
+    #lobby-message { position: absolute; top: 32%; width: 100%; margin: 0; text-align: center;
+      color: var(--ink); font-size: .875rem; pointer-events: none; }
     .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden;
       clip-path: inset(50%); white-space: nowrap; }
     [hidden] { display: none !important; }
@@ -59,8 +65,8 @@
 </head>
 <body>
 <main>
-  <h1>ODD BRIDGE</h1>
   <section id="stage" data-phase="ready" aria-label="Game">
+    <h1>ODD BRIDGE</h1>
     <canvas id="court" aria-label="Badminton court. Use your pointer to hit the shuttle."></canvas>
     <output id="score" aria-label="Left and right scores" hidden>0:0</output>
     <p id="winner" role="status" hidden></p>
@@ -71,10 +77,13 @@
       <button id="join" type="button">JOIN</button>
       <button id="cpu" type="button">CPU</button>
     </nav>
-    <output id="room-code" aria-label="Room code" aria-live="polite" hidden></output>
-    <form id="join-form" hidden>
+    <div id="room-display" hidden>
+      <span>Room code:</span>
+      <output id="room-code" aria-label="Room code" aria-live="polite"></output>
+    </div>
+    <form id="join-form" novalidate hidden>
       <label for="code-input">Room code</label>
-      <input id="code-input" required maxlength="6" minlength="6" pattern="[A-Za-z2-9]{6}"
+      <input id="code-input" maxlength="6" aria-describedby="lobby-message"
         autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Enter code">
       <button type="submit" aria-label="JOIN">→</button>
     </form>

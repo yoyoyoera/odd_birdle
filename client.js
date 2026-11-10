@@ -10,11 +10,30 @@ const eventBanner = document.querySelector('#event-banner');
 const gameControl = document.querySelector('#game-control');
 const menu = document.querySelector('#menu');
 const back = document.querySelector('#back');
+const roomDisplay = document.querySelector('#room-display');
 const roomCode = document.querySelector('#room-code');
 const joinForm = document.querySelector('#join-form');
 const codeInput = document.querySelector('#code-input');
 const lobbyMessage = document.querySelector('#lobby-message');
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+const palettes = [
+  { page: '#182223', court: '#e8ebd6', ink: '#274d3b', pageHover: '#293737', courtHover: '#d7dec6',
+    floor: '#c0cbb4', line: '#6d8e72', net: '#476755' },
+  { page: '#202831', court: '#e1e8ea', ink: '#304a5c', pageHover: '#313e4a', courtHover: '#d0dce1',
+    floor: '#b9c9d1', line: '#718c9e', net: '#506b7d' },
+  { page: '#2c2630', court: '#ece4ec', ink: '#5a3f5b', pageHover: '#403543', courtHover: '#e0d3e0',
+    floor: '#cfbecd', line: '#967a94', net: '#765874' },
+  { page: '#2b2722', court: '#efe6d6', ink: '#554839', pageHover: '#40372d', courtHover: '#e4d7c3',
+    floor: '#d4c3aa', line: '#9b8262', net: '#76634e' }
+];
+const palette = palettes[Math.floor(Math.random() * palettes.length)];
+for (const [property, value] of Object.entries({
+  page: palette.page, court: palette.court, ink: palette.ink,
+  'page-hover': palette.pageHover, 'court-hover': palette.courtHover
+})) {
+  document.documentElement.style.setProperty('--' + property, value);
+}
 
 const solo = createGame({ withCpu: true });
 const ready = { phase: 'ready' };
@@ -41,7 +60,7 @@ function setText(element, text) {
 function setMode(next, message = '') {
   mode = next;
   menu.hidden = next !== 'menu';
-  roomCode.hidden = next !== 'waiting';
+  roomDisplay.hidden = next !== 'waiting';
   joinForm.hidden = next !== 'join';
   back.hidden = next === 'menu';
   lobbyMessage.hidden = !message;
@@ -161,14 +180,14 @@ function drawRacket(position, fill, stroke) {
 }
 
 function drawCourt() {
-  ctx.fillStyle = '#e8ebd6';
+  ctx.fillStyle = palette.court;
   ctx.fillRect(0, 0, width, height);
-  ctx.fillStyle = '#c0cbb4';
+  ctx.fillStyle = palette.floor;
   ctx.fillRect(0, floor, width, height - floor);
-  ctx.fillStyle = '#6d8e72';
+  ctx.fillStyle = palette.line;
   ctx.fillRect(leftLine, floor, rightLine - leftLine, 8);
 
-  ctx.fillStyle = '#476755';
+  ctx.fillStyle = palette.net;
   ctx.fillRect(center - 2, netTop, 4, floor - netTop);
   ctx.fillRect(center - 9, netTop, 18, 4);
   ctx.fillStyle = '#f7f6e9';
@@ -187,7 +206,7 @@ function draw(view) {
     const other = localSide === 'left' ? 'right' : 'left';
     if (view[other]) drawRacket(view[other], '#cf936b99', '#774935');
     const ownRacket = socket ? localRacket : view[localSide];
-    if (ownRacket && view.phase !== 'finished') drawRacket(ownRacket, '#a9d67877', '#274d3b');
+    if (ownRacket && view.phase !== 'finished') drawRacket(ownRacket, '#a9d67877', palette.ink);
     if (view.shuttle) drawShuttle(view);
   }
   ctx.restore();
@@ -197,9 +216,11 @@ function drawShuttle({ flash, phase, shuttle, outline }) {
   if (flash > 0 && phase === 'live') {
     ctx.beginPath();
     ctx.arc(shuttle.x, shuttle.y, 26 + (0.22 - flash) * 105, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(33, 102, 64, ' + flash / 0.22 + ')';
+    ctx.globalAlpha = flash / 0.22;
+    ctx.strokeStyle = palette.ink;
     ctx.lineWidth = 2;
     ctx.stroke();
+    ctx.globalAlpha = 1;
   }
   ctx.beginPath();
   for (const ring of outline) {
@@ -211,7 +232,7 @@ function drawShuttle({ flash, phase, shuttle, outline }) {
     });
     ctx.closePath();
   }
-  ctx.fillStyle = phase === 'live' ? '#274d3b' : '#667165';
+  ctx.fillStyle = phase === 'live' ? palette.ink : palette.net;
   ctx.fill('evenodd');
 }
 
@@ -253,7 +274,16 @@ document.querySelector('#cpu').addEventListener('click', () => {
 });
 joinForm.addEventListener('submit', event => {
   event.preventDefault();
-  connect({ type: 'join', code: codeInput.value.trim().toUpperCase() });
+  const code = codeInput.value.trim().toUpperCase();
+  if (!/^[A-Z0-9]{6}$/.test(code)) {
+    setMode('join', 'Room not found.');
+    codeInput.focus();
+    return;
+  }
+  connect({ type: 'join', code });
+});
+codeInput.addEventListener('input', () => {
+  if (mode === 'join' && !socket) setMode('join');
 });
 back.addEventListener('click', () => leave());
 gameControl.addEventListener('click', () => {
