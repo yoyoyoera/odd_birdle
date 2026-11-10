@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Odd Birdle — 연습장</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #182223; color: #f7f6e9; font: 16px system-ui, sans-serif; }
+    main { width: min(940px, 100% - 32px); margin: 32px auto; }
+    header, footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+    h1 { margin: 4px 0 16px; font-size: clamp(2rem, 6vw, 4rem); line-height: 1; }
+    small { color: #c5ea8f; font-weight: 700; letter-spacing: .14em; }
+    .score { display: flex; gap: 16px; margin-bottom: 12px; }
+    .score div { min-width: 78px; color: #d4dfd8; }
+    output { display: block; color: #f7f6e9; font-size: 1.65rem; font-weight: 800; }
+    canvas { display: block; width: 100%; height: clamp(300px, 62vh, 560px); background: #e8ebd6;
+      border-radius: 16px; touch-action: none; cursor: none; }
+    footer { margin-top: 12px; color: #d4dfd8; }
+    button { border: 0; border-radius: 8px; padding: 10px 16px; background: #c5ea8f;
+      color: #182223; font: inherit; font-weight: 700; cursor: pointer; }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div><small>STUDIYO / 연습장</small><h1>Odd Birdle</h1></div>
+    <div class="score">
+      <div>콤보<output id="combo" aria-live="off">0</output></div>
+      <div>최고<output id="best" aria-live="off">0</output></div>
+    </div>
+  </header>
+  <canvas id="court" aria-label="마우스나 손가락으로 떨어지는 셔틀을 받아치는 연습장"></canvas>
+  <footer>
+    <span>아래에서 위로 쓸어 올려 보세요. 옆으로 휘두르면 낮게 날아갑니다.</span>
+    <button id="restart" type="button">다시 시작</button>
+  </footer>
+</main>
+<script type="module">
+  const court = document.querySelector('#court');
+  const ctx = court.getContext('2d');
+  const comboLabel = document.querySelector('#combo');
+  const bestLabel = document.querySelector('#best');
+  const shapes = ['▲', '{', '▮', '}'];
+  const shuttleRadius = 18;
+  const racketRadius = 22;
+  const step = 1 / 120;
+
+  let width = 0;
+  let height = 0;
+  let combo = 0;
+  let best = 0;
+  let shape = -1;
+  let shuttle;
+  let racket;
+  let hitCooldown;
+  let serveDelay;
+  let flash;
+  let lastFrame;
+  let accumulator = 0;
+
+  function serve() {
+    // Choose a different appearance each round while keeping the same hitbox.
+    shape = shape < 0
+      ? Math.floor(Math.random() * shapes.length)
+      : (shape + 1 + Math.floor(Math.random() * (shapes.length - 1))) % shapes.length;
+    shuttle = { x: width * (0.36 + Math.random() * 0.28), y: 40, vx: 0, vy: 45, angle: 0, spin: 0.8 };
+    combo = 0;
+    comboLabel.value = combo;
+    hitCooldown = 0;
+    serveDelay = 0;
+    flash = 0;
+  }
+
+  function resize() {
+    const bounds = court.getBoundingClientRect();
+    const pixelRatio = Math.min(devicePixelRatio || 1, 2);
+    const oldWidth = width;
+    const oldHeight = height;
+    width = bounds.width;
+    height = bounds.height;
+    court.width = Math.round(width * pixelRatio);
+    court.height = Math.round(height * pixelRatio);
+    ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+    if (shuttle) {
+      shuttle.x *= width / oldWidth;
+      shuttle.y *= height / oldHeight;
+    }
+    racket = undefined;
+  }
+
+  function moveRacket(event) {
+    if (!event.isPrimary || (event.pointerType !== 'mouse' && event.buttons === 0)) return;
+    const bounds = court.getBoundingClientRect();
+    const next = { x: event.clientX - bounds.left, y: event.clientY - bounds.top, time: event.timeStamp };
+    const previous = racket;
+    racket = next;
+    if (!previous || hitCooldown > 0 || serveDelay > 0) return;
+
+    const dx = next.x - previous.x;
+    const dy = next.y - previous.y;
+    const distanceSquared = dx * dx + dy * dy;
+    if (distanceSquared < 1) return;
+    const elapsed = Math.max(8, next.time - previous.time) / 1000;
+    const speed = Math.hypot(dx, dy) / elapsed;
+    if (speed < 100) return;
+
+    // Check the entire sweep so quick strokes can hit between pointer samples.
+    const projection = ((shuttle.x - previous.x) * dx + (shuttle.y - previous.y) * dy) / distanceSquared;
+    const t = Math.max(0, Math.min(1, projection));
+    const gap = Math.hypot(shuttle.x - (previous.x + dx * t), shuttle.y - (previous.y + dy * t));
+    if (gap > shuttleRadius + racketRadius) return;
+
+    const distance = Math.sqrt(distanceSquared);
+    const power = Math.min(720, 190 + speed * 0.45);
+    shuttle.vx = dx / distance * power * 0.83;
+    shuttle.vy = Math.min(-155, dy / distance * power - 165);
+    shuttle.spin = shuttle.vx / 80 + 1.4;
+    hitCooldown = 0.16;
+    flash = 0.22;
+    comboLabel.value = ++combo;
+    best = Math.max(best, combo);
+    bestLabel.value = best;
+  }
+
+  function simulate(dt) {
+    if (serveDelay > 0) {
+      serveDelay -= dt;
+      if (serveDelay <= 0) serve();
+      return;
+    }
+
+    hitCooldown = Math.max(0, hitCooldown - dt);
+    flash = Math.max(0, flash - dt);
+    const drag = Math.exp(-0.6 * dt);
+    shuttle.vx *= drag;
+    shuttle.vy = shuttle.vy * drag + 760 * dt;
+    shuttle.x += shuttle.vx * dt;
+    shuttle.y += shuttle.vy * dt;
+    shuttle.angle += shuttle.spin * dt;
+
+    if (shuttle.x < shuttleRadius || shuttle.x > width - shuttleRadius) {
+      shuttle.x = Math.max(shuttleRadius, Math.min(width - shuttleRadius, shuttle.x));
+      shuttle.vx *= -0.65;
+    }
+    if (shuttle.y < shuttleRadius) {
+      shuttle.y = shuttleRadius;
+      shuttle.vy = Math.abs(shuttle.vy) * 0.25;
+    }
+    const floor = height - 24;
+    if (shuttle.y + shuttleRadius >= floor) {
+      shuttle.y = floor - shuttleRadius;
+      serveDelay = 0.55;
+    }
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = '#cbd6ba';
+    ctx.fillRect(0, height - 24, width, 24);
+    ctx.fillStyle = '#a9b997';
+    ctx.fillRect(0, height - 25, width, 1);
+
+    if (flash > 0 && serveDelay <= 0) {
+      ctx.beginPath();
+      ctx.arc(shuttle.x, shuttle.y, 26 + (0.22 - flash) * 105, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(33, 102, 64, ' + flash / 0.22 + ')';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    ctx.save();
+    ctx.translate(shuttle.x, shuttle.y);
+    ctx.rotate(shuttle.angle);
+    ctx.fillStyle = serveDelay > 0 ? '#667165' : '#274d3b';
+    ctx.font = 'bold 38px system-ui';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(shapes[shape], 0, 1);
+    ctx.restore();
+
+    if (racket) {
+      ctx.beginPath();
+      ctx.arc(racket.x, racket.y, racketRadius, 0, Math.PI * 2);
+      ctx.fillStyle = '#a9d67877';
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#274d3b';
+      ctx.stroke();
+    }
+  }
+
+  function frame(time) {
+    if (lastFrame !== undefined) accumulator += Math.min((time - lastFrame) / 1000, 0.05);
+    lastFrame = time;
+    while (accumulator >= step) {
+      simulate(step);
+      accumulator -= step;
+    }
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  court.addEventListener('pointermove', moveRacket);
+  court.addEventListener('pointerdown', moveRacket);
+  for (const event of ['pointerleave', 'pointercancel', 'lostpointercapture']) {
+    court.addEventListener(event, () => { racket = undefined; });
+  }
+  court.addEventListener('pointerup', (event) => {
+    if (event.pointerType !== 'mouse') racket = undefined;
+  });
+  document.querySelector('#restart').addEventListener('click', serve);
+  resize();
+  serve();
+  new ResizeObserver(resize).observe(court);
+  requestAnimationFrame(frame);
+</script>
+</body>
+</html>
