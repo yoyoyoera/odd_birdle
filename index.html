@@ -16,6 +16,10 @@
     output { display: block; color: #f7f6e9; font-size: 1.65rem; font-weight: 800; }
     canvas { display: block; width: 100%; aspect-ratio: 9 / 5; background: #e8ebd6;
       border-radius: 16px; touch-action: none; cursor: none; }
+    .court-wrap { position: relative; }
+    #event-banner { position: absolute; top: 8%; left: 50%; transform: translateX(-50%);
+      z-index: 1; padding: 8px 15px; border-radius: 999px; color: #f7f6e9; background: #203a31;
+      font-size: clamp(.75rem, 3vw, 1rem); font-weight: 800; white-space: nowrap; pointer-events: none; }
     [hidden] { display: none !important; }
     .actions { display: flex; flex-wrap: wrap; gap: 8px; }
     #mode { background: #334445; color: #f7f6e9; }
@@ -39,7 +43,10 @@
     </div>
   </header>
   <p id="status" role="status"></p>
-  <canvas id="court" aria-label="마우스나 손가락으로 셔틀을 받아치는 배드민턴 코트"></canvas>
+  <div class="court-wrap">
+    <canvas id="court" aria-label="마우스나 손가락으로 셔틀을 받아치는 배드민턴 코트"></canvas>
+    <div id="event-banner" role="status" hidden></div>
+  </div>
   <footer>
     <span>가만히 닿으면 살짝 튕겨요. 원하는 방향으로 휘두르세요. 아래로 내리치면 스파이크!</span>
     <div class="actions">
@@ -52,6 +59,8 @@
   const court = document.querySelector('#court');
   const ctx = court.getContext('2d');
   const status = document.querySelector('#status');
+  const eventBanner = document.querySelector('#event-banner');
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   const modeButton = document.querySelector('#mode');
   const scoreLabels = {
     player: document.querySelector('#player-score'),
@@ -87,6 +96,12 @@
   const airDrag = 0.6;
   const step = 1 / 120;
   const pointsToWin = 7;
+  const effects = [
+    { id: 'shock', label: '충격', duration: 0.55 },
+    { id: 'invisible', label: '1초 투명', duration: 1 },
+    { id: 'wind', label: '돌풍', duration: 0.65 },
+    { id: 'balloon', label: '벌룬', duration: 2 }
+  ];
 
   let practice = false;
   let score;
@@ -106,6 +121,11 @@
   let flash;
   let lastFrame;
   let accumulator = 0;
+  let eventWait;
+  let countdown;
+  let pendingEffect;
+  let activeEffect;
+  let cpuPrediction;
 
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const opponent = (side) => side === 'player' ? 'cpu' : 'player';
@@ -142,6 +162,9 @@
     scoreLabels.player.value = 0;
     scoreLabels.cpu.value = 0;
     server = 'player';
+    pendingEffect = undefined;
+    clearEffect();
+    scheduleEvent();
     serve();
   }
 
@@ -152,6 +175,8 @@
       return;
     }
 
+    clearEffect();
+    updateOutline();
     scoreLabels[winner].value = ++score[winner];
     server = winner;
     if (score[winner] === pointsToWin) {
@@ -162,6 +187,66 @@
     phase = 'between';
     phaseTime = 0.85;
     status.textContent = reason + ' · ' + (winner === 'player' ? '내 득점' : 'CPU 득점');
+  }
+
+  function showEvent(message) {
+    if (eventBanner.textContent !== message) eventBanner.textContent = message;
+    eventBanner.hidden = !message;
+  }
+
+  function scheduleEvent() {
+    eventWait = 3 + Math.random() * 4;
+  }
+
+  function clearEffect() {
+    activeEffect = undefined;
+    cpuPrediction = undefined;
+    showEvent('');
+  }
+
+  function startEffect() {
+    activeEffect = { ...pendingEffect, remaining: pendingEffect.duration };
+    pendingEffect = undefined;
+    switch (activeEffect.id) {
+      case 'shock':
+        shuttle.vx = 0;
+        shuttle.vy = Math.max(0, shuttle.vy) + 135;
+        break;
+      case 'invisible':
+        cpuPrediction = { x: shuttle.x, y: shuttle.y, vx: shuttle.vx, vy: shuttle.vy };
+        flash = 0;
+        break;
+      case 'wind':
+        shuttle.vx = clamp(shuttle.vx + activeEffect.direction * 290, -1800, 1800);
+        break;
+    }
+    showEvent(activeEffect.label);
+    scheduleEvent();
+  }
+
+  function updateEvent(dt) {
+    if (practice) return;
+    if (activeEffect) {
+      activeEffect.remaining -= dt;
+      if (activeEffect.remaining <= 1e-9) clearEffect();
+      return;
+    }
+    // Short points still contribute. Only the live rally advances the timer.
+    if (!lastHitter) return;
+    if (!pendingEffect) {
+      eventWait -= dt;
+      if (eventWait > 0) return;
+      pendingEffect = { ...effects[Math.floor(Math.random() * effects.length)] };
+      if (pendingEffect.id === 'wind') {
+        pendingEffect.direction = Math.random() < 0.5 ? -1 : 1;
+        pendingEffect.label += pendingEffect.direction < 0 ? ' ←' : ' →';
+      }
+      countdown = 3;
+    } else {
+      countdown -= dt;
+    }
+    if (countdown <= 1e-9) startEffect();
+    else showEvent(pendingEffect.label + ' · ' + Math.ceil(countdown - 1e-9));
   }
 
   function flightScale(time) {
@@ -209,11 +294,12 @@
   }
 
   function updateOutline() {
+    const size = shuttle.size * (activeEffect?.id === 'balloon' ? 2 : 1);
     const cos = Math.cos(shuttle.angle);
     const sin = Math.sin(shuttle.angle);
     outline = shapes[shape].map(([x, y]) => ({
-      x: (x * cos - y * sin) * shuttle.size,
-      y: (x * sin + y * cos) * shuttle.size
+      x: (x * cos - y * sin) * size,
+      y: (x * sin + y * cos) * size
     }));
   }
 
@@ -288,16 +374,25 @@
   }
 
   function moveCpu(dt) {
-    const defending = shuttle.x >= center && shuttle.vy > 0;
-    const targetX = defending ? clamp(shuttle.x, center + racketRadius, rightLine - 24) : 660;
-    const targetY = defending ? clamp(shuttle.y + 24, 205, floor - 14) : 300;
+    const tracked = cpuPrediction ?? shuttle;
+    const defending = tracked.x >= center && tracked.vy > 0;
+    const targetX = defending ? clamp(tracked.x, center + racketRadius, rightLine - 24) : 660;
+    const targetY = defending ? clamp(tracked.y + 24, 205, floor - 14) : 300;
     cpu.x += clamp(targetX - cpu.x, -290 * dt, 290 * dt);
     cpu.y += clamp(targetY - cpu.y, -340 * dt, 340 * dt);
-    if (defending && shuttle.x <= rightLine && lastHitter !== 'cpu' && hitCooldown <= 0 &&
+    if (defending && tracked.x <= rightLine && shuttle.x >= center && shuttle.x <= rightLine &&
+        lastHitter !== 'cpu' && hitCooldown <= 0 &&
         racketContact(cpu, cpu)) {
       const vy = -485 - Math.random() * 45;
       launch(velocityToLandAt(160 + Math.random() * 165, vy), vy, 'cpu');
     }
+  }
+
+  function advanceFlight(body, dt, drag) {
+    body.vx *= drag;
+    body.vy = body.vy * drag + gravity * dt;
+    body.x += body.vx * dt;
+    body.y += body.vy * dt;
   }
 
   function simulate(dt) {
@@ -308,15 +403,14 @@
       return;
     }
 
+    updateEvent(dt);
     hitCooldown = Math.max(0, hitCooldown - dt);
     flash = Math.max(0, flash - dt);
     const previousX = shuttle.x;
     const previousY = shuttle.y;
     const drag = Math.exp(-airDrag * dt);
-    shuttle.vx *= drag;
-    shuttle.vy = shuttle.vy * drag + gravity * dt;
-    shuttle.x += shuttle.vx * dt;
-    shuttle.y += shuttle.vy * dt;
+    advanceFlight(shuttle, dt, drag);
+    if (cpuPrediction) advanceFlight(cpuPrediction, dt, drag);
     shuttle.angle += shuttle.spin * dt;
     updateOutline();
     const left = Math.min(...outline.map(point => point.x));
@@ -391,10 +485,21 @@
   }
 
   function draw() {
+    ctx.clearRect(0, 0, width, height);
+    ctx.save();
+    if (activeEffect?.id === 'shock' && !reduceMotion.matches) {
+      const t = activeEffect.remaining;
+      ctx.translate(Math.sin(t * 91) * 17 * t, Math.cos(t * 117) * 12 * t);
+    }
     drawCourt();
     if (!practice) drawRacket(cpu, '#cf936b99', '#774935');
     if (racket) drawRacket(racket, '#a9d67877', '#274d3b');
 
+    if (!cpuPrediction) drawShuttle();
+    ctx.restore();
+  }
+
+  function drawShuttle() {
     if (flash > 0 && phase === 'live') {
       ctx.beginPath();
       ctx.arc(shuttle.x, shuttle.y, 26 + (0.22 - flash) * 105, 0, Math.PI * 2);
