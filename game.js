@@ -196,6 +196,7 @@ export function createGame({ withCpu = false } = {}) {
   let activeEffect;
   let cpuPrediction;
   let cpuFollowUps = 0;
+  let cpuOutFeint;
   let flight = 0;
   let strike;
   let support;
@@ -207,6 +208,7 @@ export function createGame({ withCpu = false } = {}) {
   function serve() {
     settledSize = undefined;
     cpuFollowUps = 0;
+    cpuOutFeint = undefined;
     flight++;
     pendingLanding = undefined;
     support = undefined;
@@ -381,7 +383,10 @@ export function createGame({ withCpu = false } = {}) {
   }
 
   function playerHit(side, swingX, swingY) {
-    if (side === 'left') cpuFollowUps = 0;
+    if (side === 'left') {
+      cpuFollowUps = 0;
+      cpuOutFeint = undefined;
+    }
     const { vx, vy } = swingVelocity(swingX, swingY);
     launch(vx, vy, side);
   }
@@ -522,9 +527,26 @@ export function createGame({ withCpu = false } = {}) {
       const landingX = tracked.x + tracked.vx * landingScale(tracked.y, tracked.vy, floor - radius);
       leavingOut = landingX > rightLine + outMargin;
     }
-    const tracking = !leavingOut && (defending || preparing);
-    const targetX = tracking ? clamp(defending ? tracked.x : projectedX, center + racketRadius, rightLine - 24) : 660;
-    const targetY = tracking ? clamp(tracked.y + 24, 205, floor - 14) : 300;
+    const tracking = defending || preparing;
+    const chaseX = clamp(defending ? tracked.x : projectedX, center + racketRadius, rightLine - 24);
+    const chaseY = clamp(tracked.y + 24, 205, floor - 14);
+    let targetX = tracking && !leavingOut ? chaseX : 660;
+    let targetY = tracking && !leavingOut ? chaseY : 300;
+    if (leavingOut && tracking && !cpuOutFeint) {
+      // Commit to a small first step, then hesitate before backing off.
+      cpuOutFeint = {
+        x: cpu.x + clamp(chaseX - cpu.x, -22, 22),
+        y: cpu.y + clamp(chaseY - cpu.y, -14, 14),
+        remaining: 0.12
+      };
+    }
+    if (cpuOutFeint?.remaining > 0) {
+      cpuOutFeint.remaining = Math.max(0, cpuOutFeint.remaining - dt);
+      if (leavingOut) {
+        targetX = cpuOutFeint.x;
+        targetY = cpuOutFeint.y;
+      }
+    }
     const travel = speed * dt;
     cpu.x += clamp(targetX - cpu.x, -290 * travel, 290 * travel);
     cpu.y += clamp(targetY - cpu.y, -340 * travel, 340 * travel);
