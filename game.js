@@ -326,13 +326,19 @@ export function createGame({ withCpu = false } = {}) {
   }
 
   function onlineContact(side, from, to, frame, sampleTime, hold = false) {
-    if (phase !== 'live' || !frame?.canHit || frame.flight !== flight ||
-        (frame.x < center ? 'left' : 'right') !== side || !onSide(side)) {
+    if (phase !== 'live' || !frame || frame.flight !== flight) return;
+    if ((frame.x < center ? 'left' : 'right') !== side || !onSide(side)) {
+      touching[side] = false;
       holdStarted[side] = undefined;
       return;
     }
     const rings = shuttleOutline(frame);
-    if (!outlineContact(from, to, racketRadius, frame.x, frame.y, rings)) {
+    const overlaps = outlineContact(to, to, racketRadius, frame.x, frame.y, rings);
+    if (touching[side]) {
+      if (!overlaps) touching[side] = false;
+      return;
+    }
+    if (!frame.canHit || !outlineContact(from, to, racketRadius, frame.x, frame.y, rings)) {
       holdStarted[side] = undefined;
       return;
     }
@@ -345,6 +351,7 @@ export function createGame({ withCpu = false } = {}) {
     // Rewind only the contact test. The new velocity starts at the current
     // position so all clients see a continuous path, including late saves.
     playerHit(side, hold ? 0 : to.vx, hold ? 0 : to.vy);
+    touching[side] = overlaps;
   }
 
   function holdRacket(side, frame, sampleTime) {
