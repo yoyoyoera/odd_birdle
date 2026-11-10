@@ -240,7 +240,7 @@ export function createGame({ withCpu = false } = {}) {
     clearEffect();
     updateOutline();
     if (reason === 'out') showEvent('out');
-    if (reason === 'own court') {
+    if (reason === 'own court' && Math.max(score.left, score.right) < pointsToWin - 1) {
       showEvent(ownCourtReactions[Math.floor(Math.random() * ownCourtReactions.length)]);
     }
     score[side]++;

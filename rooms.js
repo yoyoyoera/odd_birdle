@@ -27,8 +27,8 @@ export function createRooms(randomIndex) {
     return code;
   }
 
-  function start(room, firstMatch = false) {
-    room.game.restart(firstMatch ? 3 : 0);
+  function start(room) {
+    room.game.restart(3);
     room.history = [];
     const state = room.game.view();
     const time = simulationTick * step * 1000;
@@ -137,7 +137,7 @@ export function createRooms(randomIndex) {
         side = 'right';
         room.right = peer;
         room.game = createGame();
-        start(room, true);
+        start(room);
       }
     });
   }

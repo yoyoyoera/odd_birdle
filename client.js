@@ -387,7 +387,7 @@ codeInput.addEventListener('input', () => {
 });
 back.addEventListener('click', () => leave());
 gameControl.addEventListener('click', () => {
-  if (mode === 'solo') solo.restart();
+  if (mode === 'solo') solo.restart(3);
   else send({ type: 'restart' });
 });
 resize();
