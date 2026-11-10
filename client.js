@@ -6,6 +6,7 @@ const ctx = court.getContext('2d');
 const stage = document.querySelector('#stage');
 const scoreboard = document.querySelector('#score');
 const sideLabel = document.querySelector('#side-label');
+const cpuLabel = document.querySelector('#cpu-label');
 const winnerLabel = document.querySelector('#winner');
 const status = document.querySelector('#status');
 const eventBanner = document.querySelector('#event-banner');
@@ -154,9 +155,10 @@ function updateHud(view) {
   const { phase, score, eventText = '', eventWind = false, winner, message = '' } = view;
   if (stage.dataset.phase !== phase) stage.dataset.phase = phase;
   scoreboard.hidden = !score;
-  sideLabel.hidden = mode !== 'online' && !view.cpuLevel;
-  sideLabel.dataset.side = view.cpuLevel ? 'right' : localSide;
-  setText(sideLabel, view.cpuLevel ? 'CPU Lv. ' + view.cpuLevel : 'YOU');
+  sideLabel.hidden = mode !== 'online' && mode !== 'solo';
+  sideLabel.dataset.side = mode === 'solo' ? 'left' : localSide;
+  cpuLabel.hidden = mode !== 'solo' || !view.cpuLevel;
+  setText(cpuLabel, view.cpuLevel ? 'CPU Lv. ' + view.cpuLevel : '');
   if (score) {
     const value = score.left + ':' + score.right;
     if (scoreboard.value !== value) scoreboard.value = value;

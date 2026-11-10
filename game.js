@@ -42,8 +42,8 @@ const cpuLevels = [
   { speed: 0.65, spikeChance: 0.04, outChance: 0.15 },
   { speed: 0.82, spikeChance: 0.12, outChance: 0.08 },
   { speed: 1, spikeChance: 0.25 },
-  { speed: 1.16, spikeChance: 0.40, outMargin: 32 },
-  { speed: 1.60, spikeChance: 0.60, outMargin: 8 }
+  { speed: 1.16, spikeChance: 0.40, outMargin: 32, liftChance: 0.22 },
+  { speed: 1.60, spikeChance: 0.60, outMargin: 8, liftChance: 0.43, doubleLiftChance: 0.15 }
 ];
 const effects = [
   { id: 'shock', label: 'SHOCK', duration: 0.55 },
@@ -195,6 +195,7 @@ export function createGame({ withCpu = false } = {}) {
   let countdown;
   let activeEffect;
   let cpuPrediction;
+  let cpuFollowUps = 0;
   let flight = 0;
   let strike;
   let support;
@@ -205,6 +206,7 @@ export function createGame({ withCpu = false } = {}) {
 
   function serve() {
     settledSize = undefined;
+    cpuFollowUps = 0;
     flight++;
     pendingLanding = undefined;
     support = undefined;
@@ -379,6 +381,7 @@ export function createGame({ withCpu = false } = {}) {
   }
 
   function playerHit(side, swingX, swingY) {
+    if (side === 'left') cpuFollowUps = 0;
     const { vx, vy } = swingVelocity(swingX, swingY);
     launch(vx, vy, side);
   }
@@ -514,12 +517,12 @@ export function createGame({ withCpu = false } = {}) {
     const tracking = defending || preparing;
     const targetX = tracking ? clamp(defending ? tracked.x : projectedX, center + racketRadius, rightLine - 24) : 660;
     const targetY = tracking ? clamp(tracked.y + 24, 205, floor - 14) : 300;
-    const { speed, spikeChance, outChance, outMargin } = cpuLevels[cpuLevel - 1];
+    const { speed, spikeChance, outChance, outMargin, liftChance, doubleLiftChance = 0 } = cpuLevels[cpuLevel - 1];
     const travel = speed * dt;
     cpu.x += clamp(targetX - cpu.x, -290 * travel, 290 * travel);
     cpu.y += clamp(targetY - cpu.y, -340 * travel, 340 * travel);
     if (defending && tracked.x <= rightLine && shuttle.x >= center && shuttle.x <= rightLine &&
-        lastHitter !== 'right' && hitCooldown <= 0 &&
+        (lastHitter !== 'right' || cpuFollowUps > 0) && hitCooldown <= 0 &&
         racketContact(cpu, cpu)) {
       if (outMargin !== undefined && lastHitter === 'left' && tracked.vx > 0) {
         // Even the earliest possible floor contact must land past the line.
@@ -527,7 +530,21 @@ export function createGame({ withCpu = false } = {}) {
         const landingX = tracked.x + tracked.vx * landingScale(tracked.y, tracked.vy, floor - radius);
         if (landingX > rightLine + outMargin) return;
       }
-      if (lastHitter === 'left' && shuttle.y <= netTop - 65 && Math.random() < spikeChance) {
+      const followUp = cpuFollowUps > 0;
+      if (followUp) {
+        cpuFollowUps--;
+      } else if (liftChance && lastHitter === 'left' && !cpuPrediction) {
+        const roll = Math.random();
+        if (roll < liftChance) cpuFollowUps = roll < doubleLiftChance ? 2 : 1;
+      }
+      if (cpuFollowUps > 0) {
+        // Keep the setup on our side and chase it for the next real contact.
+        const target = clamp(shuttle.x, center + 78, rightLine - 75);
+        launch(clamp((target - shuttle.x) * 2, -130, 130), -380, 'right');
+        return;
+      }
+      if ((lastHitter === 'left' || followUp) && shuttle.y <= netTop - 65 &&
+          Math.random() < (followUp ? Math.max(0.75, spikeChance) : spikeChance)) {
         const target = 205 + Math.random() * 120;
         const vy = 110;
         const vx = velocityToLandAt(target, vy);
