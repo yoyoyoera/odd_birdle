@@ -48,7 +48,6 @@ let localRacket;
 let lastFrame;
 let lastHold = -Infinity;
 let displayedShuttle;
-let displayedWarp;
 let displayedFrozen = false;
 let prediction;
 let predictedFlight;
@@ -83,7 +82,6 @@ function send(message) {
 
 function resetPrediction() {
   displayedShuttle = undefined;
-  displayedWarp = undefined;
   displayedFrozen = false;
   prediction = undefined;
   predictedFlight = undefined;
@@ -326,12 +324,11 @@ function frame(time) {
   }
   lastFrame = time;
   const view = mode === 'online' ? playback.at(time) ?? currentView() : currentView();
-  if (view.frozen || view.warp !== displayedWarp) {
+  if (view.frozen) {
     prediction = undefined;
     localOverlap = false;
   }
   if (view.frozen && localRacket) Object.assign(localRacket, { vx: 0, vy: 0 });
-  displayedWarp = view.warp;
   displayedFrozen = view.frozen;
   displayedShuttle = view.phase === 'live' && !view.frozen ? view.shuttle : undefined;
   if (mode === 'online' && localRacket && view.phase === 'live' && !view.frozen) {

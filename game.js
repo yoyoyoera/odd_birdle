@@ -42,7 +42,6 @@ const effects = [
   { id: 'invisible', label: 'INVISIBLE', duration: 1 },
   { id: 'wind', label: 'GUST', duration: 0.65 },
   { id: 'balloon', label: 'BALLOON', duration: 2 },
-  { id: 'mirror', label: 'MIRROR', duration: 0.65 },
   { id: 'freeze', label: 'FREEZE' }
 ];
 
@@ -188,7 +187,6 @@ export function createGame({ withCpu = false } = {}) {
   let activeEffect;
   let cpuPrediction;
   let flight = 0;
-  let warp = 0;
   let strike;
   let support;
   let pendingLanding;
@@ -276,15 +274,6 @@ export function createGame({ withCpu = false } = {}) {
     activeEffect = { id: effect.id, remaining: effect.duration ?? (0.5 + Math.random() * 4.5) };
     let label = effect.label;
     switch (activeEffect.id) {
-      case 'mirror':
-        shuttle.x = 2 * center - shuttle.x;
-        shuttle.vx = -shuttle.vx;
-        flight++;
-        warp++;
-        support = undefined;
-        touching.left = touching.right = false;
-        flash = 0;
-        break;
       case 'freeze':
         flight++;
         flash = 0;
@@ -603,7 +592,7 @@ export function createGame({ withCpu = false } = {}) {
     const visible = shuttle && phase !== 'starting' && activeEffect?.id !== 'invisible';
     const position = (racket) => racket && { x: racket.x, y: racket.y };
     return {
-      phase, score, message, winner, eventText, eventWind, flash, frozen, warp, support,
+      phase, score, message, winner, eventText, eventWind, flash, frozen, support,
       strike: strike?.flight === flight ? strike : undefined,
       shake: activeEffect?.id === 'shock' ? activeEffect.remaining : 0,
       shuttle: visible ? { ...shuttlePose(), flight, baseSize: shuttle.size, canHit: hitCooldown <= 0 && !pendingLanding && !frozen } : undefined,
