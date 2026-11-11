@@ -2,6 +2,7 @@ import { center, clamp, createGame, floor, height, leftLine, netTop, racketRadiu
 import { createPlayback, followStrikeClock } from './playback.js';
 import { normalizeRoomCode, roomFromLink, roomLink } from './room-link.js';
 import { createDemo } from './demo.js';
+import { track, trackVisit } from './analytics.js';
 
 const court = document.querySelector('#court');
 const ctx = court.getContext('2d');
@@ -52,6 +53,8 @@ let socket;
 let onlineView;
 const playback = createPlayback();
 let mode = 'menu';
+let joinVia = 'create';
+let finishedNoted = false;
 let selectedCpuLevel;
 let localSide = 'left';
 let localRacket;
@@ -114,9 +117,10 @@ function leave(message = '') {
   setMode('menu', message);
 }
 
-function connect(request) {
+function connect(request, via = request.type === 'join' ? 'code' : 'create') {
   const join = request.type === 'join';
   if (socket) return;
+  joinVia = via;
   setMode(join ? 'join' : 'connecting');
   const url = new URL('./play', location.href);
   url.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -132,6 +136,7 @@ function connect(request) {
       case 'room':
         roomCode.value = message.code;
         setMode('waiting');
+        track('room_create');
         break;
       case 'start':
         localSide = message.side;
@@ -141,6 +146,8 @@ function connect(request) {
         resetPrediction();
         playback.push(message.time, message.state, performance.now());
         setMode('online');
+        finishedNoted = false;
+        track('game_start', { mode: 'online', via: joinVia });
         break;
       case 'state':
         onlineView = message.state;
@@ -182,6 +189,16 @@ function updateHud(view) {
   eventBanner.toggleAttribute('data-wind', eventWind);
   setText(eventBanner, eventText);
   gameControl.hidden = mode !== 'solo' && !(mode === 'online' && phase === 'finished');
+}
+
+// Counts each match that reaches its final point once.
+function noteFinish(view) {
+  if ((mode !== 'solo' && mode !== 'online') || view.phase !== 'finished' || finishedNoted || !view.winner) return;
+  finishedNoted = true;
+  const result = view.winner === (mode === 'solo' ? 'left' : localSide) ? 'win' : 'lose';
+  track('game_finish', mode === 'solo'
+    ? { mode: 'cpu', level: String(view.cpuLevel), result }
+    : { mode: 'online', result });
 }
 
 function currentView() {
@@ -397,6 +414,7 @@ function frame(time) {
       send({ type: 'hold', seenTime: playback.displayedTime, time });
     }
   }
+  noteFinish(view);
   const demoView = scenery ? demo.view() : undefined;
   // Effect names from the demo show on the plain menus, not over codes or messages.
   const demoBanner = demoView && (mode === 'menu' || mode === 'cpu') && !lobbyMessage.textContent;
@@ -438,6 +456,8 @@ cpuPicker.addEventListener('click', event => {
   solo.restart(3, selectedCpuLevel);
   accumulator = 0;
   setMode('solo');
+  finishedNoted = false;
+  track('game_start', { mode: 'cpu', level: button.dataset.level });
 });
 joinForm.addEventListener('submit', event => {
   event.preventDefault();
@@ -465,6 +485,7 @@ copyLink.addEventListener('click', async () => {
   try {
     await navigator.clipboard.writeText(link);
     showCopyResult('COPIED');
+    track('link_copy');
     return;
   } catch {
     // Older or locked-down browsers: fall back to a temporary selection.
@@ -477,7 +498,10 @@ copyLink.addEventListener('click', async () => {
   field.select();
   const copied = document.execCommand('copy');
   field.remove();
-  if (copied) showCopyResult('COPIED');
+  if (copied) {
+    showCopyResult('COPIED');
+    track('link_copy');
+  }
   else setMode('waiting', link);
 });
 
@@ -486,9 +510,14 @@ const invitedRoom = roomFromLink(location.href);
 if (invitedRoom) {
   history.replaceState(null, '', location.pathname);
   codeInput.value = invitedRoom;
-  connect({ type: 'join', code: invitedRoom });
+  connect({ type: 'join', code: invitedRoom }, 'link');
 }
+trackVisit();
 gameControl.addEventListener('click', () => {
+  if (currentView().phase === 'finished' || onlineView?.phase === 'finished') {
+    track('rematch', { mode: mode === 'solo' ? 'cpu' : 'online' });
+  }
+  finishedNoted = false;
   if (mode === 'solo') solo.restart(3, selectedCpuLevel);
   else send({ type: 'restart' });
 });
