@@ -72,3 +72,75 @@ test('racket removal and reentry retain the scene clock', () => {
   playback.push(140, state(650, 60), 140);
   assert.equal(playback.at(140).right.x, 650);
 });
+
+const bird = (x, y, flight = 1) => ({ x, y, angle: 0, shape: 1, size: 21, baseSize: 21, flight, canHit: true });
+
+function seeded(seed) {
+  let value = seed;
+  return () => (value = (value * 1664525 + 1013904223) % 4294967296) / 4294967296;
+}
+
+// Server ticks every 16ms; arrivals get Wi-Fi-like jitter but stay in order.
+function wifiRun(jitterScale) {
+  const random = seeded(3);
+  const playback = createPlayback();
+  const packets = [];
+  let last = 0;
+  for (let t = 0; t < 8000; t += 16) {
+    const r = random();
+    const jitter = r < 0.8 ? random() * 12 : r < 0.95 ? 12 + random() * 30 : r < 0.99 ? 42 + random() * 40 : 82 + random() * 30;
+    last = Math.max(last, t + 25 + jitter * jitterScale);
+    packets.push({ t, arrival: last, x: 100 + t * 0.3 });
+  }
+  let next = 0;
+  let previous;
+  let stalls = 0;
+  let biggestJump = 0;
+  const buffers = [];
+  for (let now = 300; now < 8000; now += 1000 / 60) {
+    while (next < packets.length && packets[next].arrival <= now) {
+      const { t, arrival, x } = packets[next++];
+      playback.push(t, { phase: 'live', shuttle: bird(x, 200) }, arrival);
+    }
+    const shuttle = playback.at(now)?.shuttle;
+    buffers.push(playback.bufferMs);
+    if (shuttle && previous?.flight === shuttle.flight) {
+      const step = shuttle.x - previous.x;
+      if (step < 0.01) stalls++;
+      biggestJump = Math.max(biggestJump, step);
+    }
+    previous = shuttle;
+  }
+  return { stalls, biggestJump, buffer: buffers.at(-1) };
+}
+
+test('jittery arrivals keep the bird moving without stop-and-jump', () => {
+  const wifi = wifiRun(1);
+  assert.equal(wifi.stalls, 0);
+  // 0.3px/ms at 60fps is 5px a frame; allow a little easing on top.
+  assert.ok(wifi.biggestJump < 9, `jump ${wifi.biggestJump.toFixed(1)}px`);
+});
+
+test('the wait grows with jitter and stays low on a steady link', () => {
+  const steady = wifiRun(0.1);
+  const wifi = wifiRun(1);
+  assert.ok(steady.buffer <= 55, `steady buffer ${steady.buffer}`);
+  assert.ok(wifi.buffer > steady.buffer + 10, `wifi buffer ${wifi.buffer}`);
+  assert.ok(wifi.buffer <= 150);
+});
+
+test('a late packet extends the flight briefly, then eases onto the real position', () => {
+  const playback = createPlayback();
+  playback.push(0, { phase: 'live', shuttle: bird(100, 200) }, 0);
+  playback.push(16, { phase: 'live', shuttle: bird(110, 200) }, 16);
+  playback.push(32, { phase: 'live', shuttle: bird(120, 200) }, 32);
+  playback.at(102);
+  // No packet after 32ms: the bird keeps going instead of freezing at 120.
+  const guessed = playback.at(150);
+  assert.ok(guessed.shuttle.x > 120 && guessed.shuttle.x <= 120 + 120 * 10 / 16 + 1e-6);
+  // The real data says it slowed down; the drawn bird does not snap back in one frame.
+  playback.push(48, { phase: 'live', shuttle: bird(122, 200) }, 160);
+  playback.push(64, { phase: 'live', shuttle: bird(124, 200) }, 161);
+  const eased = playback.at(166);
+  assert.ok(Math.abs(eased.shuttle.x - guessed.shuttle.x) < 20, `${guessed.shuttle.x} -> ${eased.shuttle.x}`);
+});
