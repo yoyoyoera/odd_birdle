@@ -5,3 +5,8 @@ pages_build_output_dir = "./dist"
 [[services]]
 binding = "MATCHMAKER"
 service = "oddbridge-matchmaker"
+
+# Anonymous play counts (Workers Analytics Engine, free plan: 100k points/day).
+[[analytics_engine_datasets]]
+binding = "EVENTS"
+dataset = "oddbirdle_events"
