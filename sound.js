@@ -1,7 +1,6 @@
-import { music, renderEffects, sampleRate } from './sound-synth.js';
+import { renderEffects, sampleRate } from './sound-synth.js';
 
 const storageKey = 'oddbirdle-sound';
-const musicLevel = 0.55;
 
 function readEnabled() {
   try {
@@ -26,8 +25,6 @@ export function createSound() {
   let context;
   let master;
   let buffers;
-  let musicGain;
-  let musicSource;
 
   function toBuffer(samples) {
     const buffer = context.createBuffer(1, samples.length, sampleRate);
@@ -47,29 +44,15 @@ export function createSound() {
     master = context.createGain();
     master.gain.value = enabled ? 1 : 0;
     master.connect(shaper).connect(context.destination);
-    musicGain = context.createGain();
-    musicGain.gain.value = musicLevel;
-    musicGain.connect(master);
     buffers = Object.fromEntries(Object.entries(renderEffects())
       .map(([name, [samples, gain]]) => [name, { buffer: toBuffer(samples), gain }]));
-    buffers.music = { buffer: toBuffer(music()) };
     return true;
-  }
-
-  function startMusic() {
-    if (musicSource || !context) return;
-    musicSource = context.createBufferSource();
-    musicSource.buffer = buffers.music.buffer;
-    musicSource.loop = true;
-    musicSource.connect(musicGain);
-    musicSource.start();
   }
 
   function unlock() {
     try {
       if (!context && !build()) return;
       if (document.visibilityState === 'visible' && context.state !== 'running') context.resume();
-      startMusic();
     } catch {
       // No audio on this device; the game plays silently.
     }

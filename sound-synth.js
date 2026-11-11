@@ -1,4 +1,4 @@
-// Sound effects and music, synthesized sample by sample (no audio files).
+// Sound effects, synthesized sample by sample (no audio files).
 // Ported from the shorts soundtrack (numpy) so the game sounds the same.
 export const sampleRate = 44100;
 const TAU = Math.PI * 2;
@@ -129,32 +129,6 @@ export function freeze() {
   const crack = lowpass(make(0.6, x => noise() * env(x, 0.0005, 0.02)), 0.5);
   return make(0.6, (x, i) => 0.6 * crack[i] +
     0.3 * (Math.sin(TAU * 2637 * x) + Math.sin(TAU * 3136 * x)) * env(x, 0.002, 0.2));
-}
-
-export const musicBpm = 132;
-
-// One 4-bar loop (C-Am-F-G) of the background track: kick, hats, snare, bouncing bass, melody.
-export function music() {
-  const noise = seeded(15);
-  const beat = 60 / musicBpm;
-  const out = new Float32Array(length(beat * 16));
-  const roots = [130.81, 110, 87.31, 98];
-  for (let b = 0; b < 16; b++) {
-    const at = b * beat;
-    const bar = Math.floor(b / 4) % 4;
-    const root = roots[bar];
-    if (b % 2 === 0) mixInto(out, make(0.12, x => Math.sin(TAU * 55 * x * Math.exp(-x * 8)) * env(x, 0.001, 0.06)), at, 0.9);
-    for (const offset of [0, 0.5]) mixInto(out, make(0.03, x => noise() * env(x, 0.0005, 0.008)), at + offset * beat, 0.12);
-    if (b % 4 === 1 || b % 4 === 3) mixInto(out, make(0.12, x => noise() * env(x, 0.001, 0.05)), at, 0.25);
-    for (const [offset, multiple] of [[0, 1], [0.5, 2]]) {
-      const note = lowpass(make(beat * 0.45, x => square(TAU * root * multiple * x)), 0.15);
-      mixInto(out, note.map((value, i) => value * env(time(i), 0.003, 0.12)), at + offset * beat, 0.32);
-    }
-    const steps = bar % 2 === 0 ? [4, 7, 12, 7] : [3, 7, 10, 7];
-    const frequency = root * 4 * 2 ** (steps[b % 4] / 12);
-    mixInto(out, make(beat * 0.4, x => triangle(frequency * x) * env(x, 0.004, 0.1)), at, 0.09);
-  }
-  return out;
 }
 
 // Name -> [samples, gain], gains as mixed in the shorts.

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { music, musicBpm, renderEffects, sampleRate } from '../sound-synth.js';
+import { renderEffects, sampleRate } from '../sound-synth.js';
 import { createCueTracker } from '../sound-cues.js';
 
 test('every sound renders finite, audible and not clipping wildly', () => {
@@ -13,12 +13,6 @@ test('every sound renders finite, audible and not clipping wildly', () => {
     }
     assert.ok(peak > 0.05 && peak * gain < 4, `${name} peak ${peak}`);
   }
-});
-
-test('music is one seamless 4-bar loop at 132 BPM', () => {
-  const loop = music();
-  assert.equal(loop.length, Math.round(sampleRate * 60 / musicBpm * 16));
-  assert.ok(loop.every(Number.isFinite));
 });
 
 test('screen changes become sound cues once each', () => {
