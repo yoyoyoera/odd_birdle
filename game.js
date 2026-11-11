@@ -179,6 +179,7 @@ export function projectStrike(pose, motion, seconds) {
 }
 
 export function createGame({ withCpu = false } = {}) {
+  let netReturn;
   let baseNetTop = netTop;
   let matchNetTop = netTop;
   const netStart = { x: center, y: matchNetTop };
@@ -246,6 +247,7 @@ export function createGame({ withCpu = false } = {}) {
   }
 
   function restart(openingCountdown = 0, selectedCpuLevel) {
+    netReturn = undefined;
     winner = undefined;
     score = { left: 0, right: 0 };
     pointsToWin = 5 + Math.floor(Math.random() * 11);
@@ -269,7 +271,13 @@ export function createGame({ withCpu = false } = {}) {
   function finishPoint(side, reason) {
     if (countdown > 0) scheduleEvent();
     settledSize = shuttlePose().size;
+    const finishedNetTop = matchNetTop;
     clearEffect();
+    if (Math.abs(finishedNetTop - baseNetTop) > 1e-6) {
+      netReturn = { from: finishedNetTop, elapsed: 0 };
+      matchNetTop = finishedNetTop;
+      netStart.y = matchNetTop;
+    }
     updateOutline();
     if (reason === 'out') showEvent('out');
     const matchPoint = Math.max(score.left, score.right) === pointsToWin - 1;
@@ -286,7 +294,7 @@ export function createGame({ withCpu = false } = {}) {
       return;
     }
     phase = 'between';
-    phaseTime = 0.85;
+    phaseTime = netReturn ? 1.5 : 0.85;
     message = reason;
   }
 
@@ -661,6 +669,18 @@ export function createGame({ withCpu = false } = {}) {
   }
 
   function simulate(dt) {
+    if (netReturn) {
+      netReturn.elapsed = Math.min(1.5, netReturn.elapsed + dt);
+      const progress = netReturn.elapsed / 1.5;
+      const eased = progress * progress * (3 - 2 * progress);
+      matchNetTop = netReturn.from + (baseNetTop - netReturn.from) * eased;
+      netStart.y = matchNetTop;
+      if (netReturn.elapsed >= 1.5 - 1e-9) {
+        matchNetTop = baseNetTop;
+        netStart.y = matchNetTop;
+        netReturn = undefined;
+      }
+    }
     if (phase === 'ready' || phase === 'finished') return;
     if (phase === 'starting') {
       phaseTime -= dt;

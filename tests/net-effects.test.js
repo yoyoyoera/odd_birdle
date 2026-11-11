@@ -49,3 +49,41 @@ test('online playback blends the visible moving net between server samples', () 
   playback.push(100, { phase: 'live', netTop: 300 }, 100);
   assert.equal(playback.at(120).netTop, 320);
 });
+
+test('ending a rally or match eases the net back over 1.5 seconds', t => {
+  for (const [roll, label] of [[0.8, 'HIGH NET'], [0.95, 'LOW NET']]) {
+    for (const finalPoint of [false, true]) {
+      t.mock.method(Math, 'random', () => roll);
+      const game = createGame();
+      game.restart();
+      const base = game.view().netTop;
+      function tick() {
+        const frame = game.contactFrame();
+        if (frame?.canHit && frame.y > 250) {
+          game.moveRacket('left', null);
+          game.moveRacket('left', { x: frame.x, y: frame.y + 80, time: 0 }, frame);
+          game.moveRacket('left', { x: frame.x, y: frame.y, time: 80 }, { ...frame, time: 0, age: 0 });
+          game.moveRacket('left', null);
+        }
+        game.simulate(step);
+      }
+      for (let i = 0; i < 1800 && game.view().eventText !== label; i++) tick();
+      assert.equal(game.view().eventText, label);
+      for (let i = 0; i < 180; i++) tick();
+      const raised = game.view().netTop;
+      // Seed the scoreboard for the terminal-point variant.
+      if (finalPoint) game.view().score.right = 4 + Math.floor(roll * 11);
+      for (let i = 0; i < 500 && game.view().phase === 'live'; i++) game.simulate(step);
+      assert.equal(game.view().phase, finalPoint ? 'finished' : 'between');
+      assert.equal(game.view().netTop, raised);
+      for (let i = 0; i < 90; i++) game.simulate(step);
+      assert.ok(Math.abs(game.view().netTop - (raised + base) / 2) < 1e-6);
+      assert.equal(game.view().phase, finalPoint ? 'finished' : 'between');
+      for (let i = 0; i < 90; i++) game.simulate(step);
+      assert.equal(game.view().netTop, base);
+      game.restart(3);
+      assert.equal(game.view().netTop, base);
+      t.mock.restoreAll();
+    }
+  }
+});
