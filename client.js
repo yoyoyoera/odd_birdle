@@ -1,6 +1,7 @@
 import { center, clamp, createGame, floor, height, leftLine, netTop, racketRadius, rightLine, shuttleOutline, step, width, contactMotion, isSwing, projectStrike, racketTouches, supportedShuttleY, swingMotion } from './game.js';
 import { createPlayback, followStrikeClock } from './playback.js';
 import { normalizeRoomCode, roomFromLink, roomLink } from './room-link.js';
+import { createDemo } from './demo.js';
 
 const court = document.querySelector('#court');
 const ctx = court.getContext('2d');
@@ -42,6 +43,10 @@ for (const [property, value] of Object.entries({
 }
 
 const solo = createGame({ withCpu: true });
+const demo = createDemo();
+// Two CPUs rally quietly behind the menus; the court stays still for reduced motion.
+const demoShowing = () => mode !== 'solo' && mode !== 'online' && !reduceMotion.matches;
+const demoAlpha = { racket: 0.4, bird: 0.75 };
 const ready = { phase: 'ready' };
 let socket;
 let onlineView;
@@ -320,7 +325,7 @@ function drawCourt(view) {
   for (const x of [leftLine, center, rightLine]) ctx.fillRect(x - 2, floor, 4, 8);
 }
 
-function draw(view) {
+function draw(view, scenery = false) {
   ctx.clearRect(0, 0, width, height);
   ctx.save();
   if (view.shake && !reduceMotion.matches) {
@@ -329,24 +334,26 @@ function draw(view) {
   }
   drawCourt(view);
   if (view.phase !== 'ready') {
+    if (scenery) ctx.globalAlpha = demoAlpha.racket;
     const other = localSide === 'left' ? 'right' : 'left';
     if (view[other]) drawRacket(view[other], '#cf936b99', '#774935');
-    const ownRacket = socket ? localRacket : view[localSide];
+    const ownRacket = socket && !scenery ? localRacket : view[localSide];
     if (ownRacket && view.phase !== 'finished') drawRacket(ownRacket, '#a9d67877', palette.ink);
-    if (view.shuttle) drawShuttle(view);
+    if (view.shuttle) drawShuttle(view, scenery ? demoAlpha.bird : 1);
+    ctx.globalAlpha = 1;
   }
   ctx.restore();
 }
 
-function drawShuttle({ flash, phase, shuttle }) {
+function drawShuttle({ flash, phase, shuttle }, alpha = 1) {
   if (flash > 0 && phase === 'live') {
     ctx.beginPath();
     ctx.arc(shuttle.x, shuttle.y, 26 + (0.22 - flash) * 105, 0, Math.PI * 2);
-    ctx.globalAlpha = flash / 0.22;
+    ctx.globalAlpha = alpha * flash / 0.22;
     ctx.strokeStyle = palette.ink;
     ctx.lineWidth = 2;
     ctx.stroke();
-    ctx.globalAlpha = 1;
+    ctx.globalAlpha = alpha;
   }
   ctx.beginPath();
   for (const ring of shuttleOutline(shuttle)) {
@@ -358,15 +365,18 @@ function drawShuttle({ flash, phase, shuttle }) {
     });
     ctx.closePath();
   }
+  ctx.globalAlpha = alpha;
   ctx.fillStyle = phase === 'live' ? palette.ink : palette.net;
   ctx.fill('evenodd');
 }
 
 function frame(time) {
-  if (mode === 'solo' && lastFrame !== undefined) {
+  const scenery = demoShowing();
+  if ((mode === 'solo' || scenery) && lastFrame !== undefined) {
     accumulator += Math.min((time - lastFrame) / 1000, 0.05);
     while (accumulator >= step) {
-      solo.simulate(step);
+      if (scenery) demo.advance(step);
+      else solo.simulate(step);
       accumulator -= step;
     }
   }
@@ -396,7 +406,8 @@ function frame(time) {
     const y = supportedShuttleY(pose, localRacket, localRacket);
     if (y !== undefined) drawing = { ...drawing, shuttle: { ...pose, y } };
   }
-  draw(drawing);
+  if (scenery) draw(demo.view(), true);
+  else draw(drawing);
   requestAnimationFrame(frame);
 }
 
