@@ -33,9 +33,14 @@ export function createCueTracker() {
         }
         if (view.phase === 'finished' && previous.phase !== 'finished' && view.winner) {
           cues.push(view.winner === localSide ? 'win' : 'lose');
+        } else if (view.score && previous.score) {
+          // Every point gets its own sound; the match point is covered by the jingle above.
+          const other = localSide === 'left' ? 'right' : 'left';
+          if (view.score[localSide] > previous.score[localSide]) cues.push('pointWon');
+          else if (view.score[other] > previous.score[other]) cues.push('pointLost');
         }
       }
-      previous = { flash: view.flash ?? 0, text, phase: view.phase };
+      previous = { flash: view.flash ?? 0, text, phase: view.phase, score: view.score && { ...view.score } };
       return cues;
     }
   };

@@ -30,6 +30,13 @@ test('screen changes become sound cues once each', () => {
   assert.deepEqual(tracker.cues({ ...live, eventText: 'LOW NET' }, 3600), ['netDown']);
   assert.deepEqual(tracker.cues({ ...live, eventText: 'LOL' }, 3800), ['wah']);
   assert.deepEqual(tracker.cues({ ...live, eventText: 'out' }, 4000), []);
+  // Points: a different sound for each side; a taunt can come with the point.
+  const scored = (left, right, eventText = '') => ({ ...live, eventText, score: { left, right } });
+  tracker.cues(scored(0, 0), 4100);
+  assert.deepEqual(tracker.cues(scored(1, 0), 4200), ['pointWon']);
+  assert.deepEqual(tracker.cues(scored(1, 1, 'Oops!'), 4300), ['wah', 'pointLost']);
+  assert.deepEqual(tracker.cues(scored(1, 1), 4400), []);
+  assert.deepEqual(tracker.cues(scored(1, 2), 4500, 'right'), ['pointWon']);
   assert.deepEqual(tracker.cues({ phase: 'finished', winner: 'right', flash: 0, eventText: '' }, 5000, 'right'), ['win']);
   tracker.reset();
   tracker.cues(live, 6000);

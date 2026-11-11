@@ -110,6 +110,20 @@ export function lose() {
   return arpeggio([[392, 0], [329.63, 0.14], [261.63, 0.28], [196, 0.42]]);
 }
 
+// Point for you: two bright rising square blips.
+export function pointWon() {
+  const out = new Float32Array(length(0.3));
+  mixInto(out, make(0.1, x => 0.5 * square(TAU * 1046.5 * x) * env(x, 0.002, 0.05)), 0);
+  mixInto(out, make(0.2, x => 0.5 * square(TAU * 1568 * x) * env(x, 0.002, 0.08)), 0.08);
+  return out;
+}
+
+// Point for the other side: a low falling thud, softer than the taunt.
+export function pointLost() {
+  const phases = slidePhases(220, 130, 0.28);
+  return make(0.28, (x, i) => 0.6 * square(phases[i]) * env(x, 0.003, 0.09));
+}
+
 // New in the same style: a shimmering upward sweep that fades away.
 export function invisible() {
   const phases = slidePhases(600, 2000, 0.5);
@@ -136,7 +150,7 @@ export function renderEffects() {
   return {
     hit: [hit(), 0.9], tick: [tick(), 0.35], gust: [gust(), 0.6], shock: [shock(), 0.8],
     netUp: [net(true), 0.8], netDown: [net(false), 0.8], wah: [wah(), 0.7],
-    win: [win(), 0.55], lose: [lose(), 0.55],
+    win: [win(), 0.55], lose: [lose(), 0.55], pointWon: [pointWon(), 0.45], pointLost: [pointLost(), 0.5],
     invisible: [invisible(), 0.7], balloon: [balloon(), 0.7], freeze: [freeze(), 0.7]
   };
 }
