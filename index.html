@@ -52,16 +52,18 @@
     #game-control:focus-visible { outline: 2px solid currentColor; outline-offset: -3px; }
     #stage[data-phase="ready"] #game-control, #stage[data-phase="finished"] #game-control {
       top: calc(50% + clamp(1rem, 4vw, 2rem)); right: auto; left: 50%; transform: translateX(-50%); }
-    #menu, #join-form, #room-display { position: absolute; top: 50%; left: 50%;
+    #menu, #cpu-picker, #join-form, #room-display { position: absolute; top: 50%; left: 50%;
       transform: translate(-50%, -50%); white-space: nowrap; }
-    #menu, #join-form { display: flex; align-items: center; gap: clamp(4px, 2vw, 16px); }
+    #menu, #cpu-picker, #join-form { display: flex; align-items: center; gap: clamp(4px, 2vw, 16px); }
+    #cpu-picker { gap: 0; }
+    #cpu-picker button { min-width: 36px; }
     #join-form { flex-wrap: wrap; justify-content: center; width: min(96%, 420px); }
     #room-display { text-align: center; color: var(--ink); }
     #room-display > span { display: block; font-size: clamp(.75rem, 2vw, 1rem); }
     #room-code { display: block; font-size: clamp(1.6rem, 8vw, 4rem); font-weight: 650; letter-spacing: .12em; color: var(--ink); }
-    #menu button, #join-form button, #back { border: 0; background: transparent;
+    #menu button, #cpu-picker button, #join-form button, #back { border: 0; background: transparent;
       color: var(--ink); min-height: 44px; padding: 0 8px; font: inherit; font-weight: 650; cursor: pointer; }
-    #menu button:hover, #join-form button:hover, #back:hover { background: var(--court-hover); }
+    #menu button:hover, #cpu-picker button:hover, #join-form button:hover, #back:hover { background: var(--court-hover); }
     #join-form label { color: var(--ink); }
     #code-input { min-width: 0; width: 7.5em; background: transparent; border: 0; border-bottom: 1px solid var(--ink);
       color: var(--ink); text-transform: uppercase; font: inherit; }
@@ -88,6 +90,14 @@
       <button id="create" type="button">CREATE</button>
       <button id="join" type="button">JOIN</button>
       <button id="cpu" type="button">CPU</button>
+    </nav>
+    <nav id="cpu-picker" aria-label="CPU difficulty" hidden>
+      <button type="button" data-level="random">RANDOM</button>
+      <button type="button" data-level="1" aria-label="CPU level 1">1</button>
+      <button type="button" data-level="2" aria-label="CPU level 2">2</button>
+      <button type="button" data-level="3" aria-label="CPU level 3">3</button>
+      <button type="button" data-level="4" aria-label="CPU level 4">4</button>
+      <button type="button" data-level="5" aria-label="CPU level 5">5</button>
     </nav>
     <div id="room-display" hidden>
       <span>Room code:</span>

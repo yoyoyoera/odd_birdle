@@ -12,6 +12,7 @@ const status = document.querySelector('#status');
 const eventBanner = document.querySelector('#event-banner');
 const gameControl = document.querySelector('#game-control');
 const menu = document.querySelector('#menu');
+const cpuPicker = document.querySelector('#cpu-picker');
 const back = document.querySelector('#back');
 const roomDisplay = document.querySelector('#room-display');
 const roomCode = document.querySelector('#room-code');
@@ -44,6 +45,7 @@ let socket;
 let onlineView;
 const playback = createPlayback();
 let mode = 'menu';
+let selectedCpuLevel;
 let localSide = 'left';
 let localRacket;
 let lastFrame;
@@ -71,6 +73,7 @@ function setText(element, text) {
 function setMode(next, message = '') {
   mode = next;
   menu.hidden = next !== 'menu';
+  cpuPicker.hidden = next !== 'cpu';
   roomDisplay.hidden = next !== 'waiting';
   joinForm.hidden = next !== 'join';
   back.hidden = next === 'menu';
@@ -299,7 +302,8 @@ function drawRacket(position, fill, stroke) {
   ctx.stroke();
 }
 
-function drawCourt() {
+function drawCourt(view) {
+  const top = view.netTop ?? netTop;
   ctx.fillStyle = palette.court;
   ctx.fillRect(0, 0, width, height);
   ctx.fillStyle = palette.floor;
@@ -308,8 +312,8 @@ function drawCourt() {
   ctx.fillRect(leftLine, floor, rightLine - leftLine, 8);
 
   ctx.fillStyle = palette.net;
-  ctx.fillRect(center - 2, netTop, 4, floor - netTop);
-  ctx.fillRect(center - 9, netTop, 18, 4);
+  ctx.fillRect(center - 2, top, 4, floor - top);
+  ctx.fillRect(center - 9, top, 18, 4);
   ctx.fillStyle = '#f7f6e9';
   for (const x of [leftLine, center, rightLine]) ctx.fillRect(x - 2, floor, 4, 8);
 }
@@ -321,7 +325,7 @@ function draw(view) {
     const t = view.shake;
     ctx.translate(Math.sin(t * 91) * 17 * t, Math.cos(t * 117) * 12 * t);
   }
-  drawCourt();
+  drawCourt(view);
   if (view.phase !== 'ready') {
     const other = localSide === 'left' ? 'right' : 'left';
     if (view[other]) drawRacket(view[other], '#cf936b99', '#774935');
@@ -410,8 +414,12 @@ document.querySelector('#join').addEventListener('click', () => {
   setMode('join');
   codeInput.focus();
 });
-document.querySelector('#cpu').addEventListener('click', () => {
-  solo.restart(3);
+document.querySelector('#cpu').addEventListener('click', () => setMode('cpu'));
+cpuPicker.addEventListener('click', event => {
+  const button = event.target.closest('button[data-level]');
+  if (!button) return;
+  selectedCpuLevel = button.dataset.level === 'random' ? undefined : Number(button.dataset.level);
+  solo.restart(3, selectedCpuLevel);
   accumulator = 0;
   setMode('solo');
 });
@@ -430,7 +438,7 @@ codeInput.addEventListener('input', () => {
 });
 back.addEventListener('click', () => leave());
 gameControl.addEventListener('click', () => {
-  if (mode === 'solo') solo.restart(3);
+  if (mode === 'solo') solo.restart(3, selectedCpuLevel);
   else send({ type: 'restart' });
 });
 resize();

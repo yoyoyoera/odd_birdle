@@ -30,7 +30,6 @@ export const height = 500;
 export const center = width / 2;
 export const floor = 448;
 export const netTop = 342;
-const netStart = { x: center, y: netTop };
 const netEnd = { x: center, y: floor };
 export const leftLine = 64;
 export const rightLine = width - leftLine;
@@ -171,6 +170,8 @@ export function projectStrike(pose, motion, seconds) {
 }
 
 export function createGame({ withCpu = false } = {}) {
+  let matchNetTop = netTop;
+  const netStart = { x: center, y: matchNetTop };
   let winner;
   let message = '';
   let eventText = '';
@@ -234,11 +235,14 @@ export function createGame({ withCpu = false } = {}) {
     message = server + ' serve';
   }
 
-  function restart(openingCountdown = 0) {
+  function restart(openingCountdown = 0, selectedCpuLevel) {
     winner = undefined;
     score = { left: 0, right: 0 };
     pointsToWin = 5 + Math.floor(Math.random() * 11);
-    if (withCpu) cpuLevel = 1 + Math.floor(Math.random() * cpuLevels.length);
+    matchNetTop = Math.round(floor - (floor - netTop) * [1, 1.2, 1.4][Math.floor(Math.random() * 3)]);
+    netStart.y = matchNetTop;
+    if (withCpu) cpuLevel = Number.isInteger(selectedCpuLevel) && selectedCpuLevel >= 1 && selectedCpuLevel <= 5
+      ? selectedCpuLevel : 1 + Math.floor(Math.random() * cpuLevels.length);
     rackets.left = rackets.right = undefined;
     server = 'left';
     clearEffect();
@@ -571,7 +575,7 @@ export function createGame({ withCpu = false } = {}) {
         launch(clamp((target - shuttle.x) * 2, -130, 130), -380, 'right');
         return;
       }
-      if ((lastHitter === 'left' || followUp) && shuttle.y <= netTop - 65 &&
+      if ((lastHitter === 'left' || followUp) && shuttle.y <= matchNetTop - 65 &&
           Math.random() < (followUp ? Math.max(0.75, spikeChance) : spikeChance)) {
         const target = 205 + Math.random() * 120;
         const vy = 110;
@@ -580,7 +584,7 @@ export function createGame({ withCpu = false } = {}) {
         const radius = Math.max(...outlinePoints.map(point => Math.hypot(point.x, point.y)));
         const netFraction = (shuttle.x - center + radius + 2) / (shuttle.x - target);
         const clearanceY = shuttle.y + (floor - shuttle.y) * netFraction + radius;
-        if (clearanceY < netTop && Math.abs(vx) <= 1050) {
+        if (clearanceY < matchNetTop && Math.abs(vx) <= 1050) {
           launch(vx, vy, 'right');
           return;
         }
@@ -696,7 +700,7 @@ export function createGame({ withCpu = false } = {}) {
     const visible = shuttle && phase !== 'starting' && activeEffect?.id !== 'invisible';
     const position = (racket) => racket && { x: racket.x, y: racket.y, seenTime: racket.seenTime };
     return {
-      phase, score, message, winner, eventText, eventWind, flash, frozen, support, cpuLevel,
+      phase, score, message, winner, eventText, eventWind, flash, frozen, support, cpuLevel, netTop: matchNetTop,
       strike: strike?.flight === flight ? strike : undefined,
       shake: activeEffect?.id === 'shock' ? activeEffect.remaining : 0,
       shuttle: visible ? { ...shuttlePose(), flight, baseSize: shuttle.size, canHit: hitCooldown <= 0 && !pendingLanding && !frozen } : undefined,
