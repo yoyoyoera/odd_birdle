@@ -49,11 +49,20 @@ const effects = [
   { id: 'invisible', label: 'INVISIBLE', duration: 1 },
   { id: 'wind', label: 'GUST', duration: 0.65 },
   { id: 'balloon', label: 'BALLOON', duration: 2 },
-  { id: 'freeze', label: 'FREEZE' }
+  { id: 'freeze', label: 'FREEZE' },
+  { id: 'highNet', label: 'HIGH NET', duration: 7, netScale: 1.6 },
+  { id: 'lowNet', label: 'LOW NET', duration: 7, netScale: 0.5 }
 ];
 
 
 export const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+export function netEffectTop(baseTop, elapsed, scale) {
+  const progress = clamp(Math.min(elapsed / 1.5, (7 - elapsed) / 1.5), 0, 1);
+  const eased = progress * progress * (3 - 2 * progress);
+  const target = floor - (floor - baseTop) * scale;
+  return baseTop + (target - baseTop) * eased;
+}
 
 export function shuttleOutline({ shape, size, angle }) {
   const kind = shapes[shape];
@@ -170,6 +179,7 @@ export function projectStrike(pose, motion, seconds) {
 }
 
 export function createGame({ withCpu = false } = {}) {
+  let baseNetTop = netTop;
   let matchNetTop = netTop;
   const netStart = { x: center, y: matchNetTop };
   let winner;
@@ -240,6 +250,7 @@ export function createGame({ withCpu = false } = {}) {
     score = { left: 0, right: 0 };
     pointsToWin = 5 + Math.floor(Math.random() * 11);
     matchNetTop = Math.round(floor - (floor - netTop) * [1, 1.2, 1.4][Math.floor(Math.random() * 3)]);
+    baseNetTop = matchNetTop;
     netStart.y = matchNetTop;
     if (withCpu) cpuLevel = Number.isInteger(selectedCpuLevel) && selectedCpuLevel >= 1 && selectedCpuLevel <= 5
       ? selectedCpuLevel : 1 + Math.floor(Math.random() * cpuLevels.length);
@@ -292,13 +303,15 @@ export function createGame({ withCpu = false } = {}) {
   function clearEffect() {
     if (activeEffect?.id === 'freeze' || activeEffect?.id === 'balloon') flight++;
     activeEffect = undefined;
+    matchNetTop = baseNetTop;
+    netStart.y = matchNetTop;
     cpuPrediction = undefined;
     showEvent('');
   }
 
   function startEffect() {
     const effect = effects[Math.floor(Math.random() * effects.length)];
-    activeEffect = { id: effect.id, remaining: effect.duration ?? (0.5 + Math.random() * 4.5) };
+    activeEffect = { id: effect.id, remaining: effect.duration ?? (0.5 + Math.random() * 4.5), netScale: effect.netScale };
     let label = effect.label;
     switch (activeEffect.id) {
       case 'freeze':
@@ -335,6 +348,10 @@ export function createGame({ withCpu = false } = {}) {
   function updateEvent(dt) {
     if (activeEffect) {
       activeEffect.remaining -= dt;
+      if (activeEffect.netScale !== undefined) {
+        matchNetTop = netEffectTop(baseNetTop, 7 - activeEffect.remaining, activeEffect.netScale);
+        netStart.y = matchNetTop;
+      }
       if (activeEffect.remaining <= 1e-9) clearEffect();
       return;
     }

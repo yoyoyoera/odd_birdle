@@ -109,6 +109,8 @@ export function createPlayback() {
     if (sameShuttle || followsStrike) displayedTime = target;
     return {
       ...withRackets(a, target),
+      netTop: Number.isFinite(a.netTop) && Number.isFinite(b.netTop)
+        ? mix(a.netTop, b.netTop, fraction) : a.netTop,
       shuttle: followsStrike ? {
         ...projectStrike(strike.pose, strike.motion, (target - strike.time) / 1000),
         flight: strike.flight,
