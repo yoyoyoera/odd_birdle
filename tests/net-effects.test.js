@@ -3,14 +3,14 @@ import assert from 'node:assert/strict';
 import { createGame, floor, netEffectTop, step } from '../game.js';
 import { createPlayback } from '../playback.js';
 
-test('net effects ease in for 1.5s, hold for 4s and restore each match baseline', () => {
+test('net effects ease in for 0.7s, hold for 4s and restore each match baseline', () => {
   for (const base of [342, 321, 300]) for (const scale of [1.6, 0.5]) {
     const target = floor - (floor - base) * scale;
     assert.equal(netEffectTop(base, 0, scale), base);
-    assert.equal(netEffectTop(base, 1.5, scale), target);
-    assert.equal(netEffectTop(base, 5.5, scale), target);
-    assert.equal(netEffectTop(base, 7, scale), base);
-    assert.equal(netEffectTop(base, 0.75, scale), netEffectTop(base, 6.25, scale));
+    assert.equal(netEffectTop(base, 0.7, scale), target);
+    assert.equal(netEffectTop(base, 4.7, scale), target);
+    assert.equal(netEffectTop(base, 5.4, scale), base);
+    assert.ok(Math.abs(netEffectTop(base, 0.35, scale) - netEffectTop(base, 5.05, scale)) < 1e-6);
   }
 });
 
@@ -35,7 +35,7 @@ test('real rallies select both effects and restore height after expiry or restar
     for (let i = 0; i < 180; i++) tick();
     const top = game.view().netTop;
     assert.ok(label === 'HIGH NET' ? top < base : top > base);
-    for (let i = 0; i < 660; i++) tick();
+    for (let i = 0; i < 468; i++) tick();
     assert.ok(Math.abs(game.view().netTop - base) < 1e-6);
     game.restart(3);
     assert.equal(game.view().netTop, base);
@@ -50,7 +50,7 @@ test('online playback blends the visible moving net between server samples', () 
   assert.equal(playback.at(120).netTop, 320);
 });
 
-test('ending a rally or match eases the net back over 1.5 seconds', t => {
+test('ending a rally or match eases the net back over 0.7 seconds', t => {
   for (const [roll, label] of [[0.8, 'HIGH NET'], [0.95, 'LOW NET']]) {
     for (const finalPoint of [false, true]) {
       t.mock.method(Math, 'random', () => roll);
@@ -76,10 +76,10 @@ test('ending a rally or match eases the net back over 1.5 seconds', t => {
       for (let i = 0; i < 500 && game.view().phase === 'live'; i++) game.simulate(step);
       assert.equal(game.view().phase, finalPoint ? 'finished' : 'between');
       assert.equal(game.view().netTop, raised);
-      for (let i = 0; i < 90; i++) game.simulate(step);
+      for (let i = 0; i < 42; i++) game.simulate(step);
       assert.ok(Math.abs(game.view().netTop - (raised + base) / 2) < 1e-6);
       assert.equal(game.view().phase, finalPoint ? 'finished' : 'between');
-      for (let i = 0; i < 90; i++) game.simulate(step);
+      for (let i = 0; i < 42; i++) game.simulate(step);
       assert.equal(game.view().netTop, base);
       game.restart(3);
       assert.equal(game.view().netTop, base);

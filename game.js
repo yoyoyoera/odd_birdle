@@ -44,21 +44,23 @@ const cpuLevels = [
   { speed: 1.16, spikeChance: 0.40, outMargin: 32, liftChance: 0.22 },
   { speed: 1.60, spikeChance: 0.60, outMargin: 8, liftChance: 0.43, doubleLiftChance: 0.15 }
 ];
+const netMoveSeconds = 0.7;
+const netEffectSeconds = netMoveSeconds * 2 + 4;
 const effects = [
   { id: 'shock', label: 'SHOCK', duration: 0.55 },
   { id: 'invisible', label: 'INVISIBLE', duration: 1 },
   { id: 'wind', label: 'GUST', duration: 0.65 },
   { id: 'balloon', label: 'BALLOON', duration: 2 },
   { id: 'freeze', label: 'FREEZE' },
-  { id: 'highNet', label: 'HIGH NET', duration: 7, netScale: 1.6 },
-  { id: 'lowNet', label: 'LOW NET', duration: 7, netScale: 0.5 }
+  { id: 'highNet', label: 'HIGH NET', duration: netEffectSeconds, netScale: 1.6 },
+  { id: 'lowNet', label: 'LOW NET', duration: netEffectSeconds, netScale: 0.5 }
 ];
 
 
 export const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 export function netEffectTop(baseTop, elapsed, scale) {
-  const progress = clamp(Math.min(elapsed / 1.5, (7 - elapsed) / 1.5), 0, 1);
+  const progress = clamp(Math.min(elapsed / netMoveSeconds, (netEffectSeconds - elapsed) / netMoveSeconds), 0, 1);
   const eased = progress * progress * (3 - 2 * progress);
   const target = floor - (floor - baseTop) * scale;
   return baseTop + (target - baseTop) * eased;
@@ -294,7 +296,7 @@ export function createGame({ withCpu = false } = {}) {
       return;
     }
     phase = 'between';
-    phaseTime = netReturn ? 1.5 : 0.85;
+    phaseTime = netReturn ? netMoveSeconds : 0.85;
     message = reason;
   }
 
@@ -357,7 +359,7 @@ export function createGame({ withCpu = false } = {}) {
     if (activeEffect) {
       activeEffect.remaining -= dt;
       if (activeEffect.netScale !== undefined) {
-        matchNetTop = netEffectTop(baseNetTop, 7 - activeEffect.remaining, activeEffect.netScale);
+        matchNetTop = netEffectTop(baseNetTop, netEffectSeconds - activeEffect.remaining, activeEffect.netScale);
         netStart.y = matchNetTop;
       }
       if (activeEffect.remaining <= 1e-9) clearEffect();
@@ -670,12 +672,12 @@ export function createGame({ withCpu = false } = {}) {
 
   function simulate(dt) {
     if (netReturn) {
-      netReturn.elapsed = Math.min(1.5, netReturn.elapsed + dt);
-      const progress = netReturn.elapsed / 1.5;
+      netReturn.elapsed = Math.min(netMoveSeconds, netReturn.elapsed + dt);
+      const progress = netReturn.elapsed / netMoveSeconds;
       const eased = progress * progress * (3 - 2 * progress);
       matchNetTop = netReturn.from + (baseNetTop - netReturn.from) * eased;
       netStart.y = matchNetTop;
-      if (netReturn.elapsed >= 1.5 - 1e-9) {
+      if (netReturn.elapsed >= netMoveSeconds - 1e-9) {
         matchNetTop = baseNetTop;
         netStart.y = matchNetTop;
         netReturn = undefined;
