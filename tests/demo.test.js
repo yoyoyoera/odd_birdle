@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createDemo } from '../demo.js';
-import { center, step } from '../game.js';
+import { center, effectLabels, step } from '../game.js';
 
 function seeded(seed) {
   let value = seed;
@@ -11,7 +11,7 @@ function seeded(seed) {
   };
 }
 
-test('title demo rallies on both sides and keeps serving new birds', t => {
+test('title demo rallies, serves new birds and names effects without countdowns', t => {
   t.mock.method(Math, 'random', seeded(7));
   const demo = createDemo(seeded(11));
   const hits = { left: 0, right: 0 };
@@ -19,10 +19,14 @@ test('title demo rallies on both sides and keeps serving new birds', t => {
   let lastFlash = 0;
   let points = 0;
   let lastScore = '0:0';
+  const banners = new Set();
   for (let time = 0; time < 120; time += step) {
     demo.advance(step);
     const view = demo.view();
-    assert.equal(view.eventText, '');
+    if (view.eventText) {
+      assert.ok(effectLabels.some(label => view.eventText.startsWith(label)), `unexpected banner ${view.eventText}`);
+      banners.add(view.eventText);
+    }
     assert.equal(view.shake, 0);
     if (view.shuttle) {
       shapes.add(view.shuttle.shape);
@@ -36,5 +40,6 @@ test('title demo rallies on both sides and keeps serving new birds', t => {
   assert.ok(hits.left >= 20, `left returned ${hits.left} times`);
   assert.ok(hits.right >= 20, `right returned ${hits.right} times`);
   assert.ok(points >= 4, `only ${points} points in two minutes`);
+  assert.ok(banners.size >= 2, `only ${banners.size} effects named`);
   assert.ok(shapes.size >= 4, `only ${shapes.size} bird shapes shown`);
 });

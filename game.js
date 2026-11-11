@@ -55,6 +55,7 @@ const effects = [
   { id: 'highNet', label: 'HIGH NET', duration: netEffectSeconds, netScale: 1.6 },
   { id: 'lowNet', label: 'LOW NET', duration: netEffectSeconds, netScale: 0.5 }
 ];
+export const effectLabels = effects.map(effect => effect.label);
 
 
 export const clamp = (value, min, max) => Math.max(min, Math.min(max, value));

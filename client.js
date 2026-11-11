@@ -397,7 +397,10 @@ function frame(time) {
       send({ type: 'hold', seenTime: playback.displayedTime, time });
     }
   }
-  updateHud(view);
+  const demoView = scenery ? demo.view() : undefined;
+  // Effect names from the demo show on the plain menus, not over codes or messages.
+  const demoBanner = demoView && (mode === 'menu' || mode === 'cpu') && !lobbyMessage.textContent;
+  updateHud(demoBanner ? { ...view, eventText: demoView.eventText, eventWind: demoView.eventWind } : view);
   let drawing = mode === 'online' ? predictedView(view, time) : view;
   const pose = drawing.shuttle;
   if (mode === 'online' && !view.frozen && pose && localRacket &&
@@ -406,7 +409,7 @@ function frame(time) {
     const y = supportedShuttleY(pose, localRacket, localRacket);
     if (y !== undefined) drawing = { ...drawing, shuttle: { ...pose, y } };
   }
-  if (scenery) draw(demo.view(), true);
+  if (scenery) draw(demoView, true);
   else draw(drawing);
   requestAnimationFrame(frame);
 }

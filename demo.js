@@ -1,4 +1,4 @@
-import { center, clamp, createGame, floor, racketRadius, step } from './game.js';
+import { center, clamp, createGame, effectLabels, floor, racketRadius, step } from './game.js';
 
 // Title-screen demo: the normal CPU plays the right side and a small autopilot
 // plays the left side through the same racket input a person would use.
@@ -7,6 +7,8 @@ const restY = 330;
 const chaseSpeed = 620;
 const swingSeconds = 0.18;
 const finishedPause = 2.2;
+// Short effects still get their name on screen long enough to read.
+const bannerSeconds = 1.4;
 // Mistakes keep points short enough to show a score change every so often.
 const mistakes = { long: 0.08, short: 0.08, lazy: 0.08 };
 const smashChance = 0.3;
@@ -19,6 +21,7 @@ export function createDemo(random = Math.random) {
   let previous;
   let pause = 0;
   let aim;
+  let banner;
 
   function restart() {
     // Lower levels miss now and then, so new birds come out often.
@@ -27,6 +30,7 @@ export function createDemo(random = Math.random) {
     swing = undefined;
     previous = undefined;
     pause = 0;
+    banner = undefined;
   }
 
   function pickAim() {
@@ -92,8 +96,20 @@ export function createDemo(random = Math.random) {
     }
   }
 
+  function updateBanner(dt) {
+    // Only effect names: no countdown numbers or fault taunts on the title screen.
+    const { eventText, eventWind } = game.view();
+    const effect = effectLabels.some(label => eventText.startsWith(label));
+    if (effect && banner?.text !== eventText) banner = { text: eventText, wind: eventWind, remaining: bannerSeconds };
+    else if (banner) {
+      banner.remaining -= dt;
+      if (banner.remaining <= 0 && !(effect && banner.text === eventText)) banner = undefined;
+    }
+  }
+
   function advance(dt) {
     time += dt;
+    updateBanner(dt);
     const view = game.view();
     if (view.phase === 'finished') {
       pause += dt;
@@ -108,8 +124,8 @@ export function createDemo(random = Math.random) {
   }
 
   function view() {
-    // The demo is scenery: no banners, scores or screen shake.
-    return { ...game.view(), eventText: '', shake: 0 };
+    // The demo is scenery: effect names only, and no screen shake.
+    return { ...game.view(), eventText: banner?.text ?? '', eventWind: banner?.wind ?? false, shake: 0 };
   }
 
   restart();
