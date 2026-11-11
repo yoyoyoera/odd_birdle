@@ -3,6 +3,8 @@ import { createPlayback, followStrikeClock } from './playback.js';
 import { normalizeRoomCode, roomFromLink, roomLink } from './room-link.js';
 import { createDemo } from './demo.js';
 import { track, trackVisit } from './analytics.js';
+import { createSound } from './sound.js';
+import { createCueTracker } from './sound-cues.js';
 
 const court = document.querySelector('#court');
 const ctx = court.getContext('2d');
@@ -45,6 +47,9 @@ for (const [property, value] of Object.entries({
 
 const solo = createGame({ withCpu: true });
 const demo = createDemo();
+const sound = createSound();
+const soundCues = createCueTracker();
+const soundToggle = document.querySelector('#sound-toggle');
 // Two CPUs rally quietly behind the menus; the court stays still for reduced motion.
 const demoShowing = () => mode !== 'solo' && mode !== 'online' && !reduceMotion.matches;
 const demoAlpha = { racket: 0.4, bird: 0.75 };
@@ -81,6 +86,7 @@ function setText(element, text) {
 }
 
 function setMode(next, message = '') {
+  if (next !== mode) soundCues.reset();
   mode = next;
   menu.hidden = next !== 'menu';
   cpuPicker.hidden = next !== 'cpu';
@@ -420,6 +426,9 @@ function frame(time) {
   const demoBanner = demoView && (mode === 'menu' || mode === 'cpu') && !lobbyMessage.textContent;
   updateHud(demoBanner ? { ...view, eventText: demoView.eventText, eventWind: demoView.eventWind } : view);
   let drawing = mode === 'online' ? predictedView(view, time) : view;
+  if (mode === 'solo' || mode === 'online') {
+    for (const cue of soundCues.cues(drawing, time, mode === 'solo' ? 'left' : localSide)) sound.play(cue);
+  }
   const pose = drawing.shuttle;
   if (mode === 'online' && !view.frozen && pose && localRacket &&
       (pose.x < center ? 'left' : 'right') === localSide &&
@@ -513,6 +522,22 @@ if (invitedRoom) {
   connect({ type: 'join', code: invitedRoom }, 'link');
 }
 trackVisit();
+
+// Sound can only start from a click, tap or key press.
+for (const type of ['pointerdown', 'keydown']) {
+  document.addEventListener(type, () => sound.unlock(), { capture: true });
+}
+function showSoundState() {
+  soundToggle.setAttribute('aria-pressed', String(!sound.enabled));
+  const label = sound.enabled ? 'Mute sound' : 'Turn sound on';
+  soundToggle.setAttribute('aria-label', label);
+  soundToggle.title = label;
+}
+soundToggle.addEventListener('click', () => {
+  sound.toggle();
+  showSoundState();
+});
+showSoundState();
 gameControl.addEventListener('click', () => {
   if (currentView().phase === 'finished' || onlineView?.phase === 'finished') {
     track('rematch', { mode: mode === 'solo' ? 'cpu' : 'online' });

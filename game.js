@@ -36,7 +36,7 @@ export const rightLine = width - leftLine;
 export const racketRadius = 22;
 const baseGravity = 760;
 export const step = 1 / 120;
-const faultReactions = ['Pardon?', 'LOL', 'Oops!', 'Nice try.', 'Wrong way.'];
+export const faultReactions = ['Pardon?', 'LOL', 'Oops!', 'Nice try.', 'Wrong way.'];
 const cpuLevels = [
   { speed: 0.65, spikeChance: 0.04, outChance: 0.15 },
   { speed: 0.82, spikeChance: 0.12, outChance: 0.08 },

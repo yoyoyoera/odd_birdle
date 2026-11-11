@@ -29,8 +29,12 @@
     #stage { position: relative; }
     #stage:not([data-phase="ready"]) h1 { display: none; }
     #studio-links { display: flex; justify-content: center; margin-top: 8px; }
-    #studio-links a { display: grid; place-items: center; width: 44px; height: 44px; color: var(--court); }
-    #studio-links a:hover { background: var(--page-hover); }
+    #studio-links a, #sound-toggle { display: grid; place-items: center; width: 44px; height: 44px; color: var(--court); }
+    #sound-toggle { border: 0; padding: 0; background: transparent; cursor: pointer; }
+    #studio-links a:hover, #sound-toggle:hover { background: var(--page-hover); }
+    #sound-toggle:focus-visible { outline: 2px solid currentColor; outline-offset: -3px; }
+    #sound-toggle .muted, #sound-toggle[aria-pressed="true"] .on { display: none; }
+    #sound-toggle[aria-pressed="true"] .muted { display: inline; }
     #studio-links a:focus-visible { outline: 2px solid currentColor; outline-offset: -3px; }
     @media (orientation: landscape) and (pointer: coarse) {
       main { display: grid; grid-template-columns: minmax(0, 1fr) 44px; align-items: center;
@@ -133,7 +137,7 @@
       </svg>
     </button>
   </section>
-  <nav id="studio-links" aria-label="studiyo links">
+  <nav id="studio-links" aria-label="studiyo links and sound">
     <a href="https://studiyo.pages.dev/" target="_blank" rel="noopener"
       aria-label="studiyo website (opens in a new tab)" title="studiyo website">
       <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -152,6 +156,14 @@
         <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/>
       </svg>
     </a>
+    <button id="sound-toggle" type="button" aria-pressed="false" aria-label="Mute sound" title="Mute sound">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        stroke-width="1.6" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/>
+        <path class="on" d="M15.5 9a4.5 4.5 0 0 1 0 6M18 6.5a8 8 0 0 1 0 11" stroke-linecap="round"/>
+        <path class="muted" d="M16 9.5l5 5M21 9.5l-5 5" stroke-linecap="round"/>
+      </svg>
+    </button>
   </nav>
 </main>
 <script type="module" src="./client.js"></script>
