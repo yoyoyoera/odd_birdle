@@ -72,9 +72,10 @@
     #room-display { text-align: center; color: var(--ink); }
     #room-display > span { display: block; font-size: clamp(.75rem, 2vw, 1rem); }
     #room-code { display: block; font-size: clamp(1.6rem, 8vw, 4rem); font-weight: 650; letter-spacing: .12em; color: var(--ink); }
-    #menu button, #cpu-picker button, #join-form button, #back { border: 0; background: transparent;
+    #copy-link { display: block; margin: 4px auto 0; min-width: 9em; }
+    #menu button, #cpu-picker button, #join-form button, #back, #copy-link { border: 0; background: transparent;
       color: var(--ink); min-height: 44px; padding: 0 8px; font: inherit; font-weight: 650; cursor: pointer; }
-    #menu button:hover, #cpu-picker button:hover, #join-form button:hover, #back:hover { background: var(--court-hover); }
+    #menu button:hover, #cpu-picker button:hover, #join-form button:hover, #back:hover, #copy-link:hover { background: var(--court-hover); }
     #join-form label { color: var(--ink); }
     #code-input { min-width: 0; width: 7.5em; background: transparent; border: 0; border-bottom: 1px solid var(--ink);
       color: var(--ink); text-transform: uppercase; font: inherit; }
@@ -113,6 +114,7 @@
     <div id="room-display" hidden>
       <span>Room code:</span>
       <output id="room-code" aria-label="Room code" aria-live="polite"></output>
+      <button id="copy-link" type="button">COPY LINK</button>
     </div>
     <form id="join-form" novalidate hidden>
       <label for="code-input">Room code</label>

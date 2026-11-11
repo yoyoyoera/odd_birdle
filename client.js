@@ -1,5 +1,6 @@
 import { center, clamp, createGame, floor, height, leftLine, netTop, racketRadius, rightLine, shuttleOutline, step, width, contactMotion, isSwing, projectStrike, racketTouches, supportedShuttleY, swingMotion } from './game.js';
 import { createPlayback, followStrikeClock } from './playback.js';
+import { normalizeRoomCode, roomFromLink, roomLink } from './room-link.js';
 
 const court = document.querySelector('#court');
 const ctx = court.getContext('2d');
@@ -19,6 +20,7 @@ const roomCode = document.querySelector('#room-code');
 const joinForm = document.querySelector('#join-form');
 const codeInput = document.querySelector('#code-input');
 const lobbyMessage = document.querySelector('#lobby-message');
+const copyLink = document.querySelector('#copy-link');
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
 const palettes = [
@@ -425,8 +427,8 @@ cpuPicker.addEventListener('click', event => {
 });
 joinForm.addEventListener('submit', event => {
   event.preventDefault();
-  const code = codeInput.value.trim().toUpperCase();
-  if (!/^[A-Z0-9]{6}$/.test(code)) {
+  const code = normalizeRoomCode(codeInput.value);
+  if (!code) {
     setMode('join', 'Room not found.');
     codeInput.focus();
     return;
@@ -437,6 +439,41 @@ codeInput.addEventListener('input', () => {
   if (mode === 'join' && !socket) setMode('join');
 });
 back.addEventListener('click', () => leave());
+
+let copyReset;
+function showCopyResult(label) {
+  setText(copyLink, label);
+  clearTimeout(copyReset);
+  copyReset = setTimeout(() => setText(copyLink, 'COPY LINK'), 1600);
+}
+copyLink.addEventListener('click', async () => {
+  const link = roomLink(roomCode.value, location.href);
+  try {
+    await navigator.clipboard.writeText(link);
+    showCopyResult('COPIED');
+    return;
+  } catch {
+    // Older or locked-down browsers: fall back to a temporary selection.
+  }
+  const field = document.createElement('textarea');
+  field.value = link;
+  field.setAttribute('readonly', '');
+  field.className = 'sr-only';
+  document.body.append(field);
+  field.select();
+  const copied = document.execCommand('copy');
+  field.remove();
+  if (copied) showCopyResult('COPIED');
+  else setMode('waiting', link);
+});
+
+// Opening an invite link joins that room straight away, then tidies the address bar.
+const invitedRoom = roomFromLink(location.href);
+if (invitedRoom) {
+  history.replaceState(null, '', location.pathname);
+  codeInput.value = invitedRoom;
+  connect({ type: 'join', code: invitedRoom });
+}
 gameControl.addEventListener('click', () => {
   if (mode === 'solo') solo.restart(3, selectedCpuLevel);
   else send({ type: 'restart' });
