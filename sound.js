@@ -22,6 +22,9 @@ function saveEnabled(enabled) {
 // nothing is created until unlock() runs from one.
 export function createSound() {
   let enabled = readEnabled();
+  // Set by the portal (CrazyGames mute); overrides the in-game button.
+  let portalMuted = false;
+  const audible = () => enabled && !portalMuted;
   let context;
   let master;
   let buffers;
@@ -42,7 +45,7 @@ export function createSound() {
     for (let i = 0; i < curve.length; i++) curve[i] = Math.tanh((i / 511.5 - 1) * 1.1) * 0.85;
     shaper.curve = curve;
     master = context.createGain();
-    master.gain.value = enabled ? 1 : 0;
+    master.gain.value = audible() ? 1 : 0;
     master.connect(shaper).connect(context.destination);
     buffers = Object.fromEntries(Object.entries(renderEffects())
       .map(([name, [samples, gain]]) => [name, { buffer: toBuffer(samples), gain }]));
@@ -60,7 +63,7 @@ export function createSound() {
 
   function play(name) {
     const sound = buffers?.[name];
-    if (!enabled || !sound || context.state !== 'running') return;
+    if (!audible() || !sound || context.state !== 'running') return;
     const source = context.createBufferSource();
     source.buffer = sound.buffer;
     // Every hit sounds a little different.
@@ -71,10 +74,14 @@ export function createSound() {
     source.start();
   }
 
+  function applyGain() {
+    if (master) master.gain.setTargetAtTime(audible() ? 1 : 0, context.currentTime, 0.02);
+  }
+
   function setEnabled(next) {
     enabled = next;
     saveEnabled(enabled);
-    if (master) master.gain.setTargetAtTime(enabled ? 1 : 0, context.currentTime, 0.02);
+    applyGain();
   }
 
   // Hidden tabs (and portal frames scrolled away) go quiet.
@@ -87,6 +94,12 @@ export function createSound() {
   return {
     unlock, play,
     get enabled() { return enabled; },
+    get audible() { return audible(); },
+    get portalMuted() { return portalMuted; },
+    setPortalMuted(muted) {
+      portalMuted = muted;
+      applyGain();
+    },
     toggle() { setEnabled(!enabled); return enabled; }
   };
 }

@@ -5,7 +5,10 @@ import { createDemo } from './demo.js';
 import { startHeartbeat, track, trackVisit } from './analytics.js';
 import { createSound } from './sound.js';
 import { createCueTracker } from './sound-cues.js';
-import { initPortal, loadingStart, loadingStop, portal, portalInviteLink, portalInviteRoom, serverBase, setPlaying, siteUrl } from './portal.js';
+import {
+  initPortal, isInstantMultiplayer, loadingStart, loadingStop, onJoinRoom, onPortalMute, portal, portalInviteLink,
+  portalInviteRoom, portalMuted, roomFull, roomLeft, roomOpen, serverBase, setPlaying, siteUrl
+} from './portal.js';
 
 const court = document.querySelector('#court');
 const ctx = court.getContext('2d');
@@ -112,6 +115,7 @@ function resetPrediction() {
 }
 
 function leave(message = '') {
+  roomLeft();
   const previous = socket;
   socket = undefined;
   previous?.close();
@@ -142,6 +146,7 @@ function connect(request, via = request.type === 'join' ? 'code' : 'create') {
       case 'room':
         roomCode.value = message.code;
         setMode('waiting');
+        roomOpen(message.code);
         track('room_create');
         break;
       case 'start':
@@ -153,6 +158,7 @@ function connect(request, via = request.type === 'join' ? 'code' : 'create') {
         playback.push(message.time, message.state, performance.now());
         setMode('online');
         finishedNoted = false;
+        roomFull(request.code ?? roomCode.value);
         track('game_start', { mode: 'online', via: joinVia });
         break;
       case 'state':
@@ -543,7 +549,24 @@ initPortal().then(() => {
     if (!portal) history.replaceState(null, '', location.pathname);
     codeInput.value = invitedRoom;
     connect({ type: 'join', code: invitedRoom }, 'link');
+  } else if (isInstantMultiplayer()) {
+    // A CrazyGames party leader: skip the menu and open a room to invite friends into.
+    connect({ type: 'create' });
   }
+  // An invite accepted while already in the game: leave whatever is going on and join.
+  onJoinRoom(code => {
+    const room = normalizeRoomCode(code);
+    if (!room) return;
+    if (socket) leave();
+    codeInput.value = room;
+    connect({ type: 'join', code: room }, 'link');
+  });
+  sound.setPortalMuted(portalMuted());
+  onPortalMute(muted => {
+    sound.setPortalMuted(muted);
+    showSoundState();
+  });
+  showSoundState();
   loadingStop();
 });
 trackVisit();
@@ -554,8 +577,9 @@ for (const type of ['pointerdown', 'keydown']) {
   document.addEventListener(type, () => sound.unlock(), { capture: true });
 }
 function showSoundState() {
-  soundToggle.setAttribute('aria-pressed', String(!sound.enabled));
-  const label = sound.enabled ? 'Mute sound' : 'Turn sound on';
+  // Shows what is heard: a portal mute shows as muted even if the button was left on.
+  soundToggle.setAttribute('aria-pressed', String(!sound.audible));
+  const label = sound.portalMuted ? 'Sound muted by CrazyGames' : sound.enabled ? 'Mute sound' : 'Turn sound on';
   soundToggle.setAttribute('aria-label', label);
   soundToggle.title = label;
 }

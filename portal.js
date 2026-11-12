@@ -45,6 +45,47 @@ export function portalInviteLink(code) {
   return link;
 }
 
+// CrazyGames multiplayer: party leaders who arrive with this flag go straight to a new room.
+export function isInstantMultiplayer() {
+  let instant = false;
+  call(game => { instant = game.isInstantMultiplayer === true; });
+  return instant;
+}
+
+// Room Data drives the CrazyGames invite button: open while waiting, closed once full.
+let inRoom = false;
+export function roomOpen(code) {
+  inRoom = true;
+  call(game => game.updateRoom({ roomId: code, isJoinable: true, inviteParams: { room: code } }));
+}
+
+export function roomFull(code) {
+  inRoom = true;
+  call(game => game.updateRoom({ roomId: code, isJoinable: false }));
+}
+
+export function roomLeft() {
+  if (!inRoom) return;
+  inRoom = false;
+  call(game => game.leftRoom());
+}
+
+// Someone already playing accepted an invite.
+export function onJoinRoom(handler) {
+  call(game => game.addJoinRoomListener(params => handler(params?.room)));
+}
+
+// CrazyGames can mute the game; that wins over the in-game sound button.
+export function portalMuted() {
+  let muted = false;
+  call(game => { muted = game.settings?.muteAudio === true; });
+  return muted;
+}
+
+export function onPortalMute(handler) {
+  call(game => game.addSettingsChangeListener(settings => handler(settings?.muteAudio === true)));
+}
+
 export function portalInviteRoom() {
   let room;
   call(game => { room = game.getInviteParam('room'); });
