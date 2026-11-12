@@ -3,6 +3,19 @@
 // The token only needs "Account Analytics: Read".
 import { pathToFileURL } from 'node:url';
 
+// Visits and starts per place the game is played; events from before sources existed count as site.
+function bySource(rows, count) {
+  const sources = ['site', 'crazygames', 'itch'];
+  const of = (name, source) => rows.filter(row => row.name === name && (row.source || 'site') === source)
+    .reduce((sum, row) => sum + Number(row.n), 0);
+  const lines = [`출처별 방문: ${sources.map(source => `${source} ${of('page_view', source)}`).join(' · ')}`,
+    `출처별 게임 시작: ${sources.map(source => `${source} ${of('game_start', source)}`).join(' · ')}`];
+  // origin_rejected keeps the turned-away host in the mode column.
+  const rejected = rows.filter(row => row.name === 'origin_rejected');
+  if (rejected.length) lines.push(`거절된 출처: ${rejected.map(row => `${row.mode} ${row.n}`).join(', ')}`);
+  return lines;
+}
+
 export function summarize(rows) {
   const count = (filter) => rows.filter(row => Object.entries(filter).every(([key, value]) => row[key] === value))
     .reduce((sum, row) => sum + Number(row.n), 0);
@@ -23,7 +36,8 @@ export function summarize(rows) {
     `온라인 시작 ${onlineStarts} (방 만든 쪽 ${count({ name: 'game_start', via: 'create' })} · 코드 입장 ${count({ name: 'game_start', via: 'code' })} · 링크 입장 ${count({ name: 'game_start', via: 'link' })})`,
     `온라인 완주 ${onlineFinishes} (완주율 ${rate(onlineFinishes, onlineStarts)}), 한 판 더 ${count({ name: 'rematch', mode: 'online' })}`,
     `방 만들기 ${count({ name: 'room_create' })}, 링크 복사 ${count({ name: 'link_copy' })}`,
-    '(온라인 숫자는 두 사람 각자의 브라우저에서 한 번씩 세어짐)'
+    '(온라인 숫자는 두 사람 각자의 브라우저에서 한 번씩 세어짐)',
+    ...bySource(rows, count)
   ].join('\n');
 }
 
@@ -66,9 +80,9 @@ async function main() {
     process.exit(1);
   }
   const data = await query(account, token, `SELECT blob1 AS name, blob2 AS mode, blob3 AS level, blob4 AS via,
-    blob5 AS result, blob6 AS returning, SUM(_sample_interval) AS n FROM oddbirdle_events
+    blob5 AS result, blob6 AS returning, blob7 AS source, SUM(_sample_interval) AS n FROM oddbirdle_events
     WHERE timestamp > NOW() - INTERVAL '${days}' DAY AND blob1 != 'heartbeat'
-    GROUP BY name, mode, level, via, result, returning FORMAT JSON`);
+    GROUP BY name, mode, level, via, result, returning, source FORMAT JSON`);
   const minutes = await query(account, token, `SELECT toStartOfInterval(timestamp, INTERVAL '1' MINUTE) AS minute,
     SUM(_sample_interval) AS n FROM oddbirdle_events
     WHERE timestamp > NOW() - INTERVAL '${days}' DAY AND blob1 = 'heartbeat'

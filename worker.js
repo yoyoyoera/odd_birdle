@@ -1,11 +1,17 @@
 import { DurableObject } from 'cloudflare:workers';
 import { createRooms } from './rooms.js';
+import { originSource } from './origins.js';
 
 export default {
   fetch(request, env) {
     const url = new URL(request.url);
-    if (url.pathname !== '/play' || request.headers.get('Upgrade')?.toLowerCase() !== 'websocket' ||
-        request.headers.get('Origin') !== url.origin) {
+    if (url.pathname !== '/play' || request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') {
+      return new Response('Not found', { status: 404 });
+    }
+    const origin = request.headers.get('Origin');
+    if (origin !== url.origin && !originSource(origin)) {
+      // Shows up in `wrangler tail` / dashboard logs, to find a portal's real origin.
+      console.log('rejected websocket origin', origin);
       return new Response('Not found', { status: 404 });
     }
     return env.ROOMS.getByName('lobby').fetch(request);

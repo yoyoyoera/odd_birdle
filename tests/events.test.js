@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { cleanEvent } from '../event-schema.js';
 import { onRequestPost } from '../functions/event.js';
+import { originSource } from '../origins.js';
 
 test('only listed event names and values pass the filter', () => {
   assert.deepEqual(cleanEvent({ name: 'game_start', mode: 'cpu', level: 'random' }),
@@ -16,8 +17,8 @@ test('only listed event names and values pass the filter', () => {
   assert.equal(cleanEvent(null), undefined);
 });
 
-const post = (body, env) => onRequestPost({
-  request: new Request('https://example.test/event', { method: 'POST', body }), env
+const post = (body, env, origin = 'https://oddbirdle.pages.dev') => onRequestPost({
+  request: new Request('https://oddbirdle.pages.dev/event', { method: 'POST', body, headers: origin ? { Origin: origin } : {} }), env
 });
 
 test('event endpoint writes one anonymous data point', async () => {
@@ -25,7 +26,9 @@ test('event endpoint writes one anonymous data point', async () => {
   const env = { EVENTS: { writeDataPoint: point => points.push(point) } };
   const response = await post(JSON.stringify({ name: 'rematch', mode: 'cpu' }), env);
   assert.equal(response.status, 204);
-  assert.deepEqual(points, [{ indexes: ['rematch'], blobs: ['rematch', 'cpu', '', '', '', ''], doubles: [1] }]);
+  assert.deepEqual(points, [{ indexes: ['rematch'], blobs: ['rematch', 'cpu', '', '', '', '', 'site'], doubles: [1] }]);
+  await post(JSON.stringify({ name: 'page_view', returning: 'no' }), env, 'https://html-classic.itch.zone');
+  assert.equal(points.at(-1).blobs.at(-1), 'itch');
 });
 
 test('event endpoint rejects junk and survives a missing binding', async () => {
@@ -69,4 +72,37 @@ test('concurrency reads the last finished minute and the peaks', async () => {
 test('heartbeat only takes known screens', () => {
   assert.deepEqual(cleanEvent({ name: 'heartbeat', mode: 'menu' }), { name: 'heartbeat', mode: 'menu' });
   assert.equal(cleanEvent({ name: 'heartbeat', mode: 'settings' }), undefined);
+});
+
+test('only our site and the portals are allowed, by source', () => {
+  assert.equal(originSource('https://oddbirdle.pages.dev'), 'site');
+  assert.equal(originSource('https://abc123.oddbirdle.pages.dev'), 'site');
+  assert.equal(originSource('https://games.crazygames.com'), 'crazygames');
+  assert.equal(originSource('https://www.crazygames.com'), 'crazygames');
+  assert.equal(originSource('https://html-classic.itch.zone'), 'itch');
+  assert.equal(originSource('http://html-classic.itch.zone'), undefined);
+  assert.equal(originSource('https://crazygames.com.evil.test'), undefined);
+  assert.equal(originSource('https://notcrazygames.com'), undefined);
+  assert.equal(originSource(null), undefined);
+});
+
+test('events from unknown origins are refused and their host is noted', async () => {
+  const points = [];
+  const env = { EVENTS: { writeDataPoint: point => points.push(point) } };
+  assert.equal((await post(JSON.stringify({ name: 'link_copy' }), env, 'https://copycat.example')).status, 403);
+  assert.deepEqual(points, [{ indexes: ['origin_rejected'], blobs: ['origin_rejected', 'copycat.example'], doubles: [1] }]);
+  assert.equal((await post(JSON.stringify({ name: 'link_copy' }), env, null)).status, 403);
+});
+
+test('stats split visits by source and list refused hosts', async () => {
+  const { summarize } = await import('../scripts/stats.mjs');
+  const text = summarize([
+    { name: 'page_view', returning: 'no', source: '', n: '3' },
+    { name: 'page_view', returning: 'no', source: 'crazygames', n: '5' },
+    { name: 'game_start', mode: 'cpu', level: 'random', source: 'itch', n: '2' },
+    { name: 'origin_rejected', mode: 'games.example.com', n: '4' }
+  ]);
+  assert.match(text, /출처별 방문: site 3 · crazygames 5 · itch 0/);
+  assert.match(text, /출처별 게임 시작: site 0 · crazygames 0 · itch 2/);
+  assert.match(text, /거절된 출처: games.example.com 4/);
 });
