@@ -18,7 +18,7 @@ const status = document.querySelector('#status');
 const eventBanner = document.querySelector('#event-banner');
 const gameControl = document.querySelector('#game-control');
 const menu = document.querySelector('#menu');
-const cpuPicker = document.querySelector('#cpu-picker');
+const cpuLevelButton = document.querySelector('#cpu-level');
 const back = document.querySelector('#back');
 const roomDisplay = document.querySelector('#room-display');
 const roomCode = document.querySelector('#room-code');
@@ -90,7 +90,6 @@ function setMode(next, message = '') {
   if (next !== mode) soundCues.reset();
   mode = next;
   menu.hidden = next !== 'menu';
-  cpuPicker.hidden = next !== 'cpu';
   roomDisplay.hidden = next !== 'waiting';
   joinForm.hidden = next !== 'join';
   back.hidden = next === 'menu';
@@ -425,7 +424,7 @@ function frame(time) {
   setPlaying((mode === 'solo' || mode === 'online') && view.phase !== 'finished');
   const demoView = scenery ? demo.view() : undefined;
   // Effect names from the demo show on the plain menus, not over codes or messages.
-  const demoBanner = demoView && (mode === 'menu' || mode === 'cpu') && !lobbyMessage.textContent;
+  const demoBanner = demoView && mode === 'menu' && !lobbyMessage.textContent;
   updateHud(demoBanner ? { ...view, eventText: demoView.eventText, eventWind: demoView.eventWind } : view);
   let drawing = mode === 'online' ? predictedView(view, time) : view;
   if (mode === 'solo' || mode === 'online') {
@@ -459,16 +458,35 @@ document.querySelector('#join').addEventListener('click', () => {
   setMode('join');
   codeInput.focus();
 });
-document.querySelector('#cpu').addEventListener('click', () => setMode('cpu'));
-cpuPicker.addEventListener('click', event => {
-  const button = event.target.closest('button[data-level]');
-  if (!button) return;
-  selectedCpuLevel = button.dataset.level === 'random' ? undefined : Number(button.dataset.level);
+// CPU starts straight away; the level under it is chosen beforehand and remembered.
+const cpuLevels = [undefined, 1, 2, 3, 4, 5];
+function showCpuLevel() {
+  const name = selectedCpuLevel ?? 'RANDOM';
+  cpuLevelButton.textContent = 'LV ' + name;
+  cpuLevelButton.setAttribute('aria-label', `CPU level: ${String(name).toLowerCase()}. Change level`);
+}
+try {
+  const saved = Number(localStorage.getItem('oddbirdle-cpu-level'));
+  if (cpuLevels.includes(saved)) selectedCpuLevel = saved;
+} catch {
+  // Storage blocked: random level.
+}
+showCpuLevel();
+cpuLevelButton.addEventListener('click', () => {
+  selectedCpuLevel = cpuLevels[(cpuLevels.indexOf(selectedCpuLevel) + 1) % cpuLevels.length];
+  try {
+    localStorage.setItem('oddbirdle-cpu-level', String(selectedCpuLevel ?? 'random'));
+  } catch {
+    // Remembered for this visit only.
+  }
+  showCpuLevel();
+});
+document.querySelector('#cpu').addEventListener('click', () => {
   solo.restart(3, selectedCpuLevel);
   accumulator = 0;
   setMode('solo');
   finishedNoted = false;
-  track('game_start', { mode: 'cpu', level: button.dataset.level });
+  track('game_start', { mode: 'cpu', level: String(selectedCpuLevel ?? 'random') });
 });
 joinForm.addEventListener('submit', event => {
   event.preventDefault();
