@@ -5,6 +5,7 @@ import { createDemo } from './demo.js';
 import { startHeartbeat, track, trackVisit } from './analytics.js';
 import { createSound } from './sound.js';
 import { createCueTracker } from './sound-cues.js';
+import { initPortal, loadingStart, loadingStop, portal, portalInviteLink, portalInviteRoom, serverBase, setPlaying, siteUrl } from './portal.js';
 
 const court = document.querySelector('#court');
 const ctx = court.getContext('2d');
@@ -128,7 +129,7 @@ function connect(request, via = request.type === 'join' ? 'code' : 'create') {
   if (socket) return;
   joinVia = via;
   setMode(join ? 'join' : 'connecting');
-  const url = new URL('./play', location.href);
+  const url = new URL('play', serverBase);
   url.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
   const connection = new WebSocket(url);
   socket = connection;
@@ -421,6 +422,7 @@ function frame(time) {
     }
   }
   noteFinish(view);
+  setPlaying((mode === 'solo' || mode === 'online') && view.phase !== 'finished');
   const demoView = scenery ? demo.view() : undefined;
   // Effect names from the demo show on the plain menus, not over codes or messages.
   const demoBanner = demoView && (mode === 'menu' || mode === 'cpu') && !lobbyMessage.textContent;
@@ -490,7 +492,8 @@ function showCopyResult(label) {
   copyReset = setTimeout(() => setText(copyLink, 'COPY LINK'), 1600);
 }
 copyLink.addEventListener('click', async () => {
-  const link = roomLink(roomCode.value, location.href);
+  // On a portal, invite links stay on the portal (CrazyGames) or point at our site.
+  const link = portalInviteLink(roomCode.value) ?? roomLink(roomCode.value, portal ? siteUrl : location.href);
   try {
     await navigator.clipboard.writeText(link);
     showCopyResult('COPIED');
@@ -515,12 +518,16 @@ copyLink.addEventListener('click', async () => {
 });
 
 // Opening an invite link joins that room straight away, then tidies the address bar.
-const invitedRoom = roomFromLink(location.href);
-if (invitedRoom) {
-  history.replaceState(null, '', location.pathname);
-  codeInput.value = invitedRoom;
-  connect({ type: 'join', code: invitedRoom }, 'link');
-}
+initPortal().then(() => {
+  loadingStart();
+  const invitedRoom = roomFromLink(location.href) ?? normalizeRoomCode(portalInviteRoom());
+  if (invitedRoom) {
+    if (!portal) history.replaceState(null, '', location.pathname);
+    codeInput.value = invitedRoom;
+    connect({ type: 'join', code: invitedRoom }, 'link');
+  }
+  loadingStop();
+});
 trackVisit();
 startHeartbeat(() => mode === 'solo' ? 'cpu' : mode === 'online' ? 'online' : 'menu');
 

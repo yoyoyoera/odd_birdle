@@ -1,4 +1,5 @@
 import { cleanEvent } from './event-schema.js';
+import { serverBase } from './portal.js';
 
 const local = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
 
@@ -8,8 +9,9 @@ export function track(name, details = {}) {
   if (!event || local) return;
   try {
     const body = JSON.stringify(event);
-    if (!navigator.sendBeacon?.('./event', body)) {
-      fetch('./event', { method: 'POST', body, keepalive: true }).catch(() => {});
+    const endpoint = serverBase + 'event';
+    if (!navigator.sendBeacon?.(endpoint, body)) {
+      fetch(endpoint, { method: 'POST', body, keepalive: true }).catch(() => {});
     }
   } catch {
     // Ignore.

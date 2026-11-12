@@ -21,7 +21,11 @@
       --page-hover: #293737; --court-hover: #d7dec6; }
     * { box-sizing: border-box; }
     body { margin: 0; min-height: 100vh; min-height: 100svh; display: grid; place-items: center;
-      background: var(--page); font: 16px "Space Grotesk", system-ui, sans-serif; }
+      background: var(--page); font: 16px "Space Grotesk", system-ui, sans-serif;
+      -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+    input { -webkit-user-select: text; user-select: text; }
+    /* No links out of the game on CrazyGames. */
+    [data-portal="crazygames"] #studio-links a { display: none; }
     main { width: min(940px, 100% - 32px); padding-block: 24px; }
     h1 { position: absolute; top: 17%; left: 50%; transform: translate(-50%, -50%);
       margin: 0; color: var(--ink); text-align: center; white-space: nowrap; pointer-events: none;
