@@ -52,11 +52,11 @@ const effects = [
   { id: 'wind', label: 'GUST', duration: 1.5 },
   { id: 'balloon', label: 'BALLOON', duration: [2.5, 3] },
   { id: 'freeze', label: 'FREEZE', duration: 1.5 },
-  { id: 'highNet', label: 'HIGH NET', duration: netEffectSeconds, netScale: 1.6 },
-  { id: 'lowNet', label: 'LOW NET', duration: netEffectSeconds, netScale: 0.5 }
+  { id: 'highNet', label: 'HIGH NET', duration: netEffectSeconds, netScale: 2 },
+  { id: 'lowNet', label: 'LOW NET', duration: netEffectSeconds, netScale: 0.3 }
 ];
 // How far the net rises or sinks, as a multiple of its height. The test page can change these.
-export const defaultNetScales = { highNet: 1.6, lowNet: 0.5 };
+export const defaultNetScales = { highNet: 2, lowNet: 0.3 };
 export const effectLabels = effects.map(effect => effect.label);
 export const effectIds = effects.map(effect => effect.id);
 

@@ -606,6 +606,7 @@ if (testEffects) {
   });
   // Net sizes to compare: choosing one sets it for HIGH/LOW NET from now on and starts the effect.
   const sizes = [['highNet', 5, [1.6, 2, 2.2]], ['lowNet', 6, [0.5, 0.4, 0.3]]];
+  const chosen = { highNet: 2, lowNet: 0.3 };
   for (const [id, index, options] of [...sizes].reverse()) {
     const group = document.createElement('div');
     group.style.cssText = 'display:flex;gap:4px;width:100%';
@@ -625,7 +626,7 @@ if (testEffects) {
         trigger(index);
         note.textContent = `${labels[index]} x${size}`;
       });
-      if (size === options[0]) button.style.outline = '2px solid var(--ink)';
+      if (size === chosen[id]) button.style.outline = '2px solid var(--ink)';
       group.append(button);
     }
     panel.prepend(group);

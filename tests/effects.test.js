@@ -156,9 +156,11 @@ test('HIGH NET and LOW NET use the size picked for them', t => {
     return game.view().netTop;
   };
   // Net base is 106 tall here (342 to the floor at 448).
-  assert.equal(Math.round(netAfter('highNet')), 448 - Math.round(106 * 1.6));
+  // The defaults: a net twice as tall, and a net sunk to 30%.
+  assert.equal(Math.round(netAfter('highNet')), 448 - Math.round(106 * 2));
+  assert.equal(Math.round(netAfter('lowNet')), 448 - Math.round(106 * 0.3));
   assert.equal(Math.round(netAfter('highNet', 2.2)), 448 - Math.round(106 * 2.2));
-  assert.equal(Math.round(netAfter('lowNet', 0.3)), 448 - Math.round(106 * 0.3));
+  assert.equal(Math.round(netAfter('lowNet', 0.5)), 448 - Math.round(106 * 0.5));
   // Nonsense sizes are ignored.
-  assert.equal(Math.round(netAfter('highNet', -3)), 448 - Math.round(106 * 1.6));
+  assert.equal(Math.round(netAfter('highNet', -3)), 448 - Math.round(106 * 2));
 });
