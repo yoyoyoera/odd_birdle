@@ -80,6 +80,12 @@ test('only our site and the portals are allowed, by source', () => {
   assert.equal(originSource('https://games.crazygames.com'), 'crazygames');
   assert.equal(originSource('https://www.crazygames.com'), 'crazygames');
   assert.equal(originSource('https://html-classic.itch.zone'), 'itch');
+  // The game's own host on CrazyGames is several levels deep; the iOS app uses its own scheme.
+  assert.equal(originSource('https://cubes-2048-io.game-files.crazygames.com'), 'crazygames');
+  assert.equal(originSource('https://app.crazygames.com'), 'crazygames');
+  assert.equal(originSource('capacitor://app.crazygames.com'), 'crazygames');
+  assert.equal(originSource('capacitor://evil.crazygames.com'), undefined);
+  assert.equal(originSource('capacitor://app.crazygames.com.evil.test'), undefined);
   assert.equal(originSource('http://html-classic.itch.zone'), undefined);
   assert.equal(originSource('https://crazygames.com.evil.test'), undefined);
   assert.equal(originSource('https://notcrazygames.com'), undefined);
