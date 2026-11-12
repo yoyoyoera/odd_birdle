@@ -1,5 +1,8 @@
 import { createGame, step } from './game.js';
 
+// Quick match: at most this many players wait at once.
+const maxQueue = 200;
+
 export function createRooms(randomIndex) {
   const rooms = new Map();
   const roomLifetime = 10 * 60 * 1000;
@@ -10,6 +13,10 @@ export function createRooms(randomIndex) {
   let simulationTick = 0;
 
   const peers = new Set();
+  // Per connection: an id and a way for the matchmaker to seat it in a room.
+  const states = new Map();
+  let nextPeerId = 0;
+  const queue = [];
   let tickTimer;
   let expiryTimer;
 
@@ -32,8 +39,40 @@ export function createRooms(randomIndex) {
     room.history = [];
     const state = room.game.view();
     const time = simulationTick * step * 1000;
-    send(room.left, { type: 'start', side: 'left', time, state });
-    send(room.right, { type: 'start', side: 'right', time, state });
+    send(room.left, { type: 'start', side: 'left', code: room.code, time, state });
+    send(room.right, { type: 'start', side: 'right', code: room.code, time, state });
+  }
+
+  const isOpen = peer => peer.readyState === 1;
+
+  function dequeue(peer) {
+    const index = queue.indexOf(peer);
+    if (index >= 0) queue.splice(index, 1);
+  }
+
+  // Players only wait while the game is on screen and they are playing (the
+  // page sends unqueue when hidden or idle), so a match can start right away.
+  function enqueue(peer) {
+    const state = states.get(peer);
+    if (!state || state.inRoom() || queue.includes(peer) || !isOpen(peer)) return;
+    if (queue.length >= maxQueue) {
+      send(peer, { type: 'queue_full' });
+      return;
+    }
+    queue.push(peer);
+    send(peer, { type: 'queued' });
+    while (queue.length >= 2) {
+      const [left, right] = queue.splice(0, 2);
+      if (!isOpen(left) || !isOpen(right)) {
+        for (const peer of [left, right]) if (isOpen(peer)) queue.unshift(peer);
+        break;
+      }
+      const room = { code: newCode(), left, right, expiresAt: Date.now() + roomLifetime, game: createGame(), quick: true };
+      rooms.set(room.code, room);
+      states.get(left).seat(room, 'left');
+      states.get(right).seat(room, 'right');
+      start(room);
+    }
   }
 
   function frameAt(room, seenTime) {
@@ -73,9 +112,19 @@ export function createRooms(randomIndex) {
     startTimers();
     let room;
     let side;
+    states.set(peer, {
+      id: ++nextPeerId,
+      inRoom: () => Boolean(room),
+      seat(next, nextSide) {
+        room = next;
+        side = nextSide;
+      }
+    });
     let windowStart = performance.now();
     let messages = 0;
     peer.addEventListener('close', () => {
+      dequeue(peer);
+      states.delete(peer);
       peers.delete(peer);
       if (room && rooms.get(room.code) === room) closeRoom(room, peer);
       if (!peers.size) stopTimers();
@@ -120,6 +169,17 @@ export function createRooms(randomIndex) {
         return;
       }
       if (room) return;
+
+      if (message.type === 'queue') {
+        enqueue(peer);
+        return;
+      }
+      if (message.type === 'unqueue') {
+        dequeue(peer);
+        return;
+      }
+      // Making or joining a room by code leaves the quick-match queue.
+      if (message.type === 'create' || message.type === 'join') dequeue(peer);
 
       if (message.type === 'create') {
         const code = newCode();
