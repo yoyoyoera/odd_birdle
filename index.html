@@ -93,15 +93,16 @@
     #code-input { min-width: 0; width: 7.5em; background: transparent; border: 0; border-bottom: 1px solid var(--ink);
       color: var(--ink); text-transform: uppercase; font: inherit; }
     #back { position: absolute; top: 8px; left: 8px; min-width: 44px; }
-        /* Just under the score, where the eye already is; on the results screen it moves to the floor. */
-    #queue-status { position: absolute; top: calc(50% + clamp(1.3rem, 4.8vw, 2.8rem)); left: 50%; transform: translateX(-50%); margin: 0;
-      color: var(--ink); background: var(--court); padding: 2px 8px;
-      font-size: clamp(.8rem, 2.2vw, 1.15rem); font-weight: 650; letter-spacing: .06em;
+    /* One fixed spot above the score, clear of the countdown banner and the You Win / restart
+       buttons, so it never moves between the rally and the results screen. No backing box:
+       a shuttle flying behind it must stay visible. */
+    #queue-status { position: absolute; top: 24%; left: 50%; transform: translateX(-50%); margin: 0;
+      color: var(--ink); font-size: clamp(.8rem, 2.2vw, 1.15rem); font-weight: 650; letter-spacing: .06em;
+      text-shadow: 0 0 3px var(--court), 0 0 3px var(--court), 0 0 6px var(--court);
       white-space: nowrap; pointer-events: none; animation: searching 1.6s ease-in-out infinite; }
-    @keyframes searching { 50% { opacity: .45; } }
+    @keyframes searching { 50% { opacity: .5; } }
     @media (prefers-reduced-motion: reduce) { #queue-status { animation: none; } }
-    #stage[data-phase="finished"] #queue-status { top: auto; bottom: 1.2%; }
-    #queue-status[data-found] { top: 30%; animation: none; font-size: clamp(1rem, 3.6vw, 1.75rem); }
+    #queue-status[data-found] { animation: none; font-size: clamp(1rem, 3.6vw, 1.75rem); }
     #lobby-message { position: absolute; top: 32%; width: 100%; margin: 0; text-align: center;
       color: var(--ink); font-size: .875rem; pointer-events: none; }
     .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden;

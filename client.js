@@ -551,7 +551,8 @@ for (const type of ['pointermove', 'pointerdown', 'keydown']) {
 }
 
 function showQueueStatus() {
-  const found = quick.on && mode === 'online' && currentView().phase === 'starting';
+  // Only for the first countdown after a match is found, not for rematches.
+  const found = quick.on && mode === 'online' && quick.found !== undefined;
   const looking = quick.on && mode === 'solo';
   queueStatus.hidden = !(found || looking);
   queueStatus.toggleAttribute('data-found', found);
