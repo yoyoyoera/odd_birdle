@@ -1,4 +1,4 @@
-import { clamp, projectStrike } from './game.js';
+import { clamp, floor, projectStrike, shuttleOutline } from './game.js';
 
 // The wait before drawing a snapshot adapts to how unevenly packets arrive:
 // steady wired links stay near the floor, Wi-Fi bursts raise it.
@@ -16,6 +16,11 @@ const racketExtrapolateMs = 90;
 // Differences between a guess and the real snapshot fade out instead of jumping.
 const blendMs = 70;
 const snapDistance = 80;
+// A hit starts a new flight: the bird carries on from where it was drawn and eases onto it
+// (the hitter's swing reaches us ~100ms late, so the new path is already ahead). A move
+// this big is a new serve and is not blended.
+const hitBlendMs = 90;
+const hitBlendMax = 170;
 
 // Approach the buffered clock along the confirmed flight, without rewinding it.
 export function followStrikeClock(age, targetAge, elapsed) {
@@ -42,10 +47,12 @@ export function percentile(values, p) {
 function createSmoother() {
   let shown;
   let offset = { x: 0, y: 0 };
+  let fadeMs = blendMs;
   return {
     reset() {
       shown = undefined;
       offset = { x: 0, y: 0 };
+      fadeMs = blendMs;
     },
     // basis names the snapshot the point came from; a new basis after a guess is a correction.
     apply(raw, identity, guessed, dt, basis) {
@@ -53,15 +60,21 @@ function createSmoother() {
         shown = undefined;
         return raw;
       }
-      if (!shown || shown.identity !== identity) {
+      if (!shown) {
         offset = { x: 0, y: 0 };
+      } else if (shown.identity !== identity) {
+        const expected = { x: shown.x + shown.vx * dt, y: shown.y + shown.vy * dt };
+        offset = { x: expected.x - raw.x, y: expected.y - raw.y };
+        fadeMs = hitBlendMs;
+        if (Math.hypot(offset.x, offset.y) > hitBlendMax) offset = { x: 0, y: 0 };
       } else if (shown.guessed && (!guessed || basis !== shown.basis)) {
         // Continue from where the guess was heading, then ease onto the data.
         const expected = { x: shown.x + shown.vx * dt, y: shown.y + shown.vy * dt };
         offset = { x: expected.x - raw.x, y: expected.y - raw.y };
+        fadeMs = blendMs;
         if (Math.hypot(offset.x, offset.y) > snapDistance) offset = { x: 0, y: 0 };
       } else {
-        const fade = Math.exp(-dt / blendMs);
+        const fade = Math.exp(-dt / fadeMs);
         offset = { x: offset.x * fade, y: offset.y * fade };
       }
       const x = raw.x + offset.x;
@@ -199,18 +212,25 @@ export function createPlayback() {
     const until = Math.min(target, sample.time + birdExtrapolateMs);
     const strike = latestStrike;
     if (strike && strike.flight === shuttle.flight && until >= strike.time) {
-      return { shuttle: { ...shuttle, ...projectStrike(strike.pose, strike.motion, (until - strike.time) / 1000, strike.force),
-        flight: strike.flight, canHit: shuttle.canHit }, until };
+      return { shuttle: stayAboveFloor({ ...shuttle, ...projectStrike(strike.pose, strike.motion, (until - strike.time) / 1000, strike.force),
+        flight: strike.flight, canHit: shuttle.canHit }), until };
     }
     const before = previousSample;
     const old = before?.view.shuttle;
     if (!old || old.flight !== shuttle.flight || before.time >= sample.time) return { shuttle, until: sample.time };
     const span = sample.time - before.time;
     const ahead = until - sample.time;
-    return { shuttle: { ...shuttle,
+    const guess = { ...shuttle,
       x: shuttle.x + (shuttle.x - old.x) / span * ahead,
       y: shuttle.y + (shuttle.y - old.y) / span * ahead,
-      angle: shuttle.angle + (shuttle.angle - old.angle) / span * ahead }, until };
+      angle: shuttle.angle + (shuttle.angle - old.angle) / span * ahead };
+    return { shuttle: stayAboveFloor(guess), until };
+  }
+
+  // A guess must never carry the bird through the floor (a landing sample arrives late).
+  function stayAboveFloor(pose) {
+    const bottom = Math.max(...shuttleOutline(pose).flat().map(point => point.y));
+    return { ...pose, y: Math.min(pose.y, floor - bottom) };
   }
 
   function finish(view, identity, guessed, dt, basis) {
@@ -252,11 +272,11 @@ export function createPlayback() {
       strike.fromFlight === a.shuttle.flight &&
       (strike.fromFlight === b.shuttle.flight || strike.flight === b.shuttle.flight);
     if (sameShuttle || followsStrike) displayedTime = target;
-    const shuttle = followsStrike ? {
+    const shuttle = followsStrike ? stayAboveFloor({
       ...projectStrike(strike.pose, strike.motion, (target - strike.time) / 1000, strike.force),
       flight: strike.flight,
       canHit: target - strike.time >= 140
-    } : sameShuttle ? {
+    }) : sameShuttle ? {
       ...a.shuttle,
       ...position(a.shuttle, b.shuttle, fraction),
       angle: mix(a.shuttle.angle, b.shuttle.angle, fraction)

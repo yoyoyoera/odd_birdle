@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createPlayback } from '../playback.js';
+import { projectStrike } from '../game.js';
 
 const state = (x, seenTime, extra = {}) => ({
   phase: 'live', right: { x, y: 200, seenTime }, ...extra
@@ -143,4 +144,38 @@ test('a late packet extends the flight briefly, then eases onto the real positio
   playback.push(64, { phase: 'live', shuttle: bird(124, 200) }, 161);
   const eased = playback.at(166);
   assert.ok(Math.abs(eased.shuttle.x - guessed.shuttle.x) < 20, `${guessed.shuttle.x} -> ${eased.shuttle.x}`);
+});
+
+test('a hit by the other player eases the bird onto its new path instead of popping', () => {
+  const playback = createPlayback();
+  // Falling at 600 px/s towards the hitter.
+  for (let t = 0; t <= 300; t += 16) playback.push(t, { phase: 'live', shuttle: bird(300, 200 + 0.6 * t, 1) }, t);
+  let last;
+  for (let now = 120; now <= 330; now += 16) last = playback.at(now).shuttle;
+  // The server now reports a hit: a new flight that is already ~150px above where the old one was drawn.
+  const strike = { flight: 2, fromFlight: 1, time: 150, side: 'left', racket: { x: 300, y: 330 },
+    pose: { ...bird(300, 330, 1), baseSize: 21 }, motion: { vx: 200, vy: -700 } };
+  for (let t = 316; t <= 520; t += 16) {
+    // The server flies the hit with the game's own physics.
+    const flown = projectStrike(strike.pose, strike.motion, (t - 150) / 1000);
+    playback.push(t, { phase: 'live', shuttle: { ...flown, flight: 2, canHit: true }, strike }, t);
+  }
+  const steps = [];
+  for (let now = 340; now <= 560; now += 16) {
+    const shuttle = playback.at(now).shuttle;
+    steps.push(Math.hypot(shuttle.x - last.x, shuttle.y - last.y));
+    last = shuttle;
+  }
+  assert.ok(Math.max(...steps) < 45, `largest frame step ${Math.max(...steps).toFixed(1)}`);
+});
+
+test('a late landing snapshot never draws the bird below the floor', () => {
+  const playback = createPlayback();
+  // Falling fast; the last snapshot is the first one that has landed (clamped just above the floor).
+  for (let t = 0; t <= 336; t += 16) {
+    playback.push(t, { phase: 'live', shuttle: bird(500, Math.min(100 + t, 427), 1) }, t);
+  }
+  let lowest = 0;
+  for (let now = 400; now < 700; now += 16) lowest = Math.max(lowest, playback.at(now)?.shuttle?.y ?? 0);
+  assert.ok(lowest <= 448, `lowest ${lowest}`);
 });

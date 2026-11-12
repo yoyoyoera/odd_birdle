@@ -470,16 +470,10 @@ function drawShuttle({ flash, phase, shuttle, frozen }, alpha = 1) {
     });
     ctx.closePath();
   }
-  ctx.globalAlpha = alpha;
+  // FREEZE: the shuttle fades to a paler version of its own colour, in keeping with the palette.
+  ctx.globalAlpha = frozen ? alpha * 0.4 : alpha;
   ctx.fillStyle = phase === 'live' ? palette.ink : palette.net;
   ctx.fill('evenodd');
-  if (frozen) {
-    // FREEZE: an icy outline, not more than a hint.
-    ctx.strokeStyle = '#5bb8e8';
-    ctx.lineWidth = 3;
-    ctx.lineJoin = 'round';
-    ctx.stroke();
-  }
 }
 
 function frame(time) {
