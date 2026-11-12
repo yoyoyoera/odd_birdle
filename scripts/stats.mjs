@@ -36,6 +36,7 @@ export function summarize(rows) {
     `온라인 시작 ${onlineStarts} (방 만든 쪽 ${count({ name: 'game_start', via: 'create' })} · 코드 입장 ${count({ name: 'game_start', via: 'code' })} · 링크 입장 ${count({ name: 'game_start', via: 'link' })})`,
     `온라인 완주 ${onlineFinishes} (완주율 ${rate(onlineFinishes, onlineStarts)}), 한 판 더 ${count({ name: 'rematch', mode: 'online' })}`,
     `방 만들기 ${count({ name: 'room_create' })}, 링크 복사 ${count({ name: 'link_copy' })}`,
+    `QUICK MATCH 누름 ${count({ name: 'quick_match_enter' })}, 매칭 ${count({ name: 'quick_match_found' })} (매칭 성사율 ${rate(count({ name: 'quick_match_found' }), count({ name: 'quick_match_enter' }))}), 시작 ${count({ name: 'quick_match_start' })}, 중간 이탈 ${count({ name: 'quick_match_abort' })}`,
     '(온라인 숫자는 두 사람 각자의 브라우저에서 한 번씩 세어짐)',
     ...bySource(rows, count)
   ].join('\n');

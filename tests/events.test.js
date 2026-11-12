@@ -106,3 +106,14 @@ test('stats split visits by source and list refused hosts', async () => {
   assert.match(text, /출처별 게임 시작: site 0 · crazygames 0 · itch 2/);
   assert.match(text, /거절된 출처: games.example.com 4/);
 });
+
+test('quick match events are accepted and summarized', async () => {
+  assert.deepEqual(cleanEvent({ name: 'quick_match_enter' }), { name: 'quick_match_enter' });
+  assert.deepEqual(cleanEvent({ name: 'game_start', mode: 'online', via: 'quick' }), { name: 'game_start', mode: 'online', via: 'quick' });
+  const { summarize } = await import('../scripts/stats.mjs');
+  const text = summarize([
+    { name: 'quick_match_enter', n: '10' }, { name: 'quick_match_found', n: '4' },
+    { name: 'quick_match_start', n: '4' }, { name: 'quick_match_abort', n: '1' }
+  ]);
+  assert.match(text, /QUICK MATCH 누름 10, 매칭 4 \(매칭 성사율 40%\), 시작 4, 중간 이탈 1/);
+});

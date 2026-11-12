@@ -2,13 +2,18 @@
 // no IP addresses, no user agents.
 export const events = {
   page_view: { returning: ['yes', 'no'] },
-  game_start: { mode: ['cpu', 'online'], level: ['1', '2', '3', '4', '5', 'random'], via: ['create', 'code', 'link'] },
+  game_start: { mode: ['cpu', 'online'], level: ['1', '2', '3', '4', '5', 'random'], via: ['create', 'code', 'link', 'quick'] },
   game_finish: { mode: ['cpu', 'online'], level: ['1', '2', '3', '4', '5'], result: ['win', 'lose'] },
   rematch: { mode: ['cpu', 'online'] },
   room_create: {},
   link_copy: {},
   // Sent once a minute while the game is on screen, to count people playing at the same time.
-  heartbeat: { mode: ['menu', 'cpu', 'online'] }
+  heartbeat: { mode: ['menu', 'cpu', 'online'] },
+  // Quick match funnel: pressed, opponent found, match actually began, opponent gone early.
+  quick_match_enter: {},
+  quick_match_found: {},
+  quick_match_start: {},
+  quick_match_abort: {}
 };
 export const fields = ['mode', 'level', 'via', 'result', 'returning'];
 

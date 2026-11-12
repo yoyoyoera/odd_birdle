@@ -28,6 +28,7 @@ const roomCode = document.querySelector('#room-code');
 const joinForm = document.querySelector('#join-form');
 const codeInput = document.querySelector('#code-input');
 const lobbyMessage = document.querySelector('#lobby-message');
+const queueStatus = document.querySelector('#queue-status');
 const copyLink = document.querySelector('#copy-link');
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
@@ -114,7 +115,8 @@ function resetPrediction() {
   lastHold = -Infinity;
 }
 
-function leave(message = '') {
+// stay: keep the current screen (quick match going back to its CPU game).
+function leave(message = '', stay = false) {
   roomLeft();
   const previous = socket;
   socket = undefined;
@@ -124,20 +126,28 @@ function leave(message = '') {
   resetPrediction();
   localRacket = undefined;
   localSide = 'left';
+  if (stay) return;
+  quick.on = false;
+  showQueueStatus();
   setMode('menu', message);
 }
 
 function connect(request, via = request.type === 'join' ? 'code' : 'create') {
   const join = request.type === 'join';
+  const queueing = request.type === 'queue';
   if (socket) return;
   joinVia = via;
-  setMode(join ? 'join' : 'connecting');
+  // Quick match connects quietly while the CPU game keeps going.
+  if (!queueing) setMode(join ? 'join' : 'connecting');
+  quick.queued = false;
   const url = new URL('play', serverBase);
   url.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
   const connection = new WebSocket(url);
   socket = connection;
   connection.addEventListener('open', () => {
-    if (socket === connection) send(request);
+    if (socket !== connection) return;
+    if (queueing) updateQueue();
+    else send(request);
   });
   connection.addEventListener('message', ({ data }) => {
     if (socket !== connection) return;
@@ -149,7 +159,17 @@ function connect(request, via = request.type === 'join' ? 'code' : 'create') {
         roomOpen(message.code);
         track('room_create');
         break;
+      case 'queued':
+        quick.queued = true;
+        showQueueStatus();
+        break;
       case 'start':
+        if (queueing && mode === 'solo') {
+          quick.found = performance.now();
+          quick.finished = false;
+          track('quick_match_found');
+        }
+        quick.queued = false;
         localSide = message.side;
         localRacket = undefined;
         onlineView = message.state;
@@ -158,8 +178,9 @@ function connect(request, via = request.type === 'join' ? 'code' : 'create') {
         playback.push(message.time, message.state, performance.now());
         setMode('online');
         finishedNoted = false;
-        roomFull(request.code ?? roomCode.value);
-        track('game_start', { mode: 'online', via: joinVia });
+        roomFull(message.code ?? request.code ?? roomCode.value);
+        track('game_start', { mode: 'online', via: queueing ? 'quick' : joinVia });
+        showQueueStatus();
         break;
       case 'state':
         onlineView = message.state;
@@ -171,13 +192,26 @@ function connect(request, via = request.type === 'join' ? 'code' : 'create') {
         if (join) codeInput.focus();
         break;
       case 'left':
-        leave('Opponent left.');
+        // A quick-match opponent leaving just sends you back to the CPU game and the queue.
+        if (queueing) backToQuick(quick.finished ? undefined : 'opponent left');
+        else leave('Opponent left.');
         break;
     }
   });
   connection.addEventListener('close', () => {
     if (socket !== connection) return;
     const wasPlaying = mode === 'online';
+    if (queueing) {
+      if (wasPlaying) backToQuick(quick.finished ? undefined : 'connection lost');
+      else {
+        // Waiting connection dropped: keep playing the CPU and try again shortly.
+        leave('', true);
+        quick.queued = false;
+        showQueueStatus();
+        setTimeout(() => { if (quick.on && !socket) connect({ type: 'queue' }, 'quick'); }, 5000);
+      }
+      return;
+    }
     leave(wasPlaying ? 'Connection lost.' : 'Could not connect.');
   });
 }
@@ -427,6 +461,14 @@ function frame(time) {
     }
   }
   noteFinish(view);
+  if (quick.on) {
+    if (mode === 'online' && view.phase === 'finished') quick.finished = true;
+    if (quick.found && mode === 'online' && view.phase === 'live') {
+      quick.found = undefined;
+      track('quick_match_start');
+    }
+    showQueueStatus();
+  }
   setPlaying((mode === 'solo' || mode === 'online') && view.phase !== 'finished');
   const demoView = scenery ? demo.view() : undefined;
   // Effect names from the demo show on the plain menus, not over codes or messages.
@@ -487,12 +529,57 @@ cpuLevelButton.addEventListener('click', () => {
   }
   showCpuLevel();
 });
-document.querySelector('#cpu').addEventListener('click', () => {
+function startCpu() {
   solo.restart(3, selectedCpuLevel);
   accumulator = 0;
   setMode('solo');
   finishedNoted = false;
   track('game_start', { mode: 'cpu', level: String(selectedCpuLevel ?? 'random') });
+}
+document.querySelector('#cpu').addEventListener('click', startCpu);
+
+// QUICK MATCH: play the CPU right away and wait for another player in the background.
+// Only players who are actually here (tab visible, recent input) wait, so a match
+// can start straight away with no accept step.
+const quick = { on: false, queued: false, found: undefined, finished: false };
+const idleMs = 30000;
+let lastInput = performance.now();
+for (const type of ['pointermove', 'pointerdown', 'keydown']) {
+  document.addEventListener(type, () => { lastInput = performance.now(); }, { passive: true });
+}
+
+function showQueueStatus() {
+  const found = quick.on && mode === 'online' && currentView().phase === 'starting';
+  const looking = quick.on && mode === 'solo';
+  queueStatus.hidden = !(found || looking);
+  queueStatus.toggleAttribute('data-found', found);
+  setText(queueStatus, found ? 'Opponent found!' : looking ? 'Looking for a player…' : '');
+}
+
+function updateQueue() {
+  const want = quick.on && mode === 'solo' && document.visibilityState === 'visible' &&
+    performance.now() - lastInput < idleMs;
+  if (want !== quick.queued && socket?.readyState === WebSocket.OPEN) {
+    send({ type: want ? 'queue' : 'unqueue' });
+    if (!want) quick.queued = false;
+  }
+}
+setInterval(updateQueue, 1000);
+document.addEventListener('visibilitychange', updateQueue);
+
+function backToQuick(abortReason) {
+  if (abortReason) track('quick_match_abort');
+  leave('', true);
+  startCpu();
+  connect({ type: 'queue' }, 'quick');
+}
+
+document.querySelector('#quick').addEventListener('click', () => {
+  quick.on = true;
+  track('quick_match_enter');
+  startCpu();
+  connect({ type: 'queue' }, 'quick');
+  showQueueStatus();
 });
 joinForm.addEventListener('submit', event => {
   event.preventDefault();
