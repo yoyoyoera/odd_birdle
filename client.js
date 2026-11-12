@@ -400,7 +400,9 @@ function draw(view, scenery = false) {
     if (scenery) ctx.globalAlpha = demoAlpha.racket;
     const other = localSide === 'left' ? 'right' : 'left';
     if (view[other]) drawRacket(view[other], '#cf936b99', '#774935');
-    const ownRacket = socket && !scenery ? localRacket : view[localSide];
+    // Online matches draw the locally predicted racket; a quick-match CPU game (which also
+    // has a connection open while waiting) draws the game's own racket.
+    const ownRacket = mode === 'online' && !scenery ? localRacket : view[localSide];
     if (ownRacket && view.phase !== 'finished') drawRacket(ownRacket, '#a9d67877', palette.ink);
     if (view.shuttle) drawShuttle(view, scenery ? demoAlpha.bird : 1);
     ctx.globalAlpha = 1;
