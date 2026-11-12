@@ -50,3 +50,23 @@ test('stats summary turns raw counts into rates', async () => {
   assert.match(text, /CPU 완주 3 \(완주율 75%\), 승 2/);
   assert.match(text, /재경기율 33%/);
 });
+
+test('concurrency reads the last finished minute and the peaks', async () => {
+  const { summarizeConcurrency } = await import('../scripts/stats.mjs');
+  const now = new Date('2026-11-12T03:30:20Z');
+  const text = summarizeConcurrency([
+    { minute: '2026-11-11 15:10:00', n: '9' },
+    { minute: '2026-11-12 03:28:00', n: '4' },
+    { minute: '2026-11-12 03:29:00', n: '3' },
+    { minute: '2026-11-12 03:30:00', n: '1' }
+  ], now);
+  assert.match(text, /지금 동시접속 3명/);
+  assert.match(text, /오늘 최대 9명 \(00:10 KST\)/);
+  assert.match(text, /기간 최대 9명 \(11-12 00:10 KST\)/);
+  assert.match(summarizeConcurrency([]), /아직 데이터 없음/);
+});
+
+test('heartbeat only takes known screens', () => {
+  assert.deepEqual(cleanEvent({ name: 'heartbeat', mode: 'menu' }), { name: 'heartbeat', mode: 'menu' });
+  assert.equal(cleanEvent({ name: 'heartbeat', mode: 'settings' }), undefined);
+});
