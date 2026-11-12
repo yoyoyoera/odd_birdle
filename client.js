@@ -1,4 +1,4 @@
-import { center, clamp, createGame, floor, height, leftLine, netTop, racketRadius, rightLine, shuttleOutline, step, width, contactMotion, isSwing, projectStrike, racketTouches, supportedShuttleY, swingMotion } from './game.js';
+import { center, clamp, createGame, floor, height, leftLine, netTop, racketRadius, rightLine, shuttleOutline, step, width, contactMotion, isSwing, projectStrike, forceAt, effectIds, racketTouches, supportedShuttleY, swingMotion } from './game.js';
 import { createPlayback, followStrikeClock } from './playback.js';
 import { normalizeRoomCode, roomFromLink, roomLink } from './room-link.js';
 import { createDemo } from './demo.js';
@@ -50,7 +50,10 @@ for (const [property, value] of Object.entries({
   document.documentElement.style.setProperty('--' + property, value);
 }
 
-const solo = createGame({ withCpu: true });
+// ?test=effects opens a CPU match with buttons for trying each random effect (&fast=1: they come sooner).
+const testParams = new URLSearchParams(location.search);
+const testEffects = testParams.get('test') === 'effects';
+const solo = createGame({ withCpu: true, quickEvents: testEffects && testParams.get('fast') === '1' });
 const demo = createDemo();
 const sound = createSound();
 const soundCues = createCueTracker();
@@ -266,12 +269,13 @@ function predictContact(from, to, motion, time, moving = false) {
       (!overlaps && !racketTouches(shuttle, from, to))) return false;
   localOverlap = overlaps;
   predictedFlight = shuttle.flight;
-  prediction = { shuttle, motion, started: time };
+  // A wind or balloon in progress shapes the flight the same way on the server.
+  prediction = { shuttle, motion, started: time, force: onlineView?.force };
   return true;
 }
 
-function drawStrike(pose, motion, elapsed) {
-  const projected = projectStrike(pose, motion, elapsed / 1000);
+function drawStrike(pose, motion, elapsed, force) {
+  const projected = projectStrike(pose, motion, elapsed / 1000, force);
   const bottom = Math.max(...shuttleOutline(projected).flat().map(point => point.y));
   projected.y = Math.min(projected.y, floor - bottom);
   return projected;
@@ -290,8 +294,8 @@ function predictedView(view, time) {
   if (confirmed && !prediction.correction) {
     const targetAge = Math.max(0, playback.displayedTime - strike.time);
     if (!prediction.confirmed) {
-      const local = drawStrike(prediction.shuttle, prediction.motion, elapsed);
-      const server = drawStrike(strike.pose, strike.motion, elapsed);
+      const local = drawStrike(prediction.shuttle, prediction.motion, elapsed, prediction.force);
+      const server = drawStrike(strike.pose, strike.motion, elapsed, strike.force);
       prediction.confirmed = {
         age: elapsed, time, started: time, x: local.x - server.x, y: local.y - server.y,
         angle: local.angle - server.angle
@@ -301,7 +305,7 @@ function predictedView(view, time) {
     sync.age = followStrikeClock(sync.age, targetAge, time - sync.time);
     sync.time = time;
     const weight = Math.max(0, 1 - (time - sync.started) / 90);
-    const shuttle = drawStrike(strike.pose, strike.motion, sync.age);
+    const shuttle = drawStrike(strike.pose, strike.motion, sync.age, strike.force);
     if (!weight && Math.abs(sync.age - targetAge) <= 1) {
       prediction = undefined;
       return view;
@@ -314,7 +318,7 @@ function predictedView(view, time) {
   }
 
   if (!prediction.correction) {
-    const projected = drawStrike(prediction.shuttle, prediction.motion, Math.min(elapsed, 280));
+    const projected = drawStrike(prediction.shuttle, prediction.motion, Math.min(elapsed, 280), prediction.force);
     if (!prediction.confirmed && view.shuttle.flight === prediction.shuttle.flight && elapsed < 280) {
       prediction.lastPose = projected;
       return { ...view, shuttle: projected, flash: Math.max(0, 0.22 - elapsed / 1000) };
@@ -396,6 +400,7 @@ function draw(view, scenery = false) {
     ctx.translate(Math.sin(t * 91) * 17 * t, Math.cos(t * 117) * 12 * t);
   }
   drawCourt(view);
+  if (view.force?.type === 'wind') drawWind(view.force);
   if (view.phase !== 'ready') {
     if (scenery) ctx.globalAlpha = demoAlpha.racket;
     const other = localSide === 'left' ? 'right' : 'left';
@@ -410,7 +415,42 @@ function draw(view, scenery = false) {
   ctx.restore();
 }
 
-function drawShuttle({ flash, phase, shuttle }, alpha = 1) {
+// GUST: faint streaks flowing the way the wind blows (still and fainter with reduced motion).
+const streaks = Array.from({ length: 30 }, (_, i) => ({
+  lane: (i * 0.618034) % 1, offset: (i * 0.381966 + 0.13) % 1, length: 36 + (i * 37) % 70, speed: 0.55 + ((i * 13) % 10) / 12
+}));
+function drawWind(force) {
+  const { strength } = forceAt(force);
+  if (!strength) return;
+  const still = reduceMotion.matches;
+  const clock = still ? 0 : performance.now() / 1000;
+  const vertical = force.y !== 0;
+  const sign = Math.sign(vertical ? force.y : force.x);
+  ctx.save();
+  ctx.globalAlpha = (still ? 0.08 : 0.2) * strength;
+  ctx.strokeStyle = palette.ink;
+  ctx.lineWidth = 2;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (const streak of streaks) {
+    const along = (((streak.offset + clock * streak.speed * 0.8 * sign) % 1) + 1) % 1;
+    if (vertical) {
+      const x = streak.lane * width;
+      const y = along * (floor + 120) - 60;
+      ctx.moveTo(x, y);
+      ctx.lineTo(x, y - sign * streak.length);
+    } else {
+      const y = streak.lane * floor;
+      const x = along * (width + 160) - 80;
+      ctx.moveTo(x, y);
+      ctx.lineTo(x - sign * streak.length, y);
+    }
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawShuttle({ flash, phase, shuttle, frozen }, alpha = 1) {
   if (flash > 0 && phase === 'live') {
     ctx.beginPath();
     ctx.arc(shuttle.x, shuttle.y, 26 + (0.22 - flash) * 105, 0, Math.PI * 2);
@@ -433,6 +473,13 @@ function drawShuttle({ flash, phase, shuttle }, alpha = 1) {
   ctx.globalAlpha = alpha;
   ctx.fillStyle = phase === 'live' ? palette.ink : palette.net;
   ctx.fill('evenodd');
+  if (frozen) {
+    // FREEZE: an icy outline, not more than a hint.
+    ctx.strokeStyle = '#5bb8e8';
+    ctx.lineWidth = 3;
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+  }
 }
 
 function frame(time) {
@@ -539,6 +586,38 @@ function startCpu() {
   track('game_start', { mode: 'cpu', level: String(selectedCpuLevel ?? 'random') });
 }
 document.querySelector('#cpu').addEventListener('click', startCpu);
+
+if (testEffects) {
+  // A CPU Lv.4 match straight away, with a button (or number key 1-7) per effect.
+  selectedCpuLevel = 4;
+  showCpuLevel();
+  const panel = document.createElement('div');
+  panel.id = 'effect-test';
+  panel.style.cssText = 'position:fixed;left:8px;bottom:8px;display:flex;flex-wrap:wrap;gap:4px;max-width:70vw;' +
+    'font:12px "Space Grotesk",system-ui,sans-serif;z-index:5';
+  const note = document.createElement('span');
+  note.style.cssText = 'color:var(--court);align-self:center;margin-left:6px';
+  const labels = ['SHOCK', 'INVISIBLE', 'GUST', 'BALLOON', 'FREEZE', 'HIGH NET', 'LOW NET'];
+  const trigger = index => {
+    const started = mode === 'solo' && solo.triggerEffect(effectIds[index]);
+    note.textContent = started ? labels[index] : 'wait for a live rally';
+  };
+  effectIds.forEach((id, index) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = `${index + 1} ${labels[index]}`;
+    button.style.cssText = 'padding:6px 8px;border:0;background:var(--court);color:var(--ink);cursor:pointer;font:inherit';
+    button.addEventListener('click', () => trigger(index));
+    panel.append(button);
+  });
+  panel.append(note);
+  document.body.append(panel);
+  document.addEventListener('keydown', event => {
+    const index = Number(event.key) - 1;
+    if (index >= 0 && index < effectIds.length) trigger(index);
+  });
+  startCpu();
+}
 
 // QUICK MATCH: play the CPU right away and wait for another player in the background.
 // Only players who are actually here (tab visible, recent input) wait, so a match

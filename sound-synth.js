@@ -63,7 +63,7 @@ export function tick() {
 
 export function gust() {
   const noise = seeded(12);
-  const seconds = 0.7;
+  const seconds = 1.5;
   const wind = lowpass(make(seconds, () => noise()), 0.08);
   return wind.map((value, i) => value * 3 * Math.sin(Math.PI * time(i) / seconds) ** 2);
 }

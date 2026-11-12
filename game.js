@@ -49,13 +49,48 @@ const netEffectSeconds = netMoveSeconds * 2 + 4;
 const effects = [
   { id: 'shock', label: 'SHOCK', duration: 0.55 },
   { id: 'invisible', label: 'INVISIBLE', duration: 1 },
-  { id: 'wind', label: 'GUST', duration: 0.65 },
-  { id: 'balloon', label: 'BALLOON', duration: 2 },
-  { id: 'freeze', label: 'FREEZE' },
+  { id: 'wind', label: 'GUST', duration: 1.5 },
+  { id: 'balloon', label: 'BALLOON', duration: [2.5, 3] },
+  { id: 'freeze', label: 'FREEZE', duration: 1.5 },
   { id: 'highNet', label: 'HIGH NET', duration: netEffectSeconds, netScale: 1.6 },
   { id: 'lowNet', label: 'LOW NET', duration: netEffectSeconds, netScale: 0.5 }
 ];
 export const effectLabels = effects.map(effect => effect.label);
+export const effectIds = effects.map(effect => effect.id);
+
+// GUST: a steady wind (target air speed, units/s) in one of four directions. How strongly it
+// moves the shuttle follows from drag: draggier shapes catch up with the wind sooner.
+const gusts = [
+  { arrow: '←', x: -560, y: 0 },
+  { arrow: '→', x: 560, y: 0 },
+  { arrow: '↑', x: 0, y: -1250 },
+  { arrow: '↓', x: 0, y: 520 }
+];
+const windRamp = { rise: 0.25, fall: 0.3 };
+// BALLOON: much less gravity and a gentle side-to-side sway.
+const balloonGravity = 0.28;
+const balloonSway = { speed: 90, hertz: 0.8, rise: 0.2, fall: 0.25 };
+const noForce = Object.freeze({ x: 0, y: 0, gravity: 1, strength: 0 });
+
+// What pushes the shuttle on top of gravity and drag, `after` seconds past a moment when the
+// effect (a force: { type, duration, elapsed, ... }) had run for `force.elapsed` seconds.
+// The server and the clients' hit replays both use this, so a windy flight looks the same everywhere.
+export function forceAt(force, after = 0) {
+  if (!force) return noForce;
+  const elapsed = force.elapsed + after;
+  if (elapsed >= force.duration) return noForce;
+  if (force.type === 'wind') {
+    const strength = clamp(Math.min(elapsed / windRamp.rise, (force.duration - elapsed) / windRamp.fall), 0, 1);
+    return { x: force.x * strength, y: force.y * strength, gravity: 1, strength };
+  }
+  const strength = clamp(Math.min(elapsed / balloonSway.rise, (force.duration - elapsed) / balloonSway.fall), 0, 1);
+  return {
+    x: Math.sin(elapsed * 2 * Math.PI * balloonSway.hertz) * balloonSway.speed * strength,
+    y: 0,
+    gravity: 1 - (1 - balloonGravity) * strength,
+    strength
+  };
+}
 
 
 export const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -120,10 +155,10 @@ function flightProfile(kind, size) {
   return { gravity: baseGravity * kind.fall, airDrag: kind.drag * (1 + sizeOffset * 0.16) };
 }
 
-function advanceFlight(body, dt, scale, drag, terminalVelocity) {
-  body.x += body.vx * scale;
+function advanceFlight(body, dt, scale, drag, terminalVelocity, terminalX = 0) {
+  body.x += terminalX * dt + (body.vx - terminalX) * scale;
   body.y += terminalVelocity * dt + (body.vy - terminalVelocity) * scale;
-  body.vx *= drag;
+  body.vx = terminalX + (body.vx - terminalX) * drag;
   body.vy = terminalVelocity + (body.vy - terminalVelocity) * drag;
 }
 
@@ -172,16 +207,26 @@ export function supportedShuttleY(pose, from, to) {
   return low;
 }
 
-export function projectStrike(pose, motion, seconds) {
+export function projectStrike(pose, motion, seconds, force) {
   const velocity = swingVelocity(motion.vx, motion.vy);
   const { gravity, airDrag } = flightProfile(shapes[pose.shape], pose.baseSize);
   const result = { ...pose, ...velocity };
-  advanceFlight(result, seconds, flightScale(seconds, airDrag), Math.exp(-airDrag * seconds), gravity / airDrag);
+  if (!force) {
+    advanceFlight(result, seconds, flightScale(seconds, airDrag), Math.exp(-airDrag * seconds), gravity / airDrag);
+  } else {
+    // Replay in the server's fixed steps so wind and balloon flights match it.
+    for (let done = 0; done < seconds - 1e-9; done += step) {
+      const dt = Math.min(step, seconds - done);
+      // The server applies the force for a step after the effect clock has moved on by that step.
+      const push = forceAt(force, done + dt);
+      advanceFlight(result, dt, flightScale(dt, airDrag), Math.exp(-airDrag * dt), gravity * push.gravity / airDrag + push.y, push.x);
+    }
+  }
   result.angle += (velocity.vx / 92 + 1.4) * seconds;
   return result;
 }
 
-export function createGame({ withCpu = false } = {}) {
+export function createGame({ withCpu = false, quickEvents = false } = {}) {
   let netReturn;
   let baseNetTop = netTop;
   let matchNetTop = netTop;
@@ -212,6 +257,7 @@ export function createGame({ withCpu = false } = {}) {
   let activeEffect;
   let cpuPrediction;
   let cpuFollowUps = 0;
+  let cpuThaw = 0;
   let cpuOutFeint;
   let flight = 0;
   let strike;
@@ -308,11 +354,19 @@ export function createGame({ withCpu = false } = {}) {
 
   function scheduleEvent() {
     countdown = 0;
-    eventWait = 3 + Math.random() * 4;
+    // quickEvents is for trying effects out: they come around much sooner.
+    eventWait = quickEvents ? 1 + Math.random() * 1.5 : 3 + Math.random() * 4;
+  }
+
+  // The active effect as a force description a client can replay (undefined when none pushes the bird).
+  function currentForce() {
+    if (!activeEffect?.force) return undefined;
+    return { ...activeEffect.force, elapsed: activeEffect.total - activeEffect.remaining };
   }
 
   function clearEffect() {
-    if (activeEffect?.id === 'freeze' || activeEffect?.id === 'balloon') flight++;
+    if (['freeze', 'balloon', 'wind'].includes(activeEffect?.id)) flight++;
+    if (activeEffect?.id === 'freeze') cpuThaw = 0.25;
     activeEffect = undefined;
     matchNetTop = baseNetTop;
     netStart.y = matchNetTop;
@@ -320,9 +374,11 @@ export function createGame({ withCpu = false } = {}) {
     showEvent('');
   }
 
-  function startEffect() {
-    const effect = effects[Math.floor(Math.random() * effects.length)];
-    activeEffect = { id: effect.id, remaining: effect.duration ?? (0.5 + Math.random() * 4.5), netScale: effect.netScale };
+  function startEffect(chosen) {
+    const effect = chosen ?? effects[Math.floor(Math.random() * effects.length)];
+    const length = Array.isArray(effect.duration)
+      ? effect.duration[0] + Math.random() * (effect.duration[1] - effect.duration[0]) : effect.duration;
+    activeEffect = { id: effect.id, remaining: length, total: length, netScale: effect.netScale };
     let label = effect.label;
     switch (activeEffect.id) {
       case 'freeze':
@@ -334,6 +390,7 @@ export function createGame({ withCpu = false } = {}) {
         break;
       case 'balloon':
         flight++;
+        activeEffect.force = { type: 'balloon', duration: length };
         break;
       case 'shock':
         flight++;
@@ -346,9 +403,9 @@ export function createGame({ withCpu = false } = {}) {
         break;
       case 'wind': {
         flight++;
-        const direction = Math.random() < 0.5 ? -1 : 1;
-        shuttle.vx = clamp(shuttle.vx + direction * 290, -1800, 1800);
-        label += direction < 0 ? ' ←' : ' →';
+        const gust = gusts[Math.floor(Math.random() * gusts.length)];
+        activeEffect.force = { type: 'wind', x: gust.x, y: gust.y, duration: length };
+        label += ' ' + gust.arrow;
         break;
       }
     }
@@ -480,7 +537,8 @@ export function createGame({ withCpu = false } = {}) {
     if (Number.isFinite(frame.time)) {
       strike = { flight, time: frame.time, fromFlight: frame.flight, side,
         racket: { x: to.x, y: to.y },
-        pose: { ...shuttlePose(), baseSize: shuttle.size }, motion: { vx: to.vx, vy: to.vy } };
+        pose: { ...shuttlePose(), baseSize: shuttle.size }, motion: { vx: to.vx, vy: to.vy },
+        force: pastForce(currentForce(), frame.age ?? 0) };
     }
     touching[side] = overlaps;
     updateOutline();
@@ -490,6 +548,11 @@ export function createGame({ withCpu = false } = {}) {
       advanceShuttle(slice);
       elapsed -= slice;
     }
+  }
+
+  // The same force as it was `age` seconds ago, when the contact actually happened.
+  function pastForce(force, age) {
+    return force && { ...force, elapsed: Math.max(0, force.elapsed - age) };
   }
 
   function holdRacket(side, frame, time) {
@@ -542,7 +605,9 @@ export function createGame({ withCpu = false } = {}) {
     else onlineContact(side, previous, next, frame);
   }
 
-  function moveCpu(dt) {
+  // canHit is off while the shuttle is frozen: the CPU may walk to it but cannot strike it.
+  function moveCpu(dt, canHit = true) {
+    cpuThaw = Math.max(0, cpuThaw - dt);
     const tracked = cpuPrediction ?? shuttle;
     const defending = tracked.x >= center && tracked.vy > 0;
     const anticipates = cpuLevel === 5 && lastHitter === 'left' && tracked.vy > 0;
@@ -581,7 +646,7 @@ export function createGame({ withCpu = false } = {}) {
     cpu.x += clamp(targetX - cpu.x, -290 * travel, 290 * travel);
     cpu.y += clamp(targetY - cpu.y, -340 * travel, 340 * travel);
     const inReach = defending && tracked.x <= rightLine && shuttle.x <= rightLine;
-    if ((inReach || leavingOut) && shuttle.x >= center &&
+    if (canHit && cpuThaw <= 0 && (inReach || leavingOut) && shuttle.x >= center &&
         (lastHitter !== 'right' || cpuFollowUps > 0) && hitCooldown <= 0 &&
         racketContact(cpu, cpu)) {
       if (leavingOut) {
@@ -634,7 +699,8 @@ export function createGame({ withCpu = false } = {}) {
     const scale = flightScale(dt, airDrag);
     const drag = Math.exp(-airDrag * dt);
     const terminalVelocity = gravity / airDrag;
-    advanceFlight(shuttle, dt, scale, drag, terminalVelocity);
+    const push = forceAt(currentForce());
+    advanceFlight(shuttle, dt, scale, drag, gravity * push.gravity / airDrag + push.y, push.x);
     if (cpuPrediction) advanceFlight(cpuPrediction, dt, scale, drag, terminalVelocity);
     shuttle.angle += shuttle.spin * dt;
     updateOutline();
@@ -712,7 +778,11 @@ export function createGame({ withCpu = false } = {}) {
     }
 
     updateEvent(dt);
-    if (activeEffect?.id === 'freeze') return;
+    if (activeEffect?.id === 'freeze') {
+      // Only the shuttle is frozen: players keep moving, but nothing can be hit until it thaws.
+      if (withCpu) moveCpu(dt, false);
+      return;
+    }
     advanceShuttle(dt);
     if (support) {
       const racket = rackets[support];
@@ -742,6 +812,7 @@ export function createGame({ withCpu = false } = {}) {
     return {
       phase, score, message, winner, eventText, eventWind, flash, frozen, support, cpuLevel, netTop: matchNetTop,
       strike: strike?.flight === flight ? strike : undefined,
+      force: currentForce(),
       shake: activeEffect?.id === 'shock' ? activeEffect.remaining : 0,
       shuttle: visible ? { ...shuttlePose(), flight, baseSize: shuttle.size, canHit: hitCooldown <= 0 && !pendingLanding && !frozen } : undefined,
       left: position(rackets.left),
@@ -749,5 +820,14 @@ export function createGame({ withCpu = false } = {}) {
     };
   }
 
-  return { restart, moveRacket, holdRacket, contactFrame, simulate, view };
+  // For trying effects out (?test=effects): start one right now if a rally is live.
+  function triggerEffect(id) {
+    const effect = effects.find(candidate => candidate.id === id);
+    if (!effect || phase !== 'live' || activeEffect || !shuttle || pendingLanding) return false;
+    countdown = 0;
+    startEffect(effect);
+    return true;
+  }
+
+  return { restart, moveRacket, holdRacket, contactFrame, simulate, view, triggerEffect };
 }

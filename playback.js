@@ -199,7 +199,7 @@ export function createPlayback() {
     const until = Math.min(target, sample.time + birdExtrapolateMs);
     const strike = latestStrike;
     if (strike && strike.flight === shuttle.flight && until >= strike.time) {
-      return { shuttle: { ...shuttle, ...projectStrike(strike.pose, strike.motion, (until - strike.time) / 1000),
+      return { shuttle: { ...shuttle, ...projectStrike(strike.pose, strike.motion, (until - strike.time) / 1000, strike.force),
         flight: strike.flight, canHit: shuttle.canHit }, until };
     }
     const before = previousSample;
@@ -253,7 +253,7 @@ export function createPlayback() {
       (strike.fromFlight === b.shuttle.flight || strike.flight === b.shuttle.flight);
     if (sameShuttle || followsStrike) displayedTime = target;
     const shuttle = followsStrike ? {
-      ...projectStrike(strike.pose, strike.motion, (target - strike.time) / 1000),
+      ...projectStrike(strike.pose, strike.motion, (target - strike.time) / 1000, strike.force),
       flight: strike.flight,
       canHit: target - strike.time >= 140
     } : sameShuttle ? {
