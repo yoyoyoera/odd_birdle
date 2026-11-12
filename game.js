@@ -55,6 +55,8 @@ const effects = [
   { id: 'highNet', label: 'HIGH NET', duration: netEffectSeconds, netScale: 1.6 },
   { id: 'lowNet', label: 'LOW NET', duration: netEffectSeconds, netScale: 0.5 }
 ];
+// How far the net rises or sinks, as a multiple of its height. The test page can change these.
+export const defaultNetScales = { highNet: 1.6, lowNet: 0.5 };
 export const effectLabels = effects.map(effect => effect.label);
 export const effectIds = effects.map(effect => effect.id);
 
@@ -258,6 +260,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
   let cpuPrediction;
   let cpuFollowUps = 0;
   let cpuThaw = 0;
+  const netScales = { ...defaultNetScales };
   let cpuOutFeint;
   let flight = 0;
   let strike;
@@ -378,7 +381,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     const effect = chosen ?? effects[Math.floor(Math.random() * effects.length)];
     const length = Array.isArray(effect.duration)
       ? effect.duration[0] + Math.random() * (effect.duration[1] - effect.duration[0]) : effect.duration;
-    activeEffect = { id: effect.id, remaining: length, total: length, netScale: effect.netScale };
+    activeEffect = { id: effect.id, remaining: length, total: length, netScale: netScales[effect.id] ?? effect.netScale };
     let label = effect.label;
     switch (activeEffect.id) {
       case 'freeze':
@@ -829,5 +832,10 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     return true;
   }
 
-  return { restart, moveRacket, holdRacket, contactFrame, simulate, view, triggerEffect };
+  // Test page only: pick the next HIGH NET / LOW NET size.
+  function setNetScale(id, scale) {
+    if (id in netScales && Number.isFinite(scale) && scale > 0 && scale < 4) netScales[id] = scale;
+  }
+
+  return { restart, moveRacket, holdRacket, contactFrame, simulate, view, triggerEffect, setNetScale };
 }

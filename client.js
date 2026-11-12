@@ -604,6 +604,32 @@ if (testEffects) {
     button.addEventListener('click', () => trigger(index));
     panel.append(button);
   });
+  // Net sizes to compare: choosing one sets it for HIGH/LOW NET from now on and starts the effect.
+  const sizes = [['highNet', 5, [1.6, 2, 2.2]], ['lowNet', 6, [0.5, 0.4, 0.3]]];
+  for (const [id, index, options] of sizes) {
+    const group = document.createElement('div');
+    group.style.cssText = 'display:flex;gap:4px;width:100%';
+    const label = document.createElement('span');
+    label.textContent = labels[index] + ' size';
+    label.style.cssText = 'color:var(--court);align-self:center;min-width:92px';
+    group.append(label);
+    for (const size of options) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.dataset.net = id;
+      button.textContent = `x${size}`;
+      button.style.cssText = 'padding:6px 8px;border:0;background:var(--court);color:var(--ink);cursor:pointer;font:inherit';
+      button.addEventListener('click', () => {
+        solo.setNetScale(id, size);
+        for (const other of group.querySelectorAll('button')) other.style.outline = other === button ? '2px solid var(--ink)' : '';
+        trigger(index);
+        note.textContent = `${labels[index]} x${size}`;
+      });
+      if (size === options[0]) button.style.outline = '2px solid var(--ink)';
+      group.append(button);
+    }
+    panel.prepend(group);
+  }
   panel.append(note);
   document.body.append(panel);
   document.addEventListener('keydown', event => {
