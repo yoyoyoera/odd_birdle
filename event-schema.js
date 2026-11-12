@@ -6,7 +6,9 @@ export const events = {
   game_finish: { mode: ['cpu', 'online'], level: ['1', '2', '3', '4', '5'], result: ['win', 'lose'] },
   rematch: { mode: ['cpu', 'online'] },
   room_create: {},
-  link_copy: {}
+  link_copy: {},
+  // Sent once a minute while the game is on screen, to count people playing at the same time.
+  heartbeat: { mode: ['menu', 'cpu', 'online'] }
 };
 export const fields = ['mode', 'level', 'via', 'result', 'returning'];
 

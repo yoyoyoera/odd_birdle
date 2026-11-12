@@ -2,7 +2,7 @@ import { center, clamp, createGame, floor, height, leftLine, netTop, racketRadiu
 import { createPlayback, followStrikeClock } from './playback.js';
 import { normalizeRoomCode, roomFromLink, roomLink } from './room-link.js';
 import { createDemo } from './demo.js';
-import { track, trackVisit } from './analytics.js';
+import { startHeartbeat, track, trackVisit } from './analytics.js';
 import { createSound } from './sound.js';
 import { createCueTracker } from './sound-cues.js';
 
@@ -522,6 +522,7 @@ if (invitedRoom) {
   connect({ type: 'join', code: invitedRoom }, 'link');
 }
 trackVisit();
+startHeartbeat(() => mode === 'solo' ? 'cpu' : mode === 'online' ? 'online' : 'menu');
 
 // Sound can only start from a click, tap or key press.
 for (const type of ['pointerdown', 'keydown']) {
@@ -543,6 +544,8 @@ gameControl.addEventListener('click', () => {
     track('rematch', { mode: mode === 'solo' ? 'cpu' : 'online' });
   }
   finishedNoted = false;
+  // Online restarts arrive as a new 'start' message; CPU ones are counted here.
+  if (mode === 'solo') track('game_start', { mode: 'cpu', level: selectedCpuLevel ?? 'random' });
   if (mode === 'solo') solo.restart(3, selectedCpuLevel);
   else send({ type: 'restart' });
 });

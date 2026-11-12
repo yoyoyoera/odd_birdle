@@ -16,6 +16,17 @@ export function track(name, details = {}) {
   }
 }
 
+const heartbeatMs = 60000;
+
+// One anonymous ping per minute per visible tab: pings in a minute ~= people on the page.
+export function startHeartbeat(currentMode) {
+  const beat = () => {
+    if (document.visibilityState === 'visible') track('heartbeat', { mode: currentMode() });
+  };
+  beat();
+  return setInterval(beat, heartbeatMs);
+}
+
 // A single yes/no flag in this browser, no identifier, to see if people come back.
 export function trackVisit() {
   let returning = 'no';
