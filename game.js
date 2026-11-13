@@ -13,7 +13,10 @@ const shapes = [
   { fall: 0.99, drag: 0.59, vertices: [[-0.88, -0.50], [0, -1], [0.88, -0.50], [0.88, 0.50], [0, 1], [-0.88, 0.50]] },
   { fall: 0.94, drag: 0.67, vertices: [[-0.9, -0.85], [-0.23, -0.85], [0, -0.18], [0.23, -0.85],
     [0.9, -0.85], [0.4, 0.45], [0, 0.95], [-0.4, 0.45]] },
-  ...brandShuttles
+  ...brandShuttles,
+  // New shapes go last so the numbers of the older ones (sent to every player) never change.
+  // An L: a long bar with a foot. It is lopsided, so which end meets the racket changes as it spins.
+  { label: 'L', fall: 0.97, drag: 0.6, vertices: [[-0.55, -1], [-0.05, -1], [-0.05, 0.5], [0.75, 0.5], [0.75, 1], [-0.55, 1]] }
 ].map(kind => {
   // Use the longest distance across each silhouette so rotation and aspect
   // ratio cannot turn a small tier into the same size as a large one.
@@ -25,6 +28,8 @@ const shapes = [
   return { ...kind, rings, vertexScale: 2 / diameter };
 });
 const shuttleSizes = [11, 21, 34];
+export const shapeCount = shapes.length;
+export const shuttleSizeOptions = [...shuttleSizes];
 export const width = 900;
 export const height = 500;
 export const center = width / 2;
@@ -261,6 +266,9 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
   let cpuFollowUps = 0;
   let cpuThaw = 0;
   const netScales = { ...defaultNetScales };
+  // Test page only: pin the shuttle shape / size tier (undefined = random) and switch effects on or off.
+  const shuttleChoice = { shape: undefined, size: undefined };
+  let effectsOn = true;
   let cpuOutFeint;
   let flight = 0;
   let strike;
@@ -279,13 +287,13 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     support = undefined;
     strike = undefined;
     showEvent('');
-    shape = shape < 0
+    shape = shuttleChoice.shape ?? (shape < 0
       ? Math.floor(Math.random() * shapes.length)
-      : (shape + 1 + Math.floor(Math.random() * (shapes.length - 1))) % shapes.length;
+      : (shape + 1 + Math.floor(Math.random() * (shapes.length - 1))) % shapes.length);
     const x = server === 'left' ? 245 : 660;
-    sizeTier = sizeTier < 0
+    sizeTier = shuttleChoice.size ?? (sizeTier < 0
       ? Math.floor(Math.random() * shuttleSizes.length)
-      : (sizeTier + 1 + Math.floor(Math.random() * (shuttleSizes.length - 1))) % shuttleSizes.length;
+      : (sizeTier + 1 + Math.floor(Math.random() * (shuttleSizes.length - 1))) % shuttleSizes.length);
     const size = shuttleSizes[sizeTier];
     shuttle = { x, y: 56, vx: 0, vy: 35, angle: 0, spin: 0.8, size, ...flightProfile(shapes[shape], size) };
     updateOutline();
@@ -426,6 +434,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
       if (activeEffect.remaining <= 1e-9) clearEffect();
       return;
     }
+    if (!effectsOn) return;
     // Before a countdown, short rallies still contribute to the waiting time.
     if (!lastHitter) return;
     if (countdown > 0) {
@@ -832,10 +841,20 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     return true;
   }
 
+  // Test page only: which shape and size tier the next serves use. Anything else means random.
+  function setShuttle({ shape: wantedShape, size: wantedSize } = {}) {
+    shuttleChoice.shape = Number.isInteger(wantedShape) && wantedShape >= 0 && wantedShape < shapes.length ? wantedShape : undefined;
+    shuttleChoice.size = Number.isInteger(wantedSize) && wantedSize >= 0 && wantedSize < shuttleSizes.length ? wantedSize : undefined;
+  }
+
+  function setEffects(on) {
+    effectsOn = Boolean(on);
+  }
+
   // Test page only: pick the next HIGH NET / LOW NET size.
   function setNetScale(id, scale) {
     if (id in netScales && Number.isFinite(scale) && scale > 0 && scale < 4) netScales[id] = scale;
   }
 
-  return { restart, moveRacket, holdRacket, contactFrame, simulate, view, triggerEffect, setNetScale };
+  return { restart, moveRacket, holdRacket, contactFrame, simulate, view, triggerEffect, setNetScale, setShuttle, setEffects };
 }

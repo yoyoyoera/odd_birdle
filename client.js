@@ -1,4 +1,4 @@
-import { center, clamp, createGame, floor, height, leftLine, netTop, racketRadius, rightLine, shuttleOutline, step, width, contactMotion, isSwing, projectStrike, forceAt, effectIds, racketTouches, supportedShuttleY, swingMotion } from './game.js';
+import { center, clamp, createGame, floor, height, leftLine, netTop, racketRadius, rightLine, shuttleOutline, step, width, contactMotion, isSwing, projectStrike, forceAt, effectIds, shapeCount, shuttleSizeOptions, racketTouches, supportedShuttleY, swingMotion } from './game.js';
 import { createPlayback, followStrikeClock } from './playback.js';
 import { normalizeRoomCode, roomFromLink, roomLink } from './room-link.js';
 import { createDemo } from './demo.js';
@@ -58,6 +58,7 @@ for (const [property, value] of Object.entries({
 // ?test=effects opens a CPU match with buttons for trying each random effect (&fast=1: they come sooner).
 const testParams = new URLSearchParams(location.search);
 const testEffects = testParams.get('test') === 'effects';
+const testShapes = testParams.get('test') === 'shapes';
 // ?test=juice opens a CPU Lv.4 match with switches for each screen touch below.
 const testJuice = testParams.get('test') === 'juice';
 const solo = createGame({ withCpu: true, quickEvents: testEffects && testParams.get('fast') === '1' });
@@ -745,6 +746,78 @@ if (testEffects) {
     const index = Number(event.key) - 1;
     if (index >= 0 && index < effectIds.length) trigger(index);
   });
+  startCpu();
+}
+
+if (testShapes) {
+  // ?test=shapes: a CPU match straight away, with a foldable panel to pin the shuttle's shape and size,
+  // pick the CPU level and switch random effects on or off. Pinned choices apply from the next serve.
+  selectedCpuLevel = 4;
+  showCpuLevel();
+  solo.setEffects(false);
+  const shapeNames = ['tri', 'circle', 'square', 'bar', 'diamond', 'hex', 'star', '{', 'y', 'o', '}', 'L'];
+  const sizeNames = ['S', 'M', 'L'];
+  const choice = { shape: undefined, size: undefined, effects: false };
+  const box = document.createElement('div');
+  box.id = 'shape-test';
+  box.style.cssText = 'position:fixed;left:8px;bottom:8px;max-width:calc(100vw - 16px);z-index:5;' +
+    'font:12px "Space Grotesk",system-ui,sans-serif;color:var(--court)';
+  const fold = document.createElement('button');
+  fold.type = 'button';
+  const body = document.createElement('div');
+  body.style.cssText = 'display:flex;flex-direction:column;gap:4px;margin-bottom:4px';
+  const base = 'padding:6px 8px;border:0;cursor:pointer;font:inherit;';
+  const paint = (button, on) => {
+    button.style.cssText = base + (on ? 'background:var(--court);color:var(--ink)' : 'background:transparent;color:var(--court);outline:1px solid var(--court)');
+  };
+  const group = (title, options, selected, pick) => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;align-items:center';
+    const label = document.createElement('span');
+    label.textContent = title;
+    label.style.cssText = 'min-width:46px';
+    row.append(label);
+    const buttons = options.map(([text, value]) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = text;
+      paint(button, selected() === value);
+      button.addEventListener('click', () => {
+        pick(value);
+        buttons.forEach(([other, otherValue]) => paint(other, selected() === otherValue));
+      });
+      return [button, value];
+    });
+    buttons.forEach(([button]) => row.append(button));
+    body.append(row);
+  };
+  const apply = () => solo.setShuttle({ shape: choice.shape, size: choice.size });
+  group('shape', [['RANDOM', undefined], ...Array.from({ length: shapeCount }, (_, i) => [shapeNames[i] ?? `#${i}`, i])],
+    () => choice.shape, value => { choice.shape = value; apply(); });
+  group('size', [['RANDOM', undefined], ...shuttleSizeOptions.map((px, i) => [`${sizeNames[i] ?? i} ${px}`, i])],
+    () => choice.size, value => { choice.size = value; apply(); });
+  group('CPU', [1, 2, 3, 4, 5].map(level => [`Lv${level}`, level]), () => selectedCpuLevel,
+    value => { selectedCpuLevel = value; showCpuLevel(); startCpu(); });
+  group('effects', [['OFF', false], ['ON', true]], () => choice.effects, value => { choice.effects = value; solo.setEffects(value); });
+  const restart = document.createElement('button');
+  restart.type = 'button';
+  restart.textContent = 'RESTART MATCH';
+  paint(restart, true);
+  restart.addEventListener('click', () => { startCpu(); restart.blur(); });
+  body.append(restart);
+  const showPanel = open => {
+    body.hidden = !open;
+    fold.textContent = open ? 'SHAPES ▾  (H)' : 'SHAPES ▸  (H)';
+    paint(fold, true);
+  };
+  let open = true;
+  fold.addEventListener('click', () => { open = !open; showPanel(open); fold.blur(); });
+  document.addEventListener('keydown', event => {
+    if (event.key.toLowerCase() === 'h') { open = !open; showPanel(open); }
+  });
+  showPanel(true);
+  box.append(body, fold);
+  document.body.append(box);
   startCpu();
 }
 

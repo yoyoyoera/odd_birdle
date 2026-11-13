@@ -11,9 +11,12 @@ function pinned(t, value = 0.5) {
 
 const run = (game, seconds) => { for (let i = 0; i < Math.round(seconds / step); i++) game.simulate(step); };
 
-function serve(t, { shapeRoll = 0.5, cpu = false } = {}) {
+// The shuttle shape is named outright (5 = hexagon, 1 = circle, 3 = bar), so adding new shapes to
+// the end of the list never changes what these tests fly. The roll still sets size and net height.
+function serve(t, { shapeRoll = 0.5, shape = 5, cpu = false } = {}) {
   const roll = pinned(t, shapeRoll);
   const game = createGame({ withCpu: cpu });
+  game.setShuttle({ shape });
   game.restart(0);
   return { game, roll };
 }
@@ -31,8 +34,8 @@ test('forceAt ramps in and out, and is gone after the effect', () => {
 });
 
 test('GUST keeps pushing, and draggier shapes are pushed further', t => {
-  const push = shapeRoll => {
-    const { game, roll } = serve(t, { shapeRoll });
+  const push = (shapeRoll, shape) => {
+    const { game, roll } = serve(t, { shapeRoll, shape });
     roll.value = 0.3;
     assert.ok(game.triggerEffect('wind'));
     assert.match(game.view().eventText, /^GUST →$/);
@@ -40,8 +43,8 @@ test('GUST keeps pushing, and draggier shapes are pushed further', t => {
     for (let i = 0; i < 4; i++) { run(game, 0.3); xs.push(game.view().shuttle.x); }
     return { shape: game.view().shuttle.shape, travelled: xs.at(-1) - 245, xs };
   };
-  const circle = push(0.1);
-  const plank = push(0.35);
+  const circle = push(0.1, 1);
+  const plank = push(0.35, 3);
   assert.notEqual(circle.shape, plank.shape);
   assert.ok(circle.travelled > 60, `circle moved ${circle.travelled}`);
   assert.ok(plank.travelled > circle.travelled + 20, `plank ${plank.travelled} vs circle ${circle.travelled}`);
@@ -51,7 +54,7 @@ test('GUST keeps pushing, and draggier shapes are pushed further', t => {
 
 test('GUST can blow up and down, and the label says which way', t => {
   const heightAfter = word => {
-    const { game, roll } = serve(t, { shapeRoll: 0.35 });
+    const { game, roll } = serve(t, { shapeRoll: 0.35, shape: 3 });
     roll.value = word === 'none' ? 0 : { '←': 0.1, '→': 0.3, '↑': 0.6, '↓': 0.9 }[word];
     if (word !== 'none') {
       game.triggerEffect('wind');
@@ -149,7 +152,7 @@ test('a hit during GUST or BALLOON is replayed by clients exactly as the server 
 
 test('HIGH NET and LOW NET use the size picked for them', t => {
   const netAfter = (id, scale) => {
-    const { game } = serve(t, { shapeRoll: 0.05 });
+    const { game } = serve(t, { shapeRoll: 0.05, shape: 0 });
     if (scale) game.setNetScale(id, scale);
     assert.ok(game.triggerEffect(id));
     run(game, 0.8);
