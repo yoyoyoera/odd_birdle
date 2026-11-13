@@ -60,6 +60,9 @@
     #winner { position: absolute; bottom: calc(50% + clamp(1rem, 5vw, 2.25rem)); left: 50%;
       transform: translateX(-50%); margin: 0; color: var(--ink);
       font-size: clamp(1rem, 3.8vw, 1.75rem); font-weight: 650; white-space: nowrap; pointer-events: none; }
+    #record { position: absolute; bottom: calc(50% + clamp(2.6rem, 10.5vw, 5rem)); left: 50%;
+      transform: translateX(-50%); margin: 0; color: var(--ink); opacity: .6; font-size: clamp(.65rem, 1.7vw, .875rem);
+      font-weight: 650; letter-spacing: .08em; white-space: nowrap; pointer-events: none; }
     #event-banner { position: absolute; top: 7%; left: 50%; transform: translateX(-50%);
       color: var(--ink); background: var(--court); padding: 3px 7px;
       font-size: clamp(1.25rem, 5.5vw, 3.25rem); line-height: 1.05;
@@ -119,6 +122,7 @@
     <span id="side-label" hidden>YOU</span>
     <span id="cpu-label" hidden></span>
     <p id="winner" role="status" hidden></p>
+    <p id="record" hidden></p>
     <span id="status" class="sr-only" role="status"></span>
     <div id="event-banner" role="status" hidden></div>
     <p id="queue-status" role="status" hidden></p>

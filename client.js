@@ -6,6 +6,10 @@ import { startHeartbeat, track, trackVisit } from './analytics.js';
 import { createSound } from './sound.js';
 import { createCueTracker } from './sound-cues.js';
 import {
+  createJuiceTracker, dustAt, hintSeen, juiceKeys, juiceTiming, makeDust, markHintSeen, noteCpuWin,
+  resetJuiceRecords, squashAmount
+} from './juice.js';
+import {
   initPortal, isInstantMultiplayer, loadingStart, loadingStop, onJoinRoom, onPortalMute, portal, portalInviteLink,
   portalInviteRoom, portalMuted, roomFull, roomLeft, roomOpen, serverBase, setPlaying, siteUrl
 } from './portal.js';
@@ -17,6 +21,7 @@ const scoreboard = document.querySelector('#score');
 const sideLabel = document.querySelector('#side-label');
 const cpuLabel = document.querySelector('#cpu-label');
 const winnerLabel = document.querySelector('#winner');
+const recordLabel = document.querySelector('#record');
 const status = document.querySelector('#status');
 const eventBanner = document.querySelector('#event-banner');
 const gameControl = document.querySelector('#game-control');
@@ -53,6 +58,8 @@ for (const [property, value] of Object.entries({
 // ?test=effects opens a CPU match with buttons for trying each random effect (&fast=1: they come sooner).
 const testParams = new URLSearchParams(location.search);
 const testEffects = testParams.get('test') === 'effects';
+// ?test=juice opens a CPU Lv.4 match with switches for each screen touch below.
+const testJuice = testParams.get('test') === 'juice';
 const solo = createGame({ withCpu: true, quickEvents: testEffects && testParams.get('fast') === '1' });
 const demo = createDemo();
 const sound = createSound();
@@ -80,6 +87,25 @@ let prediction;
 let predictedFlight;
 let localOverlap = false;
 let accumulator = 0;
+
+// Screen-only touches (juice.js). Each can be switched off; the moving ones stay off for reduced motion.
+const juice = Object.fromEntries(juiceKeys.map(key => [key, true]));
+const juiceTracker = createJuiceTracker();
+const storage = (() => {
+  try {
+    return window.localStorage;
+  } catch {
+    return undefined;
+  }
+})();
+const moving = key => juice[key] && !reduceMotion.matches;
+let hitstop;
+const squashes = {};
+let dust = [];
+const hint = { shown: !hintSeen(storage), fading: undefined };
+const beatenThisVisit = new Set();
+let recordText = '';
+let recordNoted = false;
 
 function resize() {
   const bounds = court.getBoundingClientRect();
@@ -233,6 +259,10 @@ function updateHud(view) {
   }
   winnerLabel.hidden = !winner;
   setText(winnerLabel, winner ? (winner === localSide ? 'You Win!' : 'You Lose..') : '');
+  if (phase !== 'finished') recordNoted = false;
+  const record = phase === 'finished' && juice.record ? recordText : '';
+  recordLabel.hidden = !record;
+  setText(recordLabel, record);
   setText(status, message);
   eventBanner.hidden = !eventText;
   eventBanner.toggleAttribute('data-wind', eventWind);
@@ -245,9 +275,21 @@ function noteFinish(view) {
   if ((mode !== 'solo' && mode !== 'online') || view.phase !== 'finished' || finishedNoted || !view.winner) return;
   finishedNoted = true;
   const result = view.winner === (mode === 'solo' ? 'left' : localSide) ? 'win' : 'lose';
+  noteRecord(view, result);
   track('game_finish', mode === 'solo'
     ? { mode: 'cpu', level: String(view.cpuLevel), result }
     : { mode: 'online', result });
+}
+
+// FIRST WIN vs Lv.N: the first time each CPU level is beaten (remembered on this device).
+function noteRecord(view, result) {
+  if (recordNoted) return;
+  recordNoted = true;
+  recordText = '';
+  if (mode !== 'solo' || result !== 'win' || !view.cpuLevel) return;
+  const first = noteCpuWin(storage, view.cpuLevel) && !beatenThisVisit.has(view.cpuLevel);
+  beatenThisVisit.add(view.cpuLevel);
+  if (first) recordText = 'FIRST WIN vs Lv.' + view.cpuLevel;
 }
 
 function currentView() {
@@ -366,9 +408,13 @@ function moveRacket(event) {
   });
 }
 
-function drawRacket(position, fill, stroke) {
+function drawRacket(position, fill, stroke, side) {
   ctx.beginPath();
-  ctx.arc(position.x, position.y, racketRadius, 0, Math.PI * 2);
+  const squash = squashes[side];
+  const amount = squash && juice.squash && !reduceMotion.matches ? squashAmount(performance.now() - squash.start) : 0;
+  // Squash: a little flatter along the way the shuttle was sent, a little wider across it.
+  if (amount) ctx.ellipse(position.x, position.y, racketRadius * (1 - amount), racketRadius * (1 + amount * 0.6), squash.angle, 0, Math.PI * 2);
+  else ctx.arc(position.x, position.y, racketRadius, 0, Math.PI * 2);
   ctx.fillStyle = fill;
   ctx.fill();
   ctx.lineWidth = 2;
@@ -404,15 +450,72 @@ function draw(view, scenery = false) {
   if (view.phase !== 'ready') {
     if (scenery) ctx.globalAlpha = demoAlpha.racket;
     const other = localSide === 'left' ? 'right' : 'left';
-    if (view[other]) drawRacket(view[other], '#cf936b99', '#774935');
+    if (view[other]) drawRacket(view[other], '#cf936b99', '#774935', scenery ? undefined : other);
     // Online matches draw the locally predicted racket; a quick-match CPU game (which also
     // has a connection open while waiting) draws the game's own racket.
     const ownRacket = mode === 'online' && !scenery ? localRacket : view[localSide];
-    if (ownRacket && view.phase !== 'finished') drawRacket(ownRacket, '#a9d67877', palette.ink);
+    if (ownRacket && view.phase !== 'finished') drawRacket(ownRacket, '#a9d67877', palette.ink, scenery ? undefined : localSide);
     if (view.shuttle) drawShuttle(view, scenery ? demoAlpha.bird : 1);
     ctx.globalAlpha = 1;
+    if (!scenery) {
+      drawDust();
+      drawHint(view);
+    }
   }
   ctx.restore();
+}
+
+function drawDust() {
+  if (!dust.length) return;
+  const now = performance.now();
+  ctx.save();
+  ctx.fillStyle = palette.ink;
+  dust = dust.filter(speck => {
+    const at = dustAt(speck, now);
+    if (!at) return false;
+    ctx.globalAlpha = 0.7 * at.alpha;
+    ctx.fillRect(at.x - at.size / 2, at.y - at.size, at.size, at.size);
+    return true;
+  });
+  ctx.restore();
+}
+
+// First visit only: a faint "Move to hit" over the player's half until their first hit.
+function drawHint(view) {
+  if (!hint.shown || !juice.hint || !['starting', 'live', 'between'].includes(view.phase)) return;
+  let alpha = 0.35;
+  if (hint.fading !== undefined) {
+    const t = (performance.now() - hint.fading) / juiceTiming.hintFadeMs;
+    if (t >= 1) {
+      hint.shown = false;
+      return;
+    }
+    alpha *= 1 - t;
+  }
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = palette.ink;
+  ctx.font = '650 26px "Space Grotesk", system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Move to hit', localSide === 'left' ? center / 2 : center * 1.5, floor * 0.42);
+  ctx.restore();
+}
+
+function playJuice(events, time, side) {
+  for (const event of events) {
+    if (event.type === 'hit') {
+      squashes[event.side] = { start: time, angle: event.angle };
+      if (event.strong && moving('hitstop')) hitstop = { until: time + juiceTiming.hitstopMs };
+      if (event.side === side && hint.shown && hint.fading === undefined) {
+        hint.fading = time;
+        markHintSeen(storage);
+      }
+    } else if (event.type === 'land' && moving('dust')) {
+      dust.push(...makeDust(event.x, time));
+    } else if (event.type === 'score' && moving('scorePop')) {
+      scoreboard.animate?.([{ scale: 1.18 }, { scale: 1 }], { duration: juiceTiming.popMs, easing: 'ease-out' });
+    }
+  }
 }
 
 // GUST: faint streaks flowing the way the wind blows (still and fainter with reduced motion).
@@ -528,6 +631,18 @@ function frame(time) {
     const y = supportedShuttleY(pose, localRacket, localRacket);
     if (y !== undefined) drawing = { ...drawing, shuttle: { ...pose, y } };
   }
+  if (mode === 'solo' || mode === 'online') {
+    playJuice(juiceTracker.update(drawing, time), time, mode === 'solo' ? 'left' : localSide);
+  } else {
+    juiceTracker.reset();
+  }
+  // Hitstop: a strong hit holds the picture for a moment; the match itself keeps running.
+  if (hitstop && time < hitstop.until && !scenery) {
+    hitstop.drawing ??= drawing;
+    drawing = hitstop.drawing;
+  } else {
+    hitstop = undefined;
+  }
   if (scenery) draw(demoView, true);
   else draw(drawing);
   requestAnimationFrame(frame);
@@ -637,6 +752,47 @@ if (testEffects) {
     const index = Number(event.key) - 1;
     if (index >= 0 && index < effectIds.length) trigger(index);
   });
+  startCpu();
+}
+
+if (testJuice) {
+  // A CPU Lv.4 match straight away, with a switch per touch and a reset for the hint and records.
+  selectedCpuLevel = 4;
+  showCpuLevel();
+  const names = ['1 Hitstop', '2 Squash', '3 Dust', '4 Score pop', '5 First hint', '6 First win'];
+  const panel = document.createElement('div');
+  panel.id = 'juice-test';
+  panel.style.cssText = 'position:fixed;left:8px;bottom:8px;display:flex;flex-wrap:wrap;gap:4px;max-width:calc(100vw - 16px);' +
+    'font:12px "Space Grotesk",system-ui,sans-serif;z-index:5';
+  const style = (button, on) => {
+    button.setAttribute('aria-pressed', String(on));
+    button.style.cssText = 'padding:6px 8px;border:0;cursor:pointer;font:inherit;' +
+      (on ? 'background:var(--court);color:var(--ink)' : 'background:transparent;color:var(--court);text-decoration:line-through;opacity:.6');
+  };
+  juiceKeys.forEach((key, index) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = names[index];
+    style(button, juice[key]);
+    button.addEventListener('click', () => {
+      juice[key] = !juice[key];
+      style(button, juice[key]);
+    });
+    panel.append(button);
+  });
+  const reset = document.createElement('button');
+  reset.type = 'button';
+  reset.textContent = 'Reset hint + records';
+  reset.style.cssText = 'padding:6px 8px;border:1px solid var(--court);background:transparent;color:var(--court);cursor:pointer;font:inherit';
+  reset.addEventListener('click', () => {
+    resetJuiceRecords(storage);
+    beatenThisVisit.clear();
+    Object.assign(hint, { shown: true, fading: undefined });
+    recordText = '';
+    reset.blur();
+  });
+  panel.append(reset);
+  document.body.append(panel);
   startCpu();
 }
 
