@@ -80,6 +80,13 @@ test('only our site and the portals are allowed, by source', () => {
   assert.equal(originSource('https://games.crazygames.com'), 'crazygames');
   assert.equal(originSource('https://www.crazygames.com'), 'crazygames');
   assert.equal(originSource('https://html-classic.itch.zone'), 'itch');
+  // Newgrounds: the one host that serves uploaded games, over https only.
+  assert.equal(originSource('https://uploads.ungrounded.net'), 'newgrounds');
+  assert.equal(originSource('http://uploads.ungrounded.net'), undefined);
+  assert.equal(originSource('https://ungrounded.net'), undefined);
+  assert.equal(originSource('https://evil.ungrounded.net'), undefined);
+  assert.equal(originSource('https://uploads.ungrounded.net.evil.test'), undefined);
+  assert.equal(originSource('https://www.newgrounds.com'), undefined);
   // The game's own host on CrazyGames is several levels deep; the iOS app uses its own scheme.
   assert.equal(originSource('https://cubes-2048-io.game-files.crazygames.com'), 'crazygames');
   assert.equal(originSource('https://app.crazygames.com'), 'crazygames');
@@ -108,8 +115,8 @@ test('stats split visits by source and list refused hosts', async () => {
     { name: 'game_start', mode: 'cpu', level: 'random', source: 'itch', n: '2' },
     { name: 'origin_rejected', mode: 'games.example.com', n: '4' }
   ]);
-  assert.match(text, /출처별 방문: site 3 · crazygames 5 · itch 0/);
-  assert.match(text, /출처별 게임 시작: site 0 · crazygames 0 · itch 2/);
+  assert.match(text, /출처별 방문: site 3 · crazygames 5 · itch 0 · newgrounds 0/);
+  assert.match(text, /출처별 게임 시작: site 0 · crazygames 0 · itch 2 · newgrounds 0/);
   assert.match(text, /거절된 출처: games.example.com 4/);
 });
 
@@ -122,4 +129,13 @@ test('quick match events are accepted and summarized', async () => {
     { name: 'quick_match_start', n: '4' }, { name: 'quick_match_abort', n: '1' }
   ]);
   assert.match(text, /QUICK MATCH 누름 10, 매칭 4 \(매칭 성사율 40%\), 시작 4, 중간 이탈 1/);
+});
+
+test('a refused origin is recorded as text when it is not a URL', async () => {
+  const points = [];
+  const env = { EVENTS: { writeDataPoint: point => points.push(point) } };
+  await post(JSON.stringify({ name: 'link_copy' }), env, 'null');
+  assert.deepEqual(points.at(-1).blobs, ['origin_rejected', 'null']);
+  await post(JSON.stringify({ name: 'link_copy' }), env, null);
+  assert.deepEqual(points.at(-1).blobs, ['origin_rejected', 'none']);
 });

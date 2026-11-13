@@ -10,11 +10,13 @@ export async function onRequestPost({ request, env }) {
   if (!source) {
     console.log('rejected event origin', origin);
     // Record which hosts were turned away (host only) so portal origins can be added.
-    let host = 'none';
+    // Written as the host when there is one; otherwise as the raw text, so "null" (a sandboxed
+    // frame) can be told apart from a request that sent no Origin at all.
+    let host = origin ? String(origin).slice(0, 64) : 'none';
     try {
       host = new URL(origin).host.slice(0, 64);
     } catch {
-      // Missing or malformed origin.
+      // Not a URL: keep the text as is.
     }
     try {
       env.EVENTS?.writeDataPoint({ indexes: ['origin_rejected'], blobs: ['origin_rejected', host], doubles: [1] });

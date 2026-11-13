@@ -1,11 +1,11 @@
 // Builds an upload zip for a game portal from the site build.
-// Usage: node scripts/build-portal.mjs crazygames|itch  ->  portal/oddbirdle-<name>.zip
+// Usage: node scripts/build-portal.mjs crazygames|itch|newgrounds  ->  portal/oddbirdle-<name>.zip
 import { execFileSync } from 'node:child_process';
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 
 const name = process.argv[2];
-if (!['crazygames', 'itch'].includes(name)) {
-  console.error('Usage: node scripts/build-portal.mjs crazygames|itch');
+if (!['crazygames', 'itch', 'newgrounds'].includes(name)) {
+  console.error('Usage: node scripts/build-portal.mjs crazygames|itch|newgrounds');
   process.exit(1);
 }
 const root = new URL('../', import.meta.url);

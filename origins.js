@@ -1,6 +1,7 @@
 // Browser origins allowed to play online and send play counts, and the
 // source name each one is counted under. CrazyGames serves games from several
-// crazygames.com origins; itch.io serves HTML games from *.itch.zone.
+// crazygames.com origins; itch.io serves HTML games from *.itch.zone; Newgrounds frames uploaded
+// HTML5 games into its pages from uploads.ungrounded.net (that one host, not the whole domain).
 // The CrazyGames iOS app embeds games from this (non-https) page; it is allowed as one exact origin.
 const appOrigins = new Map([['capacitor://app.crazygames.com', 'crazygames']]);
 
@@ -18,5 +19,6 @@ export function originSource(origin) {
   if (within('oddbirdle.pages.dev')) return 'site';
   if (within('crazygames.com')) return 'crazygames';
   if (within('itch.zone') || within('itch.io')) return 'itch';
+  if (host === 'uploads.ungrounded.net') return 'newgrounds';
   return undefined;
 }

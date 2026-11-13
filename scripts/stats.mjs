@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url';
 
 // Visits and starts per place the game is played; events from before sources existed count as site.
 function bySource(rows, count) {
-  const sources = ['site', 'crazygames', 'itch'];
+  const sources = ['site', 'crazygames', 'itch', 'newgrounds'];
   const of = (name, source) => rows.filter(row => row.name === name && (row.source || 'site') === source)
     .reduce((sum, row) => sum + Number(row.n), 0);
   const lines = [`출처별 방문: ${sources.map(source => `${source} ${of('page_view', source)}`).join(' · ')}`,

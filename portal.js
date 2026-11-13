@@ -1,4 +1,4 @@
-// Where the game is running: our site (''), or a portal build ('crazygames', 'itch')
+// Where the game is running: our site (''), or a portal build ('crazygames', 'itch', 'newgrounds')
 // marked on <html data-portal> by scripts/build-portal.mjs.
 export const portal = document.documentElement.dataset.portal ?? '';
 export const siteUrl = 'https://oddbirdle.pages.dev/';
