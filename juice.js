@@ -2,8 +2,8 @@ import { center, floor, shuttleOutline } from './game.js';
 
 // Small screen-only touches. They read what is already drawn (like the sound cues), so CPU and
 // online play get them alike and nothing about the match itself changes.
-export const juiceKeys = ['hitstop', 'squash', 'dust', 'scorePop', 'hint', 'record'];
-export const juiceTiming = { hitstopMs: 40, squashMs: 140, dustMs: 280, popMs: 220, hintFadeMs: 300 };
+export const juiceKeys = ['squash', 'dust', 'scorePop', 'hint', 'record'];
+export const juiceTiming = { squashMs: 140, dustMs: 280, popMs: 220, hintFadeMs: 300 };
 // Shuttle speed (units/s) right after a hit that counts as a strong one.
 export const strongHitSpeed = 1000;
 // Two flashes this close together are one hit (local prediction, then the server's copy).

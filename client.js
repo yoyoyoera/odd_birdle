@@ -99,7 +99,6 @@ const storage = (() => {
   }
 })();
 const moving = key => juice[key] && !reduceMotion.matches;
-let hitstop;
 const squashes = {};
 let dust = [];
 const hint = { shown: !hintSeen(storage), fading: undefined };
@@ -505,7 +504,6 @@ function playJuice(events, time, side) {
   for (const event of events) {
     if (event.type === 'hit') {
       squashes[event.side] = { start: time, angle: event.angle };
-      if (event.strong && moving('hitstop')) hitstop = { until: time + juiceTiming.hitstopMs };
       if (event.side === side && hint.shown && hint.fading === undefined) {
         hint.fading = time;
         markHintSeen(storage);
@@ -636,13 +634,6 @@ function frame(time) {
   } else {
     juiceTracker.reset();
   }
-  // Hitstop: a strong hit holds the picture for a moment; the match itself keeps running.
-  if (hitstop && time < hitstop.until && !scenery) {
-    hitstop.drawing ??= drawing;
-    drawing = hitstop.drawing;
-  } else {
-    hitstop = undefined;
-  }
   if (scenery) draw(demoView, true);
   else draw(drawing);
   requestAnimationFrame(frame);
@@ -759,7 +750,7 @@ if (testJuice) {
   // A CPU Lv.4 match straight away, with a switch per touch and a reset for the hint and records.
   selectedCpuLevel = 4;
   showCpuLevel();
-  const names = ['1 Hitstop', '2 Squash', '3 Dust', '4 Score pop', '5 First hint', '6 First win'];
+  const names = ['1 Squash', '2 Dust', '3 Score pop', '4 First hint', '5 First win'];
   const panel = document.createElement('div');
   panel.id = 'juice-test';
   panel.style.cssText = 'position:fixed;left:8px;bottom:8px;display:flex;flex-wrap:wrap;gap:4px;max-width:calc(100vw - 16px);' +
