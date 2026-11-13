@@ -760,8 +760,9 @@ if (testShapes) {
   const choice = { shape: undefined, size: undefined, effects: false };
   const box = document.createElement('div');
   box.id = 'shape-test';
-  box.style.cssText = 'position:fixed;left:8px;bottom:8px;max-width:calc(100vw - 16px);z-index:5;' +
-    'font:12px "Space Grotesk",system-ui,sans-serif;color:var(--court)';
+  // Its own dark backing so it reads on top of the court; fold it away (button or H) to see everything.
+  box.style.cssText = 'position:fixed;left:8px;bottom:8px;max-width:min(560px, calc(100vw - 16px));z-index:5;padding:6px;' +
+    'background:var(--page);font:12px "Space Grotesk",system-ui,sans-serif;color:var(--court)';
   const fold = document.createElement('button');
   fold.type = 'button';
   const body = document.createElement('div');
