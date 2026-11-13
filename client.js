@@ -66,7 +66,9 @@ const sound = createSound();
 const soundCues = createCueTracker();
 const soundToggle = document.querySelector('#sound-toggle');
 // Two CPUs rally quietly behind the menus; the court stays still for reduced motion.
-const demoShowing = () => mode !== 'solo' && mode !== 'online' && !reduceMotion.matches;
+// A first-time visitor sees the plain main screen: a silent match running behind the menu would
+// look like a game without sound. The demo starts once they have made their first hit.
+const demoShowing = () => mode !== 'solo' && mode !== 'online' && !reduceMotion.matches && !hint.shown;
 const demoAlpha = { racket: 0.4, bird: 0.75 };
 const ready = { phase: 'ready' };
 let socket;
