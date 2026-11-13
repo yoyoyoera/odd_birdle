@@ -54,7 +54,7 @@ test('landing and points are reported once each', () => {
   assert.deepEqual(landed, [{ type: 'land', x: 310 }]);
   assert.deepEqual(tracker.update(live(pose(310, floor - 10)), 32), []);
   const scored = tracker.update(live(pose(310, floor - 10), { phase: 'between', score: { left: 0, right: 1 } }), 48);
-  assert.deepEqual(scored, [{ type: 'score' }]);
+  assert.deepEqual(scored, [{ type: 'score', side: 'right' }]);
   assert.deepEqual(tracker.update(live(pose(310, floor - 10), { phase: 'between', score: { left: 0, right: 1 } }), 64), []);
   // A new match going back to 0:0 is not a point.
   assert.deepEqual(tracker.update(live(pose(310, 100)), 80), []);
@@ -97,4 +97,11 @@ test('the first hint and first wins are remembered, and storage problems are har
     assert.equal(noteCpuWin(broken, 3), true);
     resetJuiceRecords(broken);
   }
+});
+
+test('score events say which side scored', () => {
+  const tracker = createJuiceTracker();
+  tracker.update(live(pose(310, 200)), 0);
+  assert.deepEqual(tracker.update(live(pose(310, 200), { score: { left: 1, right: 0 } }), 16), [{ type: 'score', side: 'left' }]);
+  assert.deepEqual(tracker.update(live(pose(310, 200), { score: { left: 1, right: 1 } }), 32), [{ type: 'score', side: 'right' }]);
 });

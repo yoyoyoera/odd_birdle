@@ -47,7 +47,8 @@ export function createJuiceTracker() {
         }
         if (view.score && previous.score &&
             view.score.left + view.score.right > previous.score.left + previous.score.right) {
-          events.push({ type: 'score' });
+          // Which side just scored, so the screen can react to your points only.
+          events.push({ type: 'score', side: view.score.left > previous.score.left ? 'left' : 'right' });
         }
       }
       previous = {

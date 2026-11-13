@@ -512,7 +512,7 @@ function playJuice(events, time, side) {
       }
     } else if (event.type === 'land' && moving('dust')) {
       dust.push(...makeDust(event.x, time));
-    } else if (event.type === 'score' && moving('scorePop')) {
+    } else if (event.type === 'score' && event.side === side && moving('scorePop')) {
       scoreboard.animate?.([{ scale: 1.18 }, { scale: 1 }], { duration: juiceTiming.popMs, easing: 'ease-out' });
     }
   }
