@@ -62,6 +62,12 @@ const effects = [
 ];
 // How far the net rises or sinks, as a multiple of its height. The test page can change these.
 export const defaultNetScales = { highNet: 2, lowNet: 0.3 };
+
+// INVISIBLE: how long the shuttle shows itself after a hit, and how far off the CPU's idea of its
+// height can be. The CPU sees what a player sees (the shadow's position, and the shuttle for an
+// instant at each hit), so it has to guess the height; the weaker the CPU, the bigger the guess is off.
+const revealSeconds = 0.12;
+export const cpuSightError = level => 14 + (5 - level) * 12;
 export const effectLabels = effects.map(effect => effect.label);
 export const effectIds = effects.map(effect => effect.id);
 
@@ -265,6 +271,10 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
   let cpuPrediction;
   let cpuFollowUps = 0;
   let cpuThaw = 0;
+  let reveal = 0;
+  let cpuSightBias = 0;
+  // Test page only: how long an effect lasts (seconds), instead of its usual time.
+  const effectSeconds = {};
   const netScales = { ...defaultNetScales };
   // Test page only: pin the shuttle shape / size tier (undefined = random) and switch effects on or off.
   const shuttleChoice = { shape: undefined, size: undefined };
@@ -379,6 +389,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     if (['freeze', 'balloon', 'wind'].includes(activeEffect?.id)) flight++;
     if (activeEffect?.id === 'freeze') cpuThaw = 0.25;
     activeEffect = undefined;
+    reveal = 0;
     matchNetTop = baseNetTop;
     netStart.y = matchNetTop;
     cpuPrediction = undefined;
@@ -387,8 +398,8 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
 
   function startEffect(chosen) {
     const effect = chosen ?? effects[Math.floor(Math.random() * effects.length)];
-    const length = Array.isArray(effect.duration)
-      ? effect.duration[0] + Math.random() * (effect.duration[1] - effect.duration[0]) : effect.duration;
+    const length = effectSeconds[effect.id] ?? (Array.isArray(effect.duration)
+      ? effect.duration[0] + Math.random() * (effect.duration[1] - effect.duration[0]) : effect.duration);
     activeEffect = { id: effect.id, remaining: length, total: length, netScale: netScales[effect.id] ?? effect.netScale };
     let label = effect.label;
     switch (activeEffect.id) {
@@ -409,7 +420,10 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
         shuttle.vy = Math.max(0, shuttle.vy) + 135;
         break;
       case 'invisible':
-        cpuPrediction = { x: shuttle.x, y: shuttle.y, vx: shuttle.vx, vy: shuttle.vy };
+        // The CPU keeps what it last saw and guesses the height from there, a little off.
+        cpuSightBias = (Math.random() * 2 - 1) * cpuSightError(cpuLevel ?? 3);
+        cpuPrediction = { x: shuttle.x, y: shuttle.y + cpuSightBias, vx: shuttle.vx, vy: shuttle.vy };
+        reveal = 0;
         flash = 0;
         break;
       case 'wind': {
@@ -482,6 +496,11 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     hitCooldown = 0.14;
     flash = 0.22;
     message = 'Rally in progress';
+    if (activeEffect?.id === 'invisible') {
+      // A hit shows the shuttle for an instant, and everyone (the CPU too) sees where it is going.
+      reveal = revealSeconds;
+      if (cpuPrediction) cpuPrediction = { x: shuttle.x, y: shuttle.y + cpuSightBias, vx, vy };
+    }
   }
 
   function playerHit(side, swingX, swingY) {
@@ -713,7 +732,12 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     const terminalVelocity = gravity / airDrag;
     const push = forceAt(currentForce());
     advanceFlight(shuttle, dt, scale, drag, gravity * push.gravity / airDrag + push.y, push.x);
-    if (cpuPrediction) advanceFlight(cpuPrediction, dt, scale, drag, terminalVelocity);
+    if (cpuPrediction) {
+      advanceFlight(cpuPrediction, dt, scale, drag, terminalVelocity);
+      // The shadow tells the CPU exactly where the shuttle is sideways; only the height is a guess.
+      cpuPrediction.x = shuttle.x;
+      cpuPrediction.vx = shuttle.vx;
+    }
     shuttle.angle += shuttle.spin * dt;
     updateOutline();
     const left = Math.min(...outlinePoints.map(point => point.x));
@@ -789,6 +813,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
       return;
     }
 
+    reveal = Math.max(0, reveal - dt);
     updateEvent(dt);
     if (activeEffect?.id === 'freeze') {
       // Only the shuttle is frozen: players keep moving, but nothing can be hit until it thaws.
@@ -819,12 +844,15 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
 
   function view() {
     const frozen = activeEffect?.id === 'freeze';
-    const visible = shuttle && phase !== 'starting' && activeEffect?.id !== 'invisible';
+    const invisible = activeEffect?.id === 'invisible';
+    const visible = shuttle && phase !== 'starting' && (!invisible || reveal > 0);
     const position = (racket) => racket && { x: racket.x, y: racket.y, seenTime: racket.seenTime };
     return {
       phase, score, message, winner, eventText, eventWind, flash, frozen, support, cpuLevel, netTop: matchNetTop,
       strike: strike?.flight === flight ? strike : undefined,
       force: currentForce(),
+      // INVISIBLE: where the shuttle's shadow falls on the floor line; near is 0 (high up) to 1 (at the floor).
+      shadow: invisible && shuttle && phase === 'live' ? { x: shuttle.x, near: clamp(shuttle.y / floor, 0, 1) } : undefined,
       shake: activeEffect?.id === 'shock' ? activeEffect.remaining : 0,
       shuttle: visible ? { ...shuttlePose(), flight, baseSize: shuttle.size, canHit: hitCooldown <= 0 && !pendingLanding && !frozen } : undefined,
       left: position(rackets.left),
@@ -851,10 +879,17 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     effectsOn = Boolean(on);
   }
 
+  // Test page only: make an effect last this many seconds (nothing or nonsense restores its usual time).
+  function setEffectSeconds(id, seconds) {
+    if (!effects.some(effect => effect.id === id)) return;
+    if (Number.isFinite(seconds) && seconds > 0 && seconds <= 10) effectSeconds[id] = seconds;
+    else delete effectSeconds[id];
+  }
+
   // Test page only: pick the next HIGH NET / LOW NET size.
   function setNetScale(id, scale) {
     if (id in netScales && Number.isFinite(scale) && scale > 0 && scale < 4) netScales[id] = scale;
   }
 
-  return { restart, moveRacket, holdRacket, contactFrame, simulate, view, triggerEffect, setNetScale, setShuttle, setEffects };
+  return { restart, moveRacket, holdRacket, contactFrame, simulate, view, triggerEffect, setNetScale, setEffectSeconds, setShuttle, setEffects };
 }

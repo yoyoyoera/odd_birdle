@@ -482,6 +482,7 @@ function draw(view, scenery = false) {
   }
   drawCourt(view);
   if (view.force?.type === 'wind') drawWind(view.force);
+  if (view.shadow) drawShadow(view.shadow);
   if (view.phase !== 'ready') {
     if (scenery) ctx.globalAlpha = demoAlpha.racket;
     const other = localSide === 'left' ? 'right' : 'left';
@@ -550,6 +551,18 @@ function playJuice(events, time, side) {
       scoreboard.animate?.([{ scale: 1.18 }, { scale: 1 }], { duration: juiceTiming.popMs, easing: 'ease-out' });
     }
   }
+}
+
+// INVISIBLE: the shuttle cannot be seen, but a faint shadow slides along the floor line beneath it.
+// Lower means darker and a little wider, so the height can be read roughly, never exactly.
+function drawShadow({ x, near }) {
+  ctx.save();
+  ctx.globalAlpha = 0.07 + near * 0.15;
+  ctx.fillStyle = palette.ink;
+  ctx.beginPath();
+  ctx.ellipse(x, floor + 5, 14 + near * 16, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
 }
 
 // GUST: faint streaks flowing the way the wind blows (still and fainter with reduced motion).
@@ -771,6 +784,32 @@ if (testEffects) {
         note.textContent = `${labels[index]} x${size}`;
       });
       if (size === chosen[id]) button.style.outline = '2px solid var(--ink)';
+      group.append(button);
+    }
+    panel.prepend(group);
+  }
+  // How long INVISIBLE lasts: choosing a time sets it from now on and starts the effect.
+  const spans = [['invisible', 1, [1, 1.5, 2, 3]]];
+  for (const [id, index, options] of spans) {
+    const group = document.createElement('div');
+    group.style.cssText = 'display:flex;gap:4px;width:100%';
+    const label = document.createElement('span');
+    label.textContent = labels[index] + ' time';
+    label.style.cssText = 'color:var(--court);align-self:center;min-width:92px';
+    group.append(label);
+    for (const seconds of options) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.dataset.span = id;
+      button.textContent = `${seconds}s`;
+      button.style.cssText = 'padding:6px 8px;border:0;background:var(--court);color:var(--ink);cursor:pointer;font:inherit';
+      button.addEventListener('click', () => {
+        solo.setEffectSeconds(id, seconds);
+        for (const other of group.querySelectorAll('button')) other.style.outline = other === button ? '2px solid var(--ink)' : '';
+        trigger(index);
+        note.textContent = `${labels[index]} ${seconds}s`;
+      });
+      if (seconds === 1) button.style.outline = '2px solid var(--ink)';
       group.append(button);
     }
     panel.prepend(group);
