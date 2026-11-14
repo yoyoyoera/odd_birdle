@@ -3,6 +3,10 @@ import { createGame, step } from './game.js';
 // Quick match: at most this many players wait at once.
 const maxQueue = 200;
 
+// How far back (ms) the server will look to judge a hit at the moment the hitter saw. It must cover
+// the hitter's display delay (buffer up to 250ms) plus the time their input takes to arrive.
+export const lagWindowMs = 500;
+
 export function createRooms(randomIndex) {
   const rooms = new Map();
   const roomLifetime = 10 * 60 * 1000;
@@ -12,6 +16,7 @@ export function createRooms(randomIndex) {
   let snapshotTime = 0;
   let simulationTick = 0;
 
+  const historyTicks = Math.ceil(lagWindowMs / (step * 1000)) + 2;
   const peers = new Set();
   // Per connection: an id and a way for the matchmaker to seat it in a room.
   const states = new Map();
@@ -77,7 +82,7 @@ export function createRooms(randomIndex) {
 
   function frameAt(room, seenTime) {
     const now = simulationTick * step * 1000;
-    if (!Number.isFinite(seenTime) || seenTime > now || now - seenTime > 320) return undefined;
+    if (!Number.isFinite(seenTime) || seenTime > now || now - seenTime > lagWindowMs) return undefined;
     const index = room.history.findLastIndex(entry => entry.time <= seenTime);
     if (index < 0) return undefined;
     const before = room.history[index];
@@ -147,6 +152,12 @@ export function createRooms(randomIndex) {
         return;
       }
       if (!message || typeof message !== 'object') return;
+
+      // Lets a client measure its round trip (shown by ?debug=net).
+      if (message.type === 'ping') {
+        if (Number.isFinite(message.t)) send(peer, { type: 'pong', t: message.t });
+        return;
+      }
 
       if (room?.game) {
         const previousStrike = room.game.view().strike?.flight;
@@ -218,7 +229,7 @@ export function createRooms(randomIndex) {
         if (!room.game) continue;
         room.game.simulate(step);
         room.history.push({ time: simulationTick * step * 1000, frame: room.game.contactFrame() });
-        if (room.history.length > 42) room.history.shift();
+        if (room.history.length > historyTicks) room.history.shift();
       }
       accumulator -= step;
     }

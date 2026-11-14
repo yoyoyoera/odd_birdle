@@ -1,18 +1,24 @@
 import { clamp, floor, projectStrike, shuttleOutline } from './game.js';
 
 // The wait before drawing a snapshot adapts to how unevenly packets arrive:
-// steady wired links stay near the floor, Wi-Fi bursts raise it.
+// steady wired links stay near the floor, Wi-Fi bursts raise it, and a phone on mobile data
+// (where p95 lateness can pass 100ms) may need a good deal more.
 export const minBufferMs = 50;
-export const maxBufferMs = 150;
+export const maxBufferMs = 250;
 const startBufferMs = 70;
-const bufferMargin = 12;
+// Cover the lateness of 85% of packets (+8ms): a good balance on mobile data, where covering 95%
+// would add ~60ms of delay for little extra smoothness (the rest is bridged by the short guess).
+const bufferPercentile = 0.85;
+const bufferMargin = 8;
 const latenessWindowMs = 2000;
-// Growing the wait slows playback briefly; shrinking it speeds playback up a little.
-const growPerMs = 0.6;
+// Growing the wait slows playback briefly (never below ~88% speed, so it does not read as slow
+// motion); shrinking it speeds playback up a little. Whatever the buffer cannot cover yet is
+// bridged by the short guess below.
+const growPerMs = 0.12;
 const shrinkPerMs = 0.03;
 // When the next snapshot is late, keep things moving for a short while.
-const birdExtrapolateMs = 120;
-const racketExtrapolateMs = 90;
+const birdExtrapolateMs = 180;
+const racketExtrapolateMs = 120;
 // Differences between a guess and the real snapshot fade out instead of jumping.
 const blendMs = 70;
 const snapDistance = 80;
@@ -97,6 +103,8 @@ export function createPlayback() {
   let latestTime = -Infinity;
   let bufferMs = startBufferMs;
   let lastNow;
+  // For the ?debug=net overlay: how playback is coping.
+  const counters = { frames: 0, starved: 0, rate: 1 };
   const lateness = [];
   const rackets = { left: [], right: [] };
   const racketOffsets = { left: 0, right: 0 };
@@ -165,6 +173,7 @@ export function createPlayback() {
     latestTime = -Infinity;
     bufferMs = startBufferMs;
     lastNow = undefined;
+    Object.assign(counters, { frames: 0, starved: 0, rate: 1 });
     lateness.length = 0;
     rackets.left.length = 0;
     rackets.right.length = 0;
@@ -201,7 +210,7 @@ export function createPlayback() {
   }
 
   function updateBuffer(dt) {
-    const wanted = clamp(percentile(lateness.map(entry => entry.late), 0.95) + bufferMargin, minBufferMs, maxBufferMs);
+    const wanted = clamp(percentile(lateness.map(entry => entry.late), bufferPercentile) + bufferMargin, minBufferMs, maxBufferMs);
     if (wanted > bufferMs) bufferMs = Math.min(wanted, bufferMs + dt * growPerMs);
     else bufferMs = Math.max(wanted, bufferMs - dt * shrinkPerMs);
   }
@@ -249,9 +258,13 @@ export function createPlayback() {
     const target = Math.max(lastRendered, now - clockOffset - bufferMs);
     while (samples.length > 1 && samples[1].time <= target) previousSample = samples.shift();
     const [earlier, later] = samples;
+    const renderedBefore = lastRendered;
     lastRendered = Math.min(target, (later ?? earlier).time);
     displayedTime = earlier.time;
     const starvedFor = target - latestTime;
+    counters.frames++;
+    if (starvedFor > 0) counters.starved++;
+    if (dt > 0 && Number.isFinite(renderedBefore)) counters.rate += ((lastRendered - renderedBefore) / dt - counters.rate) * 0.05;
     const a = earlier.view;
 
     if (!later && starvedFor > 0 && a.phase === 'live' && a.shuttle && !a.frozen) {
@@ -292,6 +305,14 @@ export function createPlayback() {
   return {
     reset, push, at,
     get displayedTime() { return displayedTime; },
-    get bufferMs() { return bufferMs; }
+    get bufferMs() { return bufferMs; },
+    // How playback is coping: buffer (ms), how late packets run (p95, ms), playback speed (1 = real
+    // time), and how many frames had to be guessed because the next snapshot had not arrived.
+    get stats() {
+      return {
+        bufferMs, jitterP95: percentile(lateness.map(entry => entry.late), 0.95),
+        rate: counters.rate, frames: counters.frames, starved: counters.starved
+      };
+    }
   };
 }

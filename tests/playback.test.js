@@ -122,12 +122,43 @@ test('jittery arrivals keep the bird moving without stop-and-jump', () => {
   assert.ok(wifi.biggestJump < 9, `jump ${wifi.biggestJump.toFixed(1)}px`);
 });
 
-test('the wait grows with jitter and stays low on a steady link', () => {
+test('the wait grows with jitter, stays low on a steady link, and has a ceiling', () => {
   const steady = wifiRun(0.1);
   const wifi = wifiRun(1);
+  const phone = wifiRun(4);
   assert.ok(steady.buffer <= 55, `steady buffer ${steady.buffer}`);
-  assert.ok(wifi.buffer > steady.buffer + 10, `wifi buffer ${wifi.buffer}`);
-  assert.ok(wifi.buffer <= 150);
+  assert.ok(wifi.buffer <= 80, `ordinary Wi-Fi stays small: ${wifi.buffer}`);
+  assert.ok(phone.buffer > steady.buffer + 40, `a very jittery phone link waits longer: ${phone.buffer}`);
+  assert.ok(phone.buffer <= 250);
+});
+
+test('growing the wait never slows playback by more than ~12% (the old limit was 60%)', () => {
+  const playback = createPlayback();
+  const view = { phase: 'live', shuttle: bird(300, 100, 1) };
+  // Packets every 16ms, 30ms in transit; from 1.5s on, one in five is held back 220ms.
+  const packets = [];
+  let last = 0;
+  for (let t = 0; t <= 6000; t += 16) {
+    last = Math.max(last, t + 30 + (t > 1500 && (t / 16) % 5 === 0 ? 220 : 0));
+    packets.push({ t, arrival: last });
+  }
+  let next = 0;
+  let previous;
+  let fastestGrowth = 0;
+  for (let now = 100; now < 6000; now += 1000 / 60) {
+    while (next < packets.length && packets[next].arrival <= now) {
+      playback.push(packets[next].t, view, packets[next].arrival);
+      next++;
+    }
+    playback.at(now);
+    const { bufferMs } = playback.stats;
+    if (previous) fastestGrowth = Math.max(fastestGrowth, (bufferMs - previous.bufferMs) / (now - previous.now));
+    previous = { now, bufferMs };
+  }
+  // Each ms of buffer growth is a ms the display waits: at 0.12 that is playback at 88% speed.
+  assert.ok(fastestGrowth <= 0.125, `buffer grew at ${fastestGrowth.toFixed(3)} ms per ms`);
+  assert.ok(playback.stats.bufferMs > 100, `the buffer did grow (${Math.round(playback.stats.bufferMs)}ms)`);
+  assert.ok(playback.stats.bufferMs <= 250);
 });
 
 test('a late packet extends the flight briefly, then eases onto the real position', () => {

@@ -1,5 +1,6 @@
 import { center, clamp, createGame, floor, height, leftLine, netTop, racketRadius, rightLine, shuttleOutline, step, width, contactMotion, isSwing, projectStrike, forceAt, effectIds, shapeCount, shuttleSizeOptions, racketTouches, supportedShuttleY, swingMotion } from './game.js';
 import { createPlayback, followStrikeClock } from './playback.js';
+import { createRacketSender } from './net-send.js';
 import { normalizeRoomCode, roomFromLink, roomLink } from './room-link.js';
 import { createDemo } from './demo.js';
 import { startHeartbeat, track, trackVisit } from './analytics.js';
@@ -59,6 +60,11 @@ for (const [property, value] of Object.entries({
 const testParams = new URLSearchParams(location.search);
 const testEffects = testParams.get('test') === 'effects';
 const testShapes = testParams.get('test') === 'shapes';
+const debugNet = testParams.get('debug') === 'net';
+const netDebug = { states: 0, rtts: [], frames: [] };
+// Phones report a touch many times a frame: their racket moves are bundled (see net-send.js).
+let racketIsTouch = false;
+const racketSender = createRacketSender(message => send(message), { interval: () => (racketIsTouch ? 33 : 0) });
 // ?test=juice opens a CPU Lv.4 match with switches for each screen touch below.
 const testJuice = testParams.get('test') === 'juice';
 const solo = createGame({ withCpu: true, quickEvents: testEffects && testParams.get('fast') === '1' });
@@ -214,8 +220,15 @@ function connect(request, via = request.type === 'join' ? 'code' : 'create') {
         showQueueStatus();
         break;
       case 'state':
+        netDebug.states++;
         onlineView = message.state;
         playback.push(message.time, message.state, performance.now());
+        break;
+      case 'pong':
+        if (debugNet && Number.isFinite(message.t)) {
+          const now = performance.now();
+          netDebug.rtts.push({ at: now, rtt: now - message.t });
+        }
         break;
       case 'error':
         leave();
@@ -393,7 +406,7 @@ function setRacket(input) {
     } else if (input) {
       predictContact(previous ?? input, input, localRacket, performance.now(), true);
     }
-    send({ type: 'racket', input, seenTime: playback.displayedTime });
+    racketSender.push({ type: 'racket', input, seenTime: playback.displayedTime });
   }
 }
 
@@ -403,6 +416,7 @@ function moveRacket(event) {
       (event.pointerType !== 'mouse' && event.buttons === 0)) return;
   const bounds = court.getBoundingClientRect();
   const x = (event.clientX - bounds.left) * width / bounds.width;
+  racketIsTouch = event.pointerType !== 'mouse';
   setRacket({
     x: localSide === 'left' ? clamp(x, 0, center - racketRadius) : clamp(x, center + racketRadius, width),
     y: clamp((event.clientY - bounds.top) * height / bounds.height, 0, floor),
@@ -581,6 +595,7 @@ function drawShuttle({ flash, phase, shuttle, frozen }, alpha = 1) {
 }
 
 function frame(time) {
+  if (debugNet) netDebug.frames.push(time);
   const scenery = demoShowing();
   if ((mode === 'solo' || scenery) && lastFrame !== undefined) {
     accumulator += Math.min((time - lastFrame) / 1000, 0.05);
@@ -747,6 +762,47 @@ if (testEffects) {
     if (index >= 0 && index < effectIds.length) trigger(index);
   });
   startCpu();
+}
+
+
+// ?debug=net: a small readout of how the connection is doing, for checking on a phone.
+if (debugNet) {
+  const panel = document.createElement('pre');
+  panel.id = 'net-debug';
+  panel.style.cssText = 'position:fixed;left:4px;top:4px;margin:0;padding:4px 6px;background:rgba(0,0,0,.74);color:#9fe870;' +
+    'font:11px/1.35 ui-monospace,Menlo,monospace;z-index:9;pointer-events:none;white-space:pre';
+  document.body.append(panel);
+  const window10 = 10000;
+  let lastStates = 0;
+  let lastStatesAt = performance.now();
+  let statesPerSecond = 0;
+  setInterval(() => {
+    const now = performance.now();
+    if (socket?.readyState === WebSocket.OPEN && mode === 'online') send({ type: 'ping', t: now });
+    netDebug.rtts = netDebug.rtts.filter(entry => now - entry.at < window10);
+    netDebug.frames = netDebug.frames.filter(time => now - time < window10);
+    statesPerSecond = (netDebug.states - lastStates) / ((now - lastStatesAt) / 1000);
+    lastStates = netDebug.states;
+    lastStatesAt = now;
+  }, 1000);
+  const median = list => list.length ? list.slice().sort((a, b) => a - b)[Math.floor(list.length / 2)] : undefined;
+  setInterval(() => {
+    const now = performance.now();
+    const stats = playback.stats;
+    const rtts = netDebug.rtts.map(entry => entry.rtt);
+    const gaps = netDebug.frames.slice(1).map((time, i) => time - netDebug.frames[i]);
+    const inLastSecond = netDebug.frames.filter(time => now - time < 1000).length;
+    const link = navigator.connection;
+    const round = value => (value === undefined ? '-' : Math.round(value));
+    const online = mode === 'online';
+    panel.textContent = [
+      `mode ${mode} | ${online ? 'ping ' + round(rtts.at(-1)) + 'ms (median ' + round(median(rtts)) + ', worst ' + round(Math.max(...rtts, 0)) + ')' : 'not in an online match'}`,
+      online ? `snapshots ${statesPerSecond.toFixed(0)}/s | late p95 ${round(stats.jitterP95)}ms` : '',
+      online ? `buffer ${round(stats.bufferMs)}ms | speed ${round(stats.rate * 100)}% | guessed ${(stats.starved / Math.max(1, stats.frames) * 100).toFixed(1)}% of frames` : '',
+      `fps ${inLastSecond} | worst frame gap ${round(Math.max(...gaps, 0))}ms | ${racketIsTouch ? 'touch' : 'mouse'} | dpr ${devicePixelRatio}`,
+      link ? `network ${link.effectiveType ?? '?'} est. rtt ${link.rtt ?? '?'}ms ${link.downlink ?? '?'}Mbps${link.saveData ? ' save-data' : ''}` : 'network (not reported by this browser)'
+    ].filter(Boolean).join('\n');
+  }, 250);
 }
 
 if (testShapes) {
