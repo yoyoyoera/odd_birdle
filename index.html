@@ -64,14 +64,14 @@
       transform: translateX(-50%); margin: 0; color: var(--ink); opacity: .6; font-size: clamp(.65rem, 1.7vw, .875rem);
       font-weight: 650; letter-spacing: .08em; white-space: nowrap; pointer-events: none; }
     #event-banner { position: absolute; top: 7%; left: 50%; transform: translateX(-50%);
-      color: var(--ink); background: var(--court); padding: 3px 7px;
+      color: var(--ink);
       font-size: clamp(1.25rem, 5.5vw, 3.25rem); line-height: 1.05;
       font-weight: 650; white-space: nowrap; pointer-events: none; }
     #event-banner[data-wind] { font-size: clamp(1.4rem, 6vw, 3.6rem); }
     #stage[data-phase="ready"] #event-banner { top: 33.5%; transform: translate(-50%, -50%); opacity: .75;
       font-size: clamp(.75rem, 3.2vw, 1.9rem); }
     #game-control { position: absolute; top: 8px; right: 8px; display: grid; place-items: center;
-      width: 44px; height: 44px; border: 0; background: var(--court); color: var(--ink); cursor: pointer; }
+      width: 44px; height: 44px; border: 0; background: transparent; color: var(--ink); cursor: pointer; }
     #game-control:hover { background: var(--court-hover); }
     #game-control:focus-visible { outline: 2px solid currentColor; outline-offset: -3px; }
     #stage[data-phase="ready"] #game-control, #stage[data-phase="finished"] #game-control {

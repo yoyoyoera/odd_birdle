@@ -25,7 +25,7 @@ export function makeStands(seed = Math.random() * 2147483646) {
     for (let x = 60 + (row % 2) * 26 + random() * 10; x < 850; x += 50 * s + random() * 14) {
       const person = {
         x: x + (random() - 0.5) * 6, y, s, row, shade: random() < 0.5 ? 0 : 1, face: random() < 0.5 ? 0 : 1,
-        hair: Math.floor(random() * 3), style: random(), hat: random() < 0.1, fan: random() < 0.3
+        hair: Math.floor(random() * 3), style: random(), hat: random() < 0.1, fan: random() < 0.6, delay: random() * 0.18
       };
       const seated = random() < fill;
       if (seated && Math.abs(x - 450) >= 30) people.push(person);
@@ -40,27 +40,31 @@ const tonesFor = palette => {
     wall: m(0.05), pillar: m(0.08), step: [m(0.08), m(0.11), m(0.14), m(0.17)], edge: mix(palette.court, '#ffffff', 0.6),
     torso: [[m(0.15), m(0.18)], [m(0.19), m(0.22)], [m(0.23), m(0.26)], [m(0.27), m(0.3)]],
     face: [m(0.02), m(0.05)], hair: [m(0.34), m(0.38), m(0.3)], hat: m(0.42), eye: m(0.6), rail: m(0.28),
-    board: m(0.3), boardText: m(0.07)
+    board: m(0.3)
   };
 };
 const toneCache = new WeakMap();
 
-function drawPerson(ctx, p, tones, gaze, cheering) {
+function drawPerson(ctx, p, tones, gaze, raise, wave) {
   const { x, y, s } = p;
   const headY = y - 15 * s, r = 11 * s, w = 18 * s;
   const torso = tones.torso[p.row][p.shade], face = tones.face[p.face], hair = tones.hair[p.hair];
-  if (cheering && p.fan) {
+  if (raise > 0.01) {
+    // The arm swings up from hanging at the side to up and a little outward, with a small wave while it is up.
+    const swing = raise * 2.9 + Math.sin(wave + x) * 0.07 * raise;
     ctx.strokeStyle = torso;
     ctx.lineWidth = 7 * s;
     ctx.lineCap = 'round';
     ctx.fillStyle = face;
     for (const d of [-1, 1]) {
+      const fromX = x + d * w * 0.7, fromY = y + 8 * s;
+      const toX = fromX + d * Math.sin(swing) * 36 * s, toY = fromY + Math.cos(swing) * 36 * s;
       ctx.beginPath();
-      ctx.moveTo(x + d * w * 0.7, y + 8 * s);
-      ctx.lineTo(x + d * (w + 9 * s), y - 24 * s);
+      ctx.moveTo(fromX, fromY);
+      ctx.lineTo(toX, toY);
       ctx.stroke();
       ctx.beginPath();
-      ctx.arc(x + d * (w + 9 * s), y - 27 * s, 4 * s, 0, Math.PI * 2);
+      ctx.arc(toX, toY - 2 * s * raise, 4 * s, 0, Math.PI * 2);
       ctx.fill();
     }
   }
@@ -120,7 +124,24 @@ function drawPerson(ctx, p, tones, gaze, cheering) {
   }
 }
 
-export function drawStands(ctx, stands, gaze, palette, cheering = false) {
+const easeOut = t => 1 - (1 - t) ** 3;
+const easeInOut = t => t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
+const riseSeconds = 0.3;
+const holdSeconds = 0.7;
+const fallSeconds = 0.5;
+
+// How far the arms are up, 0 to 1, `seconds` after the cheer began: up, held, then back down. At the end of a
+// match (`finale`) they stay up.
+export function cheerAmount(seconds, finale = false) {
+  if (seconds <= 0) return 0;
+  if (seconds < riseSeconds) return easeOut(seconds / riseSeconds);
+  if (finale || seconds < riseSeconds + holdSeconds) return 1;
+  const back = (seconds - riseSeconds - holdSeconds) / fallSeconds;
+  return back >= 1 ? 0 : 1 - easeInOut(back);
+}
+
+// `cheer` is { side, since, finale } for the side that just scored, if any; only that side's crowd cheers.
+export function drawStands(ctx, stands, gaze, palette, cheer, now = 0) {
   let tones = toneCache.get(palette);
   if (!tones) toneCache.set(palette, tones = tonesFor(palette));
   ctx.fillStyle = tones.wall;
@@ -128,7 +149,12 @@ export function drawStands(ctx, stands, gaze, palette, cheering = false) {
   ctx.fillStyle = tones.pillar;
   for (let k = 0; k < 7; k++) ctx.fillRect(40 + k * 130, 0, 6, 150);
   rows.forEach(([y, s], row) => {
-    for (const p of stands.people) if (p.row === row) drawPerson(ctx, p, tones, gaze, cheering);
+    for (const p of stands.people) {
+      if (p.row !== row) continue;
+      const cheering = cheer && (p.x < 450) === (cheer.side === 'left') && (p.fan || cheer.finale);
+      const raise = cheering ? cheerAmount((now - cheer.since) / 1000 - p.delay, cheer.finale) : 0;
+      drawPerson(ctx, p, tones, gaze, raise, now / 160);
+    }
     const top = y + 26 * s;
     ctx.fillStyle = tones.step[row];
     ctx.fillRect(30, top, 840, row < 3 ? 30 : 24);
@@ -140,9 +166,4 @@ export function drawStands(ctx, stands, gaze, palette, cheering = false) {
   ctx.fillRect(868, 0, 8, standsBottom);
   ctx.fillStyle = tones.board;
   ctx.fillRect(0, 152, 900, 26);
-  ctx.fillStyle = tones.boardText;
-  ctx.font = '700 13px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  for (let k = 0; k < 4; k++) ctx.fillText('ODD BIRDLE', 112 + k * 225, 166);
 }

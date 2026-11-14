@@ -1,5 +1,6 @@
 import { center, clamp, createGame, floor, height, leftLine, netTop, racketRadius, rightLine, shuttleOutline, step, width, contactMotion, isSwing, projectStrike, forceAt, effectIds, shapeCount, shuttleSizeOptions, racketTouches, supportedShuttleY, swingMotion } from './game.js';
 import { makeStands, drawStands } from './stands.js';
+import { launchFireworks, fireworksAt } from './fireworks.js';
 import { createPlayback, followStrikeClock, legacyTuning } from './playback.js';
 import { createRacketSender } from './net-send.js';
 import { createNetMeter } from './net-quality.js';
@@ -464,7 +465,7 @@ function drawCourt(view) {
   ctx.fillRect(0, 0, width, height);
   ctx.fillStyle = palette.floor;
   ctx.fillRect(0, floor, width, height - floor);
-  drawStands(ctx, standsFor(view), view.gaze, palette, performance.now() < cheerUntil);
+  drawStands(ctx, standsFor(view), view.gaze, palette, cheerFor(view), performance.now());
   ctx.fillStyle = palette.line;
   ctx.fillRect(leftLine, floor, rightLine - leftLine, 8);
 
@@ -496,6 +497,7 @@ function draw(view, scenery = false) {
     ctx.globalAlpha = 1;
     if (!scenery) {
       drawDust();
+      drawFireworks();
       drawHint(view);
     }
   }
@@ -540,7 +542,7 @@ function drawHint(view) {
 
 function playJuice(events, time, side) {
   for (const event of events) {
-    if (event.type === 'score') cheerUntil = performance.now() + 1100;
+    if (event.type === 'score') cheer = { side: event.side, since: performance.now() };
     if (event.type === 'hit') {
       squashes[event.side] = { start: time, angle: event.angle };
       if (event.side === side && hint.shown && hint.fading === undefined) {
@@ -557,13 +559,49 @@ function playJuice(events, time, side) {
 
 let stands;
 let standsScore = -1;
-let cheerUntil = 0;
+let cheer;
+let fireworks;
 // A new crowd for every match: the score going back down means a new one began.
 function standsFor(view) {
   const total = view.score ? view.score.left + view.score.right : 0;
   if (!stands || total < standsScore) stands = makeStands();
   standsScore = total;
   return stands;
+}
+
+// The winner's side keeps its arms up at the end of a match, with fireworks flying in from that side's corners.
+function cheerFor(view) {
+  if (view.phase === 'finished' && view.winner) {
+    if (!cheer || cheer.side !== view.winner) cheer = { side: view.winner, since: performance.now() };
+    cheer.finale = true;
+    if (!fireworks && !reduceMotion.matches) fireworks = launchFireworks(view.winner, performance.now());
+  } else if (view.phase !== 'finished') {
+    fireworks = undefined;
+    if (cheer?.finale) cheer = undefined;
+  }
+  return cheer;
+}
+
+function drawFireworks() {
+  const frame = fireworksAt(fireworks, performance.now());
+  if (!frame) return;
+  const colorOf = color => color === 'ink' ? palette.ink : color === 'net' ? palette.net : color === 'line' ? palette.line : color;
+  ctx.save();
+  for (const rocket of frame.flying) {
+    ctx.fillStyle = colorOf(rocket.color);
+    ctx.globalAlpha = 0.9;
+    ctx.beginPath();
+    ctx.arc(rocket.x, rocket.y, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  for (const spark of frame.sparks) {
+    ctx.fillStyle = colorOf(spark.color);
+    ctx.globalAlpha = Math.max(0, spark.alpha);
+    ctx.beginPath();
+    ctx.arc(spark.x, spark.y, 2 + spark.alpha * 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
 }
 
 // GUST: faint streaks flowing the way the wind blows (still and fainter with reduced motion).
