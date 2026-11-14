@@ -569,7 +569,7 @@ function drawLamps(shadow) {
     ctx.lineTo(toward(684), floor);
     ctx.closePath();
     ctx.clip();
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.42)';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.10)';
     ctx.beginPath();
     ctx.rect(0, 0, width, floor);
     if (shadow) {
@@ -582,11 +582,17 @@ function drawLamps(shadow) {
         const near = Math.sqrt(distance * distance - shadow.r * shadow.r);
         const edge = (turn, length) => ({ x: lamp.x + Math.cos(angle + turn) * length, y: lamp.y + Math.sin(angle + turn) * length });
         const [a1, a2, b1, b2] = [edge(-spread, near), edge(spread, near), edge(-spread, 3000), edge(spread, 3000)];
+        // The shadow is the shuttle's own round shape plus the wedge running on behind it, so the lit side
+        // of the shuttle stays curved instead of being cut off straight.
         ctx.moveTo(a1.x, a1.y);
         ctx.lineTo(b1.x, b1.y);
         ctx.lineTo(b2.x, b2.y);
         ctx.lineTo(a2.x, a2.y);
+        ctx.arc(shadow.x, shadow.y, shadow.r, angle + Math.PI / 2 + spread, angle + Math.PI * 1.5 - spread);
         ctx.closePath();
+      } else {
+        ctx.moveTo(shadow.x + shadow.r, shadow.y);
+        ctx.arc(shadow.x, shadow.y, shadow.r, 0, Math.PI * 2);
       }
     }
     ctx.fill('evenodd');
