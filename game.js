@@ -853,7 +853,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
       force: currentForce(),
       // Where the shuttle blocks the court lights: its place along the floor, and how near the floor it
       // is (0 high up, 1 at the floor). Sent all through a rally, so it is still there when INVISIBLE hides the shuttle.
-      shadow: shuttle && phase === 'live' ? { x: shuttle.x, near: clamp(shuttle.y / floor, 0, 1) } : undefined,
+      shadow: shuttle && phase === 'live' ? { x: shuttle.x, y: shuttle.y, r: shuttlePose().size } : undefined,
       shake: activeEffect?.id === 'shock' ? activeEffect.remaining : 0,
       shuttle: visible ? { ...shuttlePose(), flight, baseSize: shuttle.size, canHit: hitCooldown <= 0 && !pendingLanding && !frozen } : undefined,
       left: position(rackets.left),

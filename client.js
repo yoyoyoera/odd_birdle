@@ -463,7 +463,7 @@ function drawCourt(view) {
   ctx.fillRect(0, 0, width, height);
   ctx.fillStyle = palette.floor;
   ctx.fillRect(0, floor, width, height - floor);
-  drawFloorLight(view.shadow);
+  drawLamps(view.shadow);
   ctx.fillStyle = palette.line;
   ctx.fillRect(leftLine, floor, rightLine - leftLine, 8);
 
@@ -553,36 +553,52 @@ function playJuice(events, time, side) {
   }
 }
 
-const rgba = (hex, alpha) => {
-  const value = parseInt(hex.slice(1), 16);
-  return `rgba(${value >> 16}, ${(value >> 8) & 255}, ${value & 255}, ${alpha})`;
-};
+const lampAimedAt = 410;
 
-// The court lights: a pool of light on the floor of each court, brightest towards the net. The shuttle
-// blocks the light, so a dark gap follows it along the floor: crisp when it is low, soft when it is high.
-// Straight overhead lights, so the gap sits right under the shuttle. It stays while INVISIBLE hides the
-// shuttle itself, which is how it is found then.
-function drawFloorLight(shadow) {
-  const strip = height - floor;
-  for (const [outer, inner] of [[leftLine - 40, center], [rightLine + 40, center]]) {
-    const gradient = ctx.createLinearGradient(outer, 0, inner, 0);
-    gradient.addColorStop(0, rgba(palette.court, 0.15));
-    gradient.addColorStop(1, rgba(palette.court, 0.95));
-    ctx.fillStyle = gradient;
-    ctx.fillRect(Math.min(outer, inner), floor, Math.abs(inner - outer), strip);
+// The court lights: a spotlight in each top corner shining across the court. Where the shuttle gets in
+// the way the beam stops: a dark wedge runs on behind it, away from the lamp. When INVISIBLE hides the
+// shuttle, the wedge is still drawn, and its point is where the shuttle is.
+function drawLamps(shadow) {
+  const lamps = [{ x: 62, y: 80, side: 1 }, { x: width - 62, y: 80, side: -1 }];
+  for (const lamp of lamps) {
+    const toward = x => lamp.side === 1 ? x : width - x;
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(lamp.x, lamp.y);
+    ctx.lineTo(toward(137), floor);
+    ctx.lineTo(toward(684), floor);
+    ctx.closePath();
+    ctx.clip();
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.42)';
+    ctx.beginPath();
+    ctx.rect(0, 0, width, floor);
+    if (shadow) {
+      const dx = shadow.x - lamp.x;
+      const dy = shadow.y - lamp.y;
+      const distance = Math.hypot(dx, dy);
+      if (distance > shadow.r + 1) {
+        const angle = Math.atan2(dy, dx);
+        const spread = Math.asin(Math.min(1, shadow.r / distance));
+        const near = Math.sqrt(distance * distance - shadow.r * shadow.r);
+        const edge = (turn, length) => ({ x: lamp.x + Math.cos(angle + turn) * length, y: lamp.y + Math.sin(angle + turn) * length });
+        const [a1, a2, b1, b2] = [edge(-spread, near), edge(spread, near), edge(-spread, 3000), edge(spread, 3000)];
+        ctx.moveTo(a1.x, a1.y);
+        ctx.lineTo(b1.x, b1.y);
+        ctx.lineTo(b2.x, b2.y);
+        ctx.lineTo(a2.x, a2.y);
+        ctx.closePath();
+      }
+    }
+    ctx.fill('evenodd');
+    ctx.restore();
+    const aim = Math.atan2(floor - lamp.y, toward(lampAimedAt) - lamp.x);
+    ctx.save();
+    ctx.translate(lamp.x - Math.cos(aim) * 4, lamp.y - Math.sin(aim) * 4);
+    ctx.rotate(aim + Math.PI / 2);
+    ctx.fillStyle = palette.floor;
+    ctx.fillRect(-24, -9, 48, 14);
+    ctx.restore();
   }
-  if (!shadow) return;
-  const core = 14;
-  const soft = 4 + (1 - shadow.near) * 18;
-  const half = core + soft;
-  const gap = ctx.createLinearGradient(shadow.x - half, 0, shadow.x + half, 0);
-  const dark = 0.4 + shadow.near * 0.2;
-  gap.addColorStop(0, rgba(palette.ink, 0));
-  gap.addColorStop(soft / (2 * half), rgba(palette.ink, dark));
-  gap.addColorStop(1 - soft / (2 * half), rgba(palette.ink, dark));
-  gap.addColorStop(1, rgba(palette.ink, 0));
-  ctx.fillStyle = gap;
-  ctx.fillRect(shadow.x - half, floor, 2 * half, strip);
 }
 
 // GUST: faint streaks flowing the way the wind blows (still and fainter with reduced motion).

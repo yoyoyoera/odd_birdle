@@ -26,19 +26,19 @@ test('while INVISIBLE the shuttle is hidden but its shadow follows it along the 
   const view = game.view();
   assert.equal(view.shuttle, undefined);
   assert.ok(view.shadow, 'the shadow takes over');
-  // The shuttle keeps falling, and the shadow gets nearer the floor.
-  const before = view.shadow.near;
+  // The shuttle keeps falling, and the shadow follows it down.
+  const before = view.shadow.y;
   run(game, 0.3);
-  assert.ok(game.view().shadow.near > before, 'lower is nearer the floor');
-  assert.ok(game.view().shadow.near <= 1 && game.view().shadow.x > 0);
+  assert.ok(game.view().shadow.y > before, 'lower is lower');
+  assert.ok(game.view().shadow.r > 0 && game.view().shadow.x > 0);
 });
 
-test('the shadow carries no height numbers beyond a 0-1 hint, and the shuttle is back with the effect over', t => {
+test('the shadow is just a place and a size, and the shuttle is back with the effect over', t => {
   const game = serve(t);
   game.setEffectSeconds('invisible', 0.3);
   game.triggerEffect('invisible');
   run(game, 0.2);
-  assert.deepEqual(Object.keys(game.view().shadow).sort(), ['near', 'x']);
+  assert.deepEqual(Object.keys(game.view().shadow).sort(), ['r', 'x', 'y']);
   assert.equal(game.view().shuttle, undefined);
   run(game, 0.2);
   assert.ok(game.view().shuttle, 'visible again');
