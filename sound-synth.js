@@ -150,18 +150,25 @@ function uniform(seed) {
   return () => (value = (value * 1664525 + 1013904223) % 4294967296) / 4294967296;
 }
 
-// The crowd clapping: many short pats at random moments, swelling and fading, over a soft rush of cheering.
-export function applause(seconds = 1.3, density = 120) {
+// The crowd clapping: separate pats, each a short "pop" (a damped tone with a little noise in it, at its own pitch),
+// thinning in and out over the length. No steady hiss underneath, which would sound like rain.
+export function applause(seconds = 2.2, perSecond = 34) {
   const random = uniform(31);
   const noise = seeded(32);
-  const swell = x => Math.sin(Math.PI * Math.min(1, x / seconds)) ** 0.6;
-  const out = lowpass(make(seconds, () => noise()), 0.12).map((value, i) => value * 1.1 * swell(time(i)));
-  for (let k = 0; k < density * seconds; k++) {
+  const out = new Float32Array(length(seconds));
+  const swell = x => Math.sin(Math.PI * Math.min(1, x / seconds)) ** 0.8;
+  for (let k = 0; k < perSecond * seconds * 1.6; k++) {
     const at = random() * seconds;
     if (random() > swell(at)) continue;
-    const gain = 0.2 + 0.5 * random();
+    const pitch = 700 + random() * 1700;
+    const gain = 0.25 + 0.55 * random();
+    const decay = 0.004 + random() * 0.005;
     const start = length(at);
-    for (let i = 0; i < length(0.04) && start + i < out.length; i++) out[start + i] += noise() * gain * Math.exp(-i / (sampleRate * 0.007));
+    for (let i = 0; i < length(0.05) && start + i < out.length; i++) {
+      const x = i / sampleRate;
+      const pop = Math.sin(TAU * pitch * x) * 0.7 + noise() * 0.5;
+      out[start + i] += pop * gain * Math.exp(-x / decay) * Math.min(1, x / 0.0008);
+    }
   }
   return out;
 }
@@ -173,6 +180,6 @@ export function renderEffects() {
     netUp: [net(true), 0.8], netDown: [net(false), 0.8], wah: [wah(), 0.7],
     win: [win(), 0.55], lose: [lose(), 0.55], pointWon: [pointWon(), 0.45], pointLost: [pointLost(), 0.5],
     invisible: [invisible(), 0.7], balloon: [balloon(), 0.7], freeze: [freeze(), 0.7],
-    applauseBig: [applause(2.2, 140), 0.3]
+    applauseBig: [applause(2.2, 34), 0.35]
   };
 }
