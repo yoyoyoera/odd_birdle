@@ -3,6 +3,9 @@
 import { execFileSync } from 'node:child_process';
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 
+// Portals that must make no outside requests carry the font themselves instead of asking Google Fonts.
+const ownFont = ['gamepix'];
+
 const name = process.argv[2];
 if (!['crazygames', 'itch', 'newgrounds', 'gamepix'].includes(name)) {
   console.error('Usage: node scripts/build-portal.mjs crazygames|itch|newgrounds|gamepix');
@@ -24,10 +27,16 @@ if (name === 'crazygames') {
   // SDK v3 must load before the game code.
   html = html.replace('<link rel="stylesheet"', '<script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>\n  <link rel="stylesheet"');
 }
+if (ownFont.includes(name)) {
+  cpSync(new URL('fonts/', root), new URL('fonts/', out), { recursive: true, filter: source => !/README\.md$/.test(source) });
+  html = html.replace(/\s*<link rel="stylesheet" href="https:\/\/fonts\.googleapis\.com[^>]*>/, '').replace('<style>', `<style>
+    @font-face { font-family: 'Space Grotesk'; font-style: normal; font-weight: 650; font-display: swap;
+      src: url(fonts/space-grotesk-650-latin.woff2) format('woff2');
+      unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }`);
+}
 if (name === 'gamepix') {
   // GamePix: the SDK is the only thing loaded from outside; no links, fonts, previews or analytics leave the game.
   html = html
-    .replace(/\s*<link rel="stylesheet" href="https:\/\/fonts\.googleapis\.com[^>]*>/, '')
     .replace(/\s*<meta (?:property="og:|name="twitter:)[^>]*>/g, '')
     .replace(/\s*<a href="https:[^>]*>[\s\S]*?<\/a>/g, '')
     .replace('width=device-width, initial-scale=1', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no')
