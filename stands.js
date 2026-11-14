@@ -47,7 +47,7 @@ const toneCache = new WeakMap();
 
 function drawPerson(ctx, p, tones, look) {
   const { x, y, s } = p;
-  const { raise, droop, clock, lean, mouth, eyes, gaze } = look;
+  const { raise, droop, clock, lean, gaze } = look;
   const headY = y - 15 * s, r = 11 * s, w = 18 * s;
   const torso = tones.torso[p.row][p.shade], face = tones.face[p.face], hair = tones.hair[p.hair];
   // The head and what sits on it turn together, around the neck.
@@ -133,12 +133,7 @@ function drawPerson(ctx, p, tones, look) {
     ctx.fillStyle = tones.eye;
     for (const d of [-1, 1]) {
       ctx.beginPath();
-      ctx.arc(x + d * 4 * s + lookX, headY + s + lookY, (eyes ? 2.3 : 1.7) * s, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    if (mouth) {
-      ctx.beginPath();
-      ctx.ellipse(x, headY + 6 * s, 2 * s, 2.8 * s * mouth, 0, 0, Math.PI * 2);
+      ctx.arc(x + d * 4 * s + lookX, headY + s + lookY, 1.7 * s, 0, Math.PI * 2);
       ctx.fill();
     }
   });
@@ -203,8 +198,7 @@ export function drawStands(ctx, stands, { gaze, palette, cheer, now = 0, jolt = 
       ctx.rotate(tilt);
       ctx.translate(-p.x, -(y + 40 * s));
       drawPerson(ctx, p, tones, {
-        raise, droop, clock, lean, gaze: look, eyes: effect === 'invisible',
-        mouth: jolt > 0.2 || surprise > 0.05 ? 1 : 0
+        raise, droop, clock, lean, gaze: look
       });
       ctx.restore();
     }
