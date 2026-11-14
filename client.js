@@ -15,8 +15,8 @@ import {
   resetJuiceRecords, shockFlicker, shockJolt, squashAmount
 } from './juice.js';
 import {
-  initPortal, isInstantMultiplayer, loadingStart, loadingStop, onJoinRoom, onPortalMute, portal, portalInviteLink,
-  portalInviteRoom, portalMuted, roomFull, roomLeft, roomOpen, serverBase, setPlaying, siteUrl
+  initPortal, isInstantMultiplayer, loadingStart, loadingStop, matchBreak, matchEnded, onJoinRoom, onPortalMute, onPortalPause,
+  portal, portalInviteLink, portalInviteRoom, portalMuted, roomFull, roomLeft, roomOpen, serverBase, setPlaying, siteUrl
 } from './portal.js';
 
 const court = document.querySelector('#court');
@@ -313,6 +313,7 @@ function noteFinish(view) {
   if (mode === 'online') reportNet();
   const result = view.winner === (mode === 'solo' ? 'left' : localSide) ? 'win' : 'lose';
   noteRecord(view, result);
+  matchEnded(result === 'win');
   track('game_finish', mode === 'solo'
     ? { mode: 'cpu', level: String(view.cpuLevel), result }
     : { mode: 'online', result });
@@ -432,7 +433,11 @@ function setRacket(input) {
   }
 }
 
+// Set while the portal (GamePix) has the game paused.
+let gamePaused = false;
+
 function moveRacket(event) {
+  if (gamePaused) return;
   const phase = currentView().phase;
   if ((phase !== 'live' && phase !== 'between' && phase !== 'starting') || !event.isPrimary ||
       (event.pointerType !== 'mouse' && event.buttons === 0)) return;
@@ -684,7 +689,7 @@ function frame(time) {
   if (debugNet) netDebug.frames.push(time);
   if (mode === 'online') netMeter.frame(time);
   const scenery = demoShowing();
-  if ((mode === 'solo' || scenery) && lastFrame !== undefined) {
+  if ((mode === 'solo' || scenery) && lastFrame !== undefined && !gamePaused) {
     accumulator += Math.min((time - lastFrame) / 1000, 0.05);
     while (accumulator >= step) {
       if (scenery) demo.advance(step);
@@ -796,7 +801,7 @@ function startCpu() {
   finishedNoted = false;
   track('game_start', { mode: 'cpu', level: String(selectedCpuLevel ?? 'random') });
 }
-document.querySelector('#cpu').addEventListener('click', startCpu);
+document.querySelector('#cpu').addEventListener('click', () => matchBreak().then(startCpu));
 
 if (testEffects) {
   // A CPU Lv.4 match straight away, with a button (or number key 1-7) per effect.
@@ -1097,7 +1102,8 @@ function backToQuick(abortReason) {
   connect({ type: 'queue' }, 'quick');
 }
 
-document.querySelector('#quick').addEventListener('click', () => {
+document.querySelector('#quick').addEventListener('click', async () => {
+  await matchBreak();
   quick.on = true;
   track('quick_match_enter');
   startCpu();
@@ -1119,11 +1125,13 @@ codeInput.addEventListener('input', () => {
 });
 back.addEventListener('click', () => leave());
 
+// GamePix has no links out of the game, so there the room code itself is what gets copied.
+const copyLabel = portal === 'gamepix' ? 'COPY CODE' : 'COPY LINK';
 let copyReset;
 function showCopyResult(label) {
   setText(copyLink, label);
   clearTimeout(copyReset);
-  copyReset = setTimeout(() => setText(copyLink, 'COPY LINK'), 1600);
+  copyReset = setTimeout(() => setText(copyLink, copyLabel), 1600);
 }
 copyLink.addEventListener('click', async () => {
   // On a portal, invite links stay on the portal (CrazyGames) or point at our site.
@@ -1152,6 +1160,9 @@ copyLink.addEventListener('click', async () => {
 });
 
 // Opening an invite link joins that room straight away, then tidies the address bar.
+// GamePix pauses the game (for its ads, and when asked to): nothing moves, nothing is heard, no touch counts.
+onPortalPause(paused => { gamePaused = paused; if (paused) setRacket(null); });
+
 initPortal().then(() => {
   loadingStart();
   const invitedRoom = roomFromLink(location.href) ?? normalizeRoomCode(portalInviteRoom());
@@ -1189,7 +1200,7 @@ for (const type of ['pointerdown', 'keydown']) {
 function showSoundState() {
   // Shows what is heard: a portal mute shows as muted even if the button was left on.
   soundToggle.setAttribute('aria-pressed', String(!sound.audible));
-  const label = sound.portalMuted ? 'Sound muted by CrazyGames' : sound.enabled ? 'Mute sound' : 'Turn sound on';
+  const label = sound.portalMuted ? 'Sound muted by the portal' : sound.enabled ? 'Mute sound' : 'Turn sound on';
   soundToggle.setAttribute('aria-label', label);
   soundToggle.title = label;
 }
@@ -1198,7 +1209,9 @@ soundToggle.addEventListener('click', () => {
   showSoundState();
 });
 showSoundState();
-gameControl.addEventListener('click', () => {
+gameControl.addEventListener('click', async () => {
+  const rematch = currentView().phase === 'finished' || onlineView?.phase === 'finished';
+  if (rematch) await matchBreak();
   if (currentView().phase === 'finished' || onlineView?.phase === 'finished') {
     track('rematch', { mode: mode === 'solo' ? 'cpu' : 'online' });
   }
