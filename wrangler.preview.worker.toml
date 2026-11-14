@@ -1,0 +1,15 @@
+# A throw-away copy of the matchmaker for trying a branch on phones. It has its own rooms, so
+# nothing played on a preview page touches the live game. Deploy: wrangler deploy -c wrangler.preview.worker.toml
+name = "oddbridge-matchmaker-preview"
+main = "worker.js"
+compatibility_date = "2026-10-30"
+workers_dev = false
+preview_urls = false
+
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "RoomHub"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["RoomHub"]

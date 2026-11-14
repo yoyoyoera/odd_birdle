@@ -210,3 +210,21 @@ test('a late landing snapshot never draws the bird below the floor', () => {
   for (let now = 400; now < 700; now += 16) lowest = Math.max(lowest, playback.at(now)?.shuttle?.y ?? 0);
   assert.ok(lowest <= 448, `lowest ${lowest}`);
 });
+
+test('the old tuning is still available for side-by-side comparison, and differs from the new one', async () => {
+  const { legacyTuning, maxBufferMs } = await import('../playback.js');
+  assert.equal(legacyTuning.maxBufferMs, 150);
+  assert.ok(maxBufferMs > legacyTuning.maxBufferMs);
+  assert.ok(legacyTuning.growPerMs >= 0.5, 'the old buffer growth slowed playback to 40% speed');
+  // Running with the old tuning must work like before: the buffer never exceeds its old cap.
+  const playback = createPlayback(legacyTuning);
+  const view = { phase: 'live', shuttle: bird(300, 100, 1) };
+  let last = 0;
+  let now = 0;
+  for (let t = 0; t <= 4000; t += 16) {
+    last = Math.max(last, t + 30 + (t % 80 === 0 ? 400 : 0));
+    while (now < last) { playback.at(now); now += 16; }
+    playback.push(t, view, last);
+  }
+  assert.ok(playback.stats.bufferMs <= 150);
+});

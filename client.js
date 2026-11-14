@@ -1,5 +1,5 @@
 import { center, clamp, createGame, floor, height, leftLine, netTop, racketRadius, rightLine, shuttleOutline, step, width, contactMotion, isSwing, projectStrike, forceAt, effectIds, shapeCount, shuttleSizeOptions, racketTouches, supportedShuttleY, swingMotion } from './game.js';
-import { createPlayback, followStrikeClock } from './playback.js';
+import { createPlayback, followStrikeClock, legacyTuning } from './playback.js';
 import { createRacketSender } from './net-send.js';
 import { normalizeRoomCode, roomFromLink, roomLink } from './room-link.js';
 import { createDemo } from './demo.js';
@@ -61,10 +61,12 @@ const testParams = new URLSearchParams(location.search);
 const testEffects = testParams.get('test') === 'effects';
 const testShapes = testParams.get('test') === 'shapes';
 const debugNet = testParams.get('debug') === 'net';
+// ?net=old: the earlier playback and unbundled touch input, to compare on the same phones.
+const oldNet = testParams.get('net') === 'old';
 const netDebug = { states: 0, rtts: [], frames: [] };
 // Phones report a touch many times a frame: their racket moves are bundled (see net-send.js).
 let racketIsTouch = false;
-const racketSender = createRacketSender(message => send(message), { interval: () => (racketIsTouch ? 33 : 0) });
+const racketSender = createRacketSender(message => send(message), { interval: () => (racketIsTouch && !oldNet ? 33 : 0) });
 // ?test=juice opens a CPU Lv.4 match with switches for each screen touch below.
 const testJuice = testParams.get('test') === 'juice';
 const solo = createGame({ withCpu: true, quickEvents: testEffects && testParams.get('fast') === '1' });
@@ -80,7 +82,7 @@ const demoAlpha = { racket: 0.4, bird: 0.75 };
 const ready = { phase: 'ready' };
 let socket;
 let onlineView;
-const playback = createPlayback();
+const playback = createPlayback(oldNet ? legacyTuning : {});
 let mode = 'menu';
 let joinVia = 'create';
 let finishedNoted = false;
@@ -796,7 +798,7 @@ if (debugNet) {
     const round = value => (value === undefined ? '-' : Math.round(value));
     const online = mode === 'online';
     panel.textContent = [
-      `mode ${mode} | ${online ? 'ping ' + round(rtts.at(-1)) + 'ms (median ' + round(median(rtts)) + ', worst ' + round(Math.max(...rtts, 0)) + ')' : 'not in an online match'}`,
+      `${oldNet ? 'OLD net behaviour' : 'new net behaviour'} | mode ${mode} | ${online ? 'ping ' + round(rtts.at(-1)) + 'ms (median ' + round(median(rtts)) + ', worst ' + round(Math.max(...rtts, 0)) + ')' : 'not in an online match'}`,
       online ? `snapshots ${statesPerSecond.toFixed(0)}/s | late p95 ${round(stats.jitterP95)}ms` : '',
       online ? `buffer ${round(stats.bufferMs)}ms | speed ${round(stats.rate * 100)}% | guessed ${(stats.starved / Math.max(1, stats.frames) * 100).toFixed(1)}% of frames` : '',
       `fps ${inLastSecond} | worst frame gap ${round(Math.max(...gaps, 0))}ms | ${racketIsTouch ? 'touch' : 'mouse'} | dpr ${devicePixelRatio}`,

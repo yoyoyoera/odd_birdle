@@ -10,3 +10,15 @@ service = "oddbridge-matchmaker"
 [[analytics_engine_datasets]]
 binding = "EVENTS"
 dataset = "oddbirdle_events"
+
+# Branch previews (wrangler pages deploy --branch <name>) play on a separate matchmaker and write
+# their play counts to a separate dataset, so testing never touches the live game or its numbers.
+[env.preview]
+
+[[env.preview.services]]
+binding = "MATCHMAKER"
+service = "oddbridge-matchmaker-preview"
+
+[[env.preview.analytics_engine_datasets]]
+binding = "EVENTS"
+dataset = "oddbirdle_events_preview"

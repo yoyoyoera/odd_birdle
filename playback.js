@@ -93,7 +93,15 @@ function createSmoother() {
   };
 }
 
-export function createPlayback() {
+// The way playback behaved before the mobile-data work, kept so phones can be compared side by side
+// (?net=old on the preview page). Nothing in the live game uses it.
+export const legacyTuning = {
+  maxBufferMs: 150, growPerMs: 0.6, bufferPercentile: 0.95, bufferMargin: 12,
+  birdExtrapolateMs: 120, racketExtrapolateMs: 90
+};
+
+export function createPlayback(tuning = {}) {
+  const tune = { maxBufferMs, growPerMs, bufferPercentile, bufferMargin, birdExtrapolateMs, racketExtrapolateMs, ...tuning };
   const samples = [];
   let previousSample;
   let clockOffset;
@@ -148,7 +156,7 @@ export function createPlayback() {
     const before = track[index - 1];
     // Only guess when snapshots stopped arriving; a racket that is simply still stays put.
     if (starvedFor <= 0 || !before?.point || a.time <= before.time) return { point: a.point, basis: a.time };
-    const ahead = Math.min(starvedFor, racketExtrapolateMs);
+    const ahead = Math.min(starvedFor, tune.racketExtrapolateMs);
     const vx = (a.point.x - before.point.x) / (a.time - before.time);
     const vy = (a.point.y - before.point.y) / (a.time - before.time);
     return { point: { ...a.point, x: a.point.x + vx * ahead, y: a.point.y + vy * ahead }, guessed: true, basis: a.time };
@@ -210,15 +218,15 @@ export function createPlayback() {
   }
 
   function updateBuffer(dt) {
-    const wanted = clamp(percentile(lateness.map(entry => entry.late), bufferPercentile) + bufferMargin, minBufferMs, maxBufferMs);
-    if (wanted > bufferMs) bufferMs = Math.min(wanted, bufferMs + dt * growPerMs);
+    const wanted = clamp(percentile(lateness.map(entry => entry.late), tune.bufferPercentile) + tune.bufferMargin, minBufferMs, tune.maxBufferMs);
+    if (wanted > bufferMs) bufferMs = Math.min(wanted, bufferMs + dt * tune.growPerMs);
     else bufferMs = Math.max(wanted, bufferMs - dt * shrinkPerMs);
   }
 
   // Short guess for a bird whose next snapshot has not arrived yet.
   function extrapolateShuttle(sample, target) {
     const shuttle = sample.view.shuttle;
-    const until = Math.min(target, sample.time + birdExtrapolateMs);
+    const until = Math.min(target, sample.time + tune.birdExtrapolateMs);
     const strike = latestStrike;
     if (strike && strike.flight === shuttle.flight && until >= strike.time) {
       return { shuttle: stayAboveFloor({ ...shuttle, ...projectStrike(strike.pose, strike.motion, (until - strike.time) / 1000, strike.force),
