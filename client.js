@@ -1,6 +1,6 @@
 import { center, clamp, createGame, floor, height, leftLine, netTop, racketRadius, rightLine, shuttleOutline, step, width, contactMotion, isSwing, projectStrike, forceAt, effectIds, shapeCount, shuttleSizeOptions, racketTouches, supportedShuttleY, swingMotion } from './game.js';
 import { makeStands, drawStands } from './stands.js';
-import { launchFireworks, fireworksAt } from './fireworks.js';
+import { launchConfetti, confettiAt } from './confetti.js';
 import { createPlayback, followStrikeClock, legacyTuning } from './playback.js';
 import { createRacketSender } from './net-send.js';
 import { createNetMeter } from './net-quality.js';
@@ -11,7 +11,7 @@ import { createSound } from './sound.js';
 import { createCueTracker } from './sound-cues.js';
 import {
   createJuiceTracker, dustAt, hintSeen, juiceKeys, juiceTiming, makeDust, markHintSeen, noteCpuWin,
-  resetJuiceRecords, squashAmount
+  resetJuiceRecords, shockFlicker, shockJolt, squashAmount
 } from './juice.js';
 import {
   initPortal, isInstantMultiplayer, loadingStart, loadingStop, onJoinRoom, onPortalMute, portal, portalInviteLink,
@@ -465,7 +465,7 @@ function drawCourt(view) {
   ctx.fillRect(0, 0, width, height);
   ctx.fillStyle = palette.floor;
   ctx.fillRect(0, floor, width, height - floor);
-  drawStands(ctx, standsFor(view), view.gaze, palette, cheerFor(view), performance.now());
+  drawStands(ctx, standsFor(view), view.gaze, palette, cheerFor(view), performance.now(), reduceMotion.matches ? 0 : shockJolt(view.shake));
   ctx.fillStyle = palette.line;
   ctx.fillRect(leftLine, floor, rightLine - leftLine, 8);
 
@@ -497,7 +497,7 @@ function draw(view, scenery = false) {
     ctx.globalAlpha = 1;
     if (!scenery) {
       drawDust();
-      drawFireworks();
+      drawConfetti();
       drawHint(view);
     }
   }
@@ -538,6 +538,16 @@ function drawHint(view) {
   ctx.textAlign = 'center';
   ctx.fillText('Move to hit', localSide === 'left' ? center / 2 : center * 1.5, floor * 0.42);
   ctx.restore();
+  if (view.shake && !reduceMotion.matches) {
+    const veil = shockFlicker(view.shake);
+    for (const [color, alpha] of [['#0b1410', veil.dark], ['#ffffff', veil.light]]) {
+      if (alpha <= 0) continue;
+      ctx.fillStyle = color;
+      ctx.globalAlpha = alpha;
+      ctx.fillRect(0, 0, width, height);
+    }
+    ctx.globalAlpha = 1;
+  }
 }
 
 function playJuice(events, time, side) {
@@ -560,7 +570,7 @@ function playJuice(events, time, side) {
 let stands;
 let standsScore = -1;
 let cheer;
-let fireworks;
+let confetti;
 // A new crowd for every match: the score going back down means a new one began.
 function standsFor(view) {
   const total = view.score ? view.score.left + view.score.right : 0;
@@ -569,37 +579,39 @@ function standsFor(view) {
   return stands;
 }
 
-// The winner's side keeps its arms up at the end of a match, with fireworks flying in from that side's corners.
+// The winner's side keeps its arms up at the end of a match, with confetti drifting down over that side.
 function cheerFor(view) {
   if (view.phase === 'finished' && view.winner) {
     if (!cheer || cheer.side !== view.winner) cheer = { side: view.winner, since: performance.now() };
     cheer.finale = true;
-    if (!fireworks && !reduceMotion.matches) fireworks = launchFireworks(view.winner, performance.now());
+    if (!confetti && !reduceMotion.matches) confetti = launchConfetti(view.winner, performance.now());
   } else if (view.phase !== 'finished') {
-    fireworks = undefined;
+    confetti = undefined;
     if (cheer?.finale) cheer = undefined;
   }
   return cheer;
 }
 
-function drawFireworks() {
-  const frame = fireworksAt(fireworks, performance.now());
-  if (!frame) return;
+function drawConfetti() {
+  const pieces = confettiAt(confetti, performance.now());
+  if (!pieces) return;
   const colorOf = color => color === 'ink' ? palette.ink : color === 'net' ? palette.net : color === 'line' ? palette.line : color;
   ctx.save();
-  for (const rocket of frame.flying) {
-    ctx.fillStyle = colorOf(rocket.color);
-    ctx.globalAlpha = 0.9;
+  for (const piece of pieces) {
+    ctx.fillStyle = colorOf(piece.color);
+    ctx.globalAlpha = piece.alpha * 0.9;
+    ctx.save();
+    ctx.translate(piece.x, piece.y);
+    ctx.rotate(piece.angle);
+    ctx.scale(piece.width, 1);
     ctx.beginPath();
-    ctx.arc(rocket.x, rocket.y, 3.5, 0, Math.PI * 2);
+    ctx.moveTo(0, -piece.size * 1.2);
+    ctx.lineTo(piece.size * 0.8, 0);
+    ctx.lineTo(0, piece.size * 1.2);
+    ctx.lineTo(-piece.size * 0.8, 0);
+    ctx.closePath();
     ctx.fill();
-  }
-  for (const spark of frame.sparks) {
-    ctx.fillStyle = colorOf(spark.color);
-    ctx.globalAlpha = Math.max(0, spark.alpha);
-    ctx.beginPath();
-    ctx.arc(spark.x, spark.y, 2 + spark.alpha * 2, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.restore();
   }
   ctx.restore();
 }

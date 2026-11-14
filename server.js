@@ -5,7 +5,7 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { createRooms } from './rooms.js';
 
 const files = new Map();
-for (const name of ['index.html', 'fonts.html', 'client.js', 'playback.js', 'game.js', 'brand-shuttles.js', 'room-link.js', 'demo.js', 'analytics.js', 'event-schema.js', 'sound.js', 'sound-synth.js', 'sound-cues.js', 'juice.js', 'stands.js', 'fireworks.js', 'net-send.js', 'net-quality.js', 'portal.js']) {
+for (const name of ['index.html', 'fonts.html', 'client.js', 'playback.js', 'game.js', 'brand-shuttles.js', 'room-link.js', 'demo.js', 'analytics.js', 'event-schema.js', 'sound.js', 'sound-synth.js', 'sound-cues.js', 'juice.js', 'stands.js', 'confetti.js', 'net-send.js', 'net-quality.js', 'portal.js']) {
   files.set('/' + name, {
     data: readFileSync(new URL('./' + name, import.meta.url)),
     type: name.endsWith('.html') ? 'text/html; charset=utf-8' : 'text/javascript; charset=utf-8'

@@ -24,7 +24,7 @@ test('mix blends two colours', () => {
 });
 
 import { cheerAmount } from '../stands.js';
-import { launchFireworks, fireworksAt } from '../fireworks.js';
+import { launchConfetti, confettiAt } from '../confetti.js';
 
 test('arms rise smoothly, stay up a moment and come back down; at the finale they stay up', () => {
   assert.equal(cheerAmount(-0.1), 0);
@@ -37,15 +37,28 @@ test('arms rise smoothly, stay up a moment and come back down; at the finale the
   assert.equal(cheerAmount(5, true), 1);
 });
 
-test('fireworks fly in from the winner side only and are over after a few seconds', () => {
+test('confetti drifts down over the winner side only and is gone after a few seconds', () => {
   for (const side of ['left', 'right']) {
-    const show = launchFireworks(side, 1000, Math.random);
-    for (const r of show.rockets) {
-      assert.ok(side === 'left' ? r.fromX < 450 && r.burstX < 450 : r.fromX > 450 && r.burstX > 450);
+    const show = launchConfetti(side, 1000);
+    for (const p of show.pieces) {
+      assert.ok(side === 'left' ? p.x + p.sway < 470 : p.x - p.sway > 430, 'stays over that half');
     }
-    assert.equal(fireworksAt(show, 1000).flying.length > 0 || true, true);
-    const mid = fireworksAt(show, 3500);
-    assert.ok(mid.flying.length + mid.sparks.length > 0, 'something is in the air mid-show');
-    assert.equal(fireworksAt(show, show.end + 1), undefined);
+    const early = confettiAt(show, 1500);
+    const later = confettiAt(show, 3500);
+    assert.ok(early.length > 0 && later.length > 0, 'pieces in the air');
+    assert.ok(later.every(p => p.y > -12 && p.y < 512 && p.width > 0 && p.width <= 1));
+    assert.equal(confettiAt(show, show.end + 1), undefined);
   }
+});
+
+import { shockFlicker, shockJolt } from '../juice.js';
+
+test('SHOCK blinks dark first, then bright, then settles; the crowd flinches and recovers', () => {
+  const at = e => shockFlicker(0.55 - e);
+  assert.deepEqual(shockFlicker(0.55), { dark: 0, light: 0 });
+  assert.ok(at(0.1).dark > 0.3 && at(0.1).light === 0, 'dark first');
+  assert.ok(at(0.3).light > 0.2 && at(0.3).dark === 0, 'then bright');
+  assert.ok(at(0.5).light < at(0.34).light, 'and it fades');
+  assert.deepEqual(shockFlicker(0), { dark: 0, light: 0 });
+  assert.ok(shockJolt(0.55 - 0.08) === 1 && shockJolt(0.2) < 1 && shockJolt(0.55) === 0);
 });

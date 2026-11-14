@@ -141,7 +141,7 @@ export function cheerAmount(seconds, finale = false) {
 }
 
 // `cheer` is { side, since, finale } for the side that just scored, if any; only that side's crowd cheers.
-export function drawStands(ctx, stands, gaze, palette, cheer, now = 0) {
+export function drawStands(ctx, stands, gaze, palette, cheer, now = 0, jolt = 0) {
   let tones = toneCache.get(palette);
   if (!tones) toneCache.set(palette, tones = tonesFor(palette));
   ctx.fillStyle = tones.wall;
@@ -153,7 +153,11 @@ export function drawStands(ctx, stands, gaze, palette, cheer, now = 0) {
       if (p.row !== row) continue;
       const cheering = cheer && (p.x < 450) === (cheer.side === 'left') && (p.fan || cheer.finale);
       const raise = cheering ? cheerAmount((now - cheer.since) / 1000 - p.delay, cheer.finale) : 0;
+      // A shock makes people duck down and tremble a little.
+      ctx.save();
+      if (jolt > 0) ctx.translate(Math.sin(now / 22 + p.x) * 2.2 * jolt * p.s, jolt * 6 * p.s);
       drawPerson(ctx, p, tones, gaze, raise, now / 160);
+      ctx.restore();
     }
     const top = y + 26 * s;
     ctx.fillStyle = tones.step[row];

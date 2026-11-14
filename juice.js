@@ -138,3 +138,23 @@ export function resetJuiceRecords(storage) {
     // Nothing stored.
   }
 }
+
+// SHOCK: the screen blinks dark, then bright, then settles. `remaining` counts down from `duration` seconds.
+// Returns how dark (0-0.5) and how bright (0-0.55) the veil over the court is.
+export function shockFlicker(remaining, duration = 0.55) {
+  const e = duration - remaining;
+  if (e <= 0 || e >= duration) return { dark: 0, light: 0 };
+  const line = (from, to, a, b) => a + (b - a) * ((e - from) / (to - from));
+  if (e < 0.04) return { dark: line(0, 0.04, 0, 0.5), light: 0 };
+  if (e < 0.16) return { dark: line(0.04, 0.16, 0.5, 0.35), light: 0 };
+  if (e < 0.24) return { dark: line(0.16, 0.24, 0.35, 0), light: 0 };
+  if (e < 0.34) return { dark: 0, light: line(0.24, 0.34, 0, 0.55) };
+  return { dark: 0, light: line(0.34, duration, 0.55, 0) };
+}
+
+// How much the crowd flinches while SHOCK runs, 1 at the first jolt fading to 0.
+export function shockJolt(remaining, duration = 0.55) {
+  const e = duration - remaining;
+  if (e <= 0 || e >= duration) return 0;
+  return e < 0.08 ? e / 0.08 : Math.max(0, 1 - (e - 0.08) / 0.4);
+}
