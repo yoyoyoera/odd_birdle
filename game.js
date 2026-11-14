@@ -66,7 +66,9 @@ export const defaultNetScales = { highNet: 2, lowNet: 0.3 };
 // INVISIBLE: how long the shuttle shows itself after a hit, and how far off the CPU's idea of its
 // height can be. The CPU sees what a player sees (where the crowd is looking, and the shuttle for an
 // instant at each hit), so it has to guess the height; the weaker the CPU, the bigger the guess is off.
-const revealSeconds = 0.12;
+// The shuttle is not flashed on and off: it eases in for a moment and fades back out over this long.
+const revealSeconds = 0.3;
+const revealPeak = 0.75;
 export const cpuSightError = level => 14 + (5 - level) * 12;
 export const effectLabels = effects.map(effect => effect.label);
 export const effectIds = effects.map(effect => effect.id);
@@ -272,6 +274,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
   let cpuFollowUps = 0;
   let cpuThaw = 0;
   let reveal = 0;
+  let revealAge = 0;
   let cpuSightBias = 0;
   // Test page only: how long an effect lasts (seconds), instead of its usual time.
   const effectSeconds = {};
@@ -499,6 +502,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     if (activeEffect?.id === 'invisible') {
       // A hit shows the shuttle for an instant, and everyone (the CPU too) sees where it is going.
       reveal = revealSeconds;
+      revealAge = 0;
       if (cpuPrediction) cpuPrediction = { x: shuttle.x, y: shuttle.y + cpuSightBias, vx, vy };
     }
   }
@@ -814,6 +818,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     }
 
     reveal = Math.max(0, reveal - dt);
+    revealAge += dt;
     updateEvent(dt);
     if (activeEffect?.id === 'freeze') {
       // Only the shuttle is frozen: players keep moving, but nothing can be hit until it thaws.
@@ -854,6 +859,9 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
       // Where the crowd is looking: the shuttle's place, sent all through a rally so it is still there when
       // INVISIBLE hides the shuttle itself.
       gaze: shuttle && phase === 'live' ? { x: shuttle.x, y: shuttle.y } : undefined,
+      effect: activeEffect?.id,
+      // How strongly the hidden shuttle shows right now (a soft ghost after a hit), for INVISIBLE only.
+      shuttleAlpha: invisible ? revealPeak * Math.min(1, revealAge / 0.05) * (reveal / revealSeconds) ** 1.5 : undefined,
       shake: activeEffect?.id === 'shock' ? activeEffect.remaining : 0,
       shuttle: visible ? { ...shuttlePose(), flight, baseSize: shuttle.size, canHit: hitCooldown <= 0 && !pendingLanding && !frozen } : undefined,
       left: position(rackets.left),

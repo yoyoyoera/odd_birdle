@@ -56,7 +56,11 @@ test('a hit shows the shuttle for a moment, then it is hidden again', t => {
   assert.ok(game.view().shuttle, 'revealed by the hit');
   run(game, 0.06);
   assert.ok(game.view().shuttle, 'still shown a moment later');
-  run(game, 0.2);
+  const early = game.view().shuttleAlpha;
+  assert.ok(early > 0.3 && early <= 0.75, 'a soft ghost, never fully solid');
+  run(game, 0.1);
+  assert.ok(game.view().shuttleAlpha < early, 'fading out, not blinking off');
+  run(game, 0.3);
   assert.equal(game.view().shuttle, undefined, 'hidden again');
   assert.ok(game.view().gaze, 'the gaze remains');
 });

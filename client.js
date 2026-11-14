@@ -1,5 +1,6 @@
 import { center, clamp, createGame, floor, height, leftLine, netTop, racketRadius, rightLine, shuttleOutline, step, width, contactMotion, isSwing, projectStrike, forceAt, effectIds, shapeCount, shuttleSizeOptions, racketTouches, supportedShuttleY, swingMotion } from './game.js';
 import { makeStands, drawStands } from './stands.js';
+import { createCrowd } from './crowd.js';
 import { launchConfetti, confettiAt } from './confetti.js';
 import { createPlayback, followStrikeClock, legacyTuning } from './playback.js';
 import { createRacketSender } from './net-send.js';
@@ -465,7 +466,11 @@ function drawCourt(view) {
   ctx.fillRect(0, 0, width, height);
   ctx.fillStyle = palette.floor;
   ctx.fillRect(0, floor, width, height - floor);
-  drawStands(ctx, standsFor(view), view.gaze, palette, cheerFor(view), performance.now(), reduceMotion.matches ? 0 : shockJolt(view.shake));
+  drawStands(ctx, standsFor(view), {
+    gaze: view.gaze, palette, cheer: crowdNow.cheer, now: performance.now(), mood: crowdNow.mood,
+    jolt: reduceMotion.matches ? 0 : shockJolt(view.shake)
+  });
+  startConfetti(view);
   ctx.fillStyle = palette.line;
   ctx.fillRect(leftLine, floor, rightLine - leftLine, 8);
 
@@ -493,7 +498,7 @@ function draw(view, scenery = false) {
     // has a connection open while waiting) draws the game's own racket.
     const ownRacket = mode === 'online' && !scenery ? localRacket : view[localSide];
     if (ownRacket && view.phase !== 'finished') drawRacket(ownRacket, '#a9d67877', palette.ink, scenery ? undefined : localSide);
-    if (view.shuttle) drawShuttle(view, scenery ? demoAlpha.bird : 1);
+    if (view.shuttle) drawShuttle(view, (scenery ? demoAlpha.bird : 1) * (view.shuttleAlpha ?? 1));
     ctx.globalAlpha = 1;
     if (!scenery) {
       drawDust();
@@ -552,7 +557,6 @@ function drawHint(view) {
 
 function playJuice(events, time, side) {
   for (const event of events) {
-    if (event.type === 'score') cheer = { side: event.side, since: performance.now() };
     if (event.type === 'hit') {
       squashes[event.side] = { start: time, angle: event.angle };
       if (event.side === side && hint.shown && hint.fading === undefined) {
@@ -569,7 +573,6 @@ function playJuice(events, time, side) {
 
 let stands;
 let standsScore = -1;
-let cheer;
 let confetti;
 // A new crowd for every match: the score going back down means a new one began.
 function standsFor(view) {
@@ -579,17 +582,17 @@ function standsFor(view) {
   return stands;
 }
 
-// The winner's side keeps its arms up at the end of a match, with confetti drifting down over that side.
-function cheerFor(view) {
+// The crowd as of this frame (crowd.js): who cheers, who is standing, how the effect running affects them.
+const crowd = createCrowd();
+let crowdNow = { cues: [], mood: undefined };
+
+// At the end of a match, confetti drifts down over the winner's side.
+function startConfetti(view) {
   if (view.phase === 'finished' && view.winner) {
-    if (!cheer || cheer.side !== view.winner) cheer = { side: view.winner, since: performance.now() };
-    cheer.finale = true;
     if (!confetti && !reduceMotion.matches) confetti = launchConfetti(view.winner, performance.now());
   } else if (view.phase !== 'finished') {
     confetti = undefined;
-    if (cheer?.finale) cheer = undefined;
   }
-  return cheer;
 }
 
 function drawConfetti() {
@@ -732,9 +735,15 @@ function frame(time) {
     if (y !== undefined) drawing = { ...drawing, shuttle: { ...pose, y } };
   }
   if (mode === 'solo' || mode === 'online') {
-    playJuice(juiceTracker.update(drawing, time), time, mode === 'solo' ? 'left' : localSide);
+    const events = juiceTracker.update(drawing, time);
+    const own = mode === 'solo' ? 'left' : localSide;
+    playJuice(events, time, own);
+    crowdNow = crowd.update(drawing, events, performance.now(), own);
+    for (const cue of crowdNow.cues) sound.play(cue);
   } else {
     juiceTracker.reset();
+    crowd.reset();
+    crowdNow = { cues: [], mood: undefined };
   }
   if (scenery) draw(demoView, true);
   else draw(drawing);
