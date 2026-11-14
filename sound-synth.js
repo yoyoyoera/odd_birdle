@@ -166,26 +166,6 @@ export function applause(seconds = 1.3, density = 120) {
   return out;
 }
 
-// A disappointed "awww": a few voices sliding down, with breath.
-export function groan() {
-  const noise = seeded(33);
-  const seconds = 0.9;
-  const voices = [[240, 170], [300, 215], [190, 130]].map(([from, to]) => slidePhases(from, to, seconds));
-  const breath = lowpass(make(seconds, () => noise()), 0.06);
-  return make(seconds, (x, i) => {
-    const swell = Math.sin(Math.PI * x / seconds) ** 0.7;
-    const voice = voices.reduce((sum, phases) => sum + triangle(phases[i] / TAU), 0) / 3;
-    return (0.35 * voice + 1.2 * breath[i]) * swell;
-  });
-}
-
-// A low murmur of a crowd getting excited.
-export function murmur() {
-  const noise = seeded(34);
-  const seconds = 1.4;
-  return lowpass(make(seconds, () => noise()), 0.05).map((value, i) => value * 6 * Math.sin(Math.PI * time(i) / seconds) ** 2);
-}
-
 // Name -> [samples, gain], gains as mixed in the shorts.
 export function renderEffects() {
   return {
@@ -193,6 +173,6 @@ export function renderEffects() {
     netUp: [net(true), 0.8], netDown: [net(false), 0.8], wah: [wah(), 0.7],
     win: [win(), 0.55], lose: [lose(), 0.55], pointWon: [pointWon(), 0.45], pointLost: [pointLost(), 0.5],
     invisible: [invisible(), 0.7], balloon: [balloon(), 0.7], freeze: [freeze(), 0.7],
-    applause: [applause(1.3, 120), 0.4], applauseBig: [applause(2.6, 200), 0.45], groan: [groan(), 0.4], murmur: [murmur(), 0.4]
+    applauseBig: [applause(2.2, 140), 0.3]
   };
 }

@@ -6,7 +6,7 @@ import { cheerAmount } from '../stands.js';
 const live = { phase: 'live', effect: undefined };
 const hit = { type: 'hit', side: 'left' };
 
-test('a long rally murmurs, gets the crowd up, and sitting down again when the point ends', () => {
+test('a long rally gets the crowd up, and sitting down again when the point ends, all without a sound', () => {
   const crowd = createCrowd();
   let now = 0;
   const cues = [];
@@ -16,27 +16,19 @@ test('a long rally murmurs, gets the crowd up, and sitting down again when the p
     state = crowd.update(live, [hit], now);
     cues.push(...state.cues);
   }
-  assert.deepEqual(cues, ['murmur', 'murmur'], 'at the 8th and the 15th hit');
   for (let i = 0; i < 90; i++) state = crowd.update(live, [], now += 16);
   assert.ok(state.mood.standing > 0.8, 'standing');
   state = crowd.update({ phase: 'between' }, [{ type: 'score', side: 'left' }], now += 16);
-  assert.deepEqual(state.cues, ['applause']);
+  cues.push(...state.cues);
+  assert.deepEqual(state.cheer, { side: 'left', since: now });
   for (let i = 0; i < 120; i++) state = crowd.update({ phase: 'between' }, [], now += 16);
   assert.ok(state.mood.standing < 0.1, 'sat down');
-});
-
-test('a point cheers the scorer side, and groans when the local player lost it', () => {
-  const crowd = createCrowd();
-  const lost = crowd.update(live, [{ type: 'score', side: 'right' }], 100, 'left');
-  assert.deepEqual(lost.cues, ['applause', 'groan']);
-  assert.deepEqual(lost.cheer, { side: 'right', since: 100 });
-  const won = createCrowd().update(live, [{ type: 'score', side: 'left' }], 100, 'left');
-  assert.deepEqual(won.cues, ['applause']);
+  assert.deepEqual(cues, [], 'ordinary points and rallies are silent');
 });
 
 test('the winner side keeps cheering when the match ends, and the big applause plays once', () => {
   const crowd = createCrowd();
-  const end = crowd.update({ phase: 'finished', winner: 'right' }, [{ type: 'score', side: 'right' }], 100, 'right');
+  const end = crowd.update({ phase: 'finished', winner: 'right' }, [{ type: 'score', side: 'right' }], 100);
   assert.deepEqual(end.cues, ['applauseBig']);
   assert.equal(end.cheer.finale, true);
   assert.equal(crowd.update({ phase: 'finished', winner: 'right' }, [], 200, 'right').cheer.finale, true);

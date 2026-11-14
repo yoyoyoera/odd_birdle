@@ -3,7 +3,6 @@
 // crowd sounds to play. Pure (no drawing, no audio), so it can be tested.
 
 const surprising = ['shock', 'highNet', 'lowNet', 'balloon'];
-const murmurAt = [8, 15];
 const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
 
 export function createCrowd() {
@@ -20,7 +19,7 @@ export function createCrowd() {
       rally = 0; standing = 0; last = undefined; cheer = undefined; effect = undefined; clock = 0;
     },
     get rally() { return rally; },
-    update(view, events, now, localSide = 'left') {
+    update(view, events, now) {
       const cues = [];
       const dt = last === undefined ? 0 : Math.min(0.1, (now - last) / 1000);
       last = now;
@@ -34,12 +33,11 @@ export function createCrowd() {
       for (const event of events) {
         if (event.type === 'hit' && view.phase === 'live') {
           rally++;
-          if (murmurAt.includes(rally)) cues.push('murmur');
         } else if (event.type === 'score') {
           cheer = { side: event.side, since: now };
           rally = 0;
-          cues.push(view.phase === 'finished' ? 'applauseBig' : 'applause');
-          if (event.side !== localSide) cues.push('groan');
+          // Only the end of a match gets a sound from the crowd; every point would be too much noise.
+          if (view.phase === 'finished') cues.push('applauseBig');
         }
       }
       if (view.phase === 'finished' && view.winner) {

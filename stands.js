@@ -174,6 +174,11 @@ export function drawStands(ctx, stands, { gaze, palette, cheer, now = 0, jolt = 
   ctx.fillStyle = tones.pillar;
   for (let k = 0; k < 7; k++) ctx.fillRect(40 + k * 130, 0, 6, 150);
   rows.forEach(([y, s], row) => {
+    // People are drawn only down to the top of their step, so sinking or jolting never pushes a body out below it.
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, 900, y + 26 * s);
+    ctx.clip();
     for (const p of stands.people) {
       if (p.row !== row) continue;
       const onCheerSide = cheer && (p.x < 450) === (cheer.side === 'left');
@@ -203,6 +208,7 @@ export function drawStands(ctx, stands, { gaze, palette, cheer, now = 0, jolt = 
       });
       ctx.restore();
     }
+    ctx.restore();
     const top = y + 26 * s;
     ctx.fillStyle = tones.step[row];
     ctx.fillRect(30, top, 840, row < 3 ? 30 : 24);
