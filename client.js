@@ -502,6 +502,16 @@ function draw(view, scenery = false) {
     }
   }
   ctx.restore();
+  if (view.shake && !reduceMotion.matches) {
+    const veil = shockFlicker(view.shake);
+    for (const [color, alpha] of [['#0b1410', veil.dark], ['#ffffff', veil.light]]) {
+      if (alpha <= 0) continue;
+      ctx.fillStyle = color;
+      ctx.globalAlpha = alpha;
+      ctx.fillRect(0, 0, width, height);
+    }
+    ctx.globalAlpha = 1;
+  }
 }
 
 function drawDust() {
@@ -538,16 +548,6 @@ function drawHint(view) {
   ctx.textAlign = 'center';
   ctx.fillText('Move to hit', localSide === 'left' ? center / 2 : center * 1.5, floor * 0.42);
   ctx.restore();
-  if (view.shake && !reduceMotion.matches) {
-    const veil = shockFlicker(view.shake);
-    for (const [color, alpha] of [['#0b1410', veil.dark], ['#ffffff', veil.light]]) {
-      if (alpha <= 0) continue;
-      ctx.fillStyle = color;
-      ctx.globalAlpha = alpha;
-      ctx.fillRect(0, 0, width, height);
-    }
-    ctx.globalAlpha = 1;
-  }
 }
 
 function playJuice(events, time, side) {
