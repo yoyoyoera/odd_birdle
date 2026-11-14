@@ -17,7 +17,7 @@ function serve(t, { cpu = false, shape = 1 } = {}) {
   return game;
 }
 
-test('while INVISIBLE the shuttle is hidden but its shadow follows it along the floor', t => {
+test('while INVISIBLE the shuttle is hidden but the crowd keeps looking at it', t => {
   const game = serve(t);
   run(game, 0.2);
   assert.ok(game.view().shuttle, 'visible before');
@@ -25,20 +25,20 @@ test('while INVISIBLE the shuttle is hidden but its shadow follows it along the 
   run(game, 0.05);
   const view = game.view();
   assert.equal(view.shuttle, undefined);
-  assert.ok(view.shadow, 'the shadow takes over');
-  // The shuttle keeps falling, and the shadow follows it down.
-  const before = view.shadow.y;
+  assert.ok(view.gaze, 'the crowd keeps looking');
+  // The shuttle keeps falling, and the gaze follows it down.
+  const before = view.gaze.y;
   run(game, 0.3);
-  assert.ok(game.view().shadow.y > before, 'lower is lower');
-  assert.ok(game.view().shadow.r > 0 && game.view().shadow.x > 0);
+  assert.ok(game.view().gaze.y > before, 'lower is lower');
+  assert.ok(game.view().gaze.x > 0);
 });
 
-test('the shadow is just a place and a size, and the shuttle is back with the effect over', t => {
+test('the gaze is just a place, and the shuttle is back with the effect over', t => {
   const game = serve(t);
   game.setEffectSeconds('invisible', 0.3);
   game.triggerEffect('invisible');
   run(game, 0.2);
-  assert.deepEqual(Object.keys(game.view().shadow).sort(), ['r', 'x', 'y']);
+  assert.deepEqual(Object.keys(game.view().gaze).sort(), ['x', 'y']);
   assert.equal(game.view().shuttle, undefined);
   run(game, 0.2);
   assert.ok(game.view().shuttle, 'visible again');
@@ -58,7 +58,7 @@ test('a hit shows the shuttle for a moment, then it is hidden again', t => {
   assert.ok(game.view().shuttle, 'still shown a moment later');
   run(game, 0.2);
   assert.equal(game.view().shuttle, undefined, 'hidden again');
-  assert.ok(game.view().shadow, 'the shadow remains');
+  assert.ok(game.view().gaze, 'the gaze remains');
 });
 
 test('the test panel can change how long INVISIBLE lasts, and nonsense restores the usual second', t => {
@@ -125,16 +125,16 @@ test('the gap in the court lights follows the shuttle all through a rally, with 
   const game = serve(t);
   run(game, 0.2);
   const plain = game.view();
-  assert.ok(plain.shuttle && plain.shadow, 'the lights have a gap in normal play too');
-  assert.ok(Math.abs(plain.shadow.x - plain.shuttle.x) < 1e-9, 'straight under the shuttle');
+  assert.ok(plain.shuttle && plain.gaze, 'the crowd looks in normal play too');
+  assert.ok(Math.abs(plain.gaze.x - plain.shuttle.x) < 1e-9, 'right at the shuttle');
   game.triggerEffect('invisible');
   run(game, 0.05);
   const hidden = game.view();
   assert.equal(hidden.shuttle, undefined);
-  assert.ok(hidden.shadow, 'still there while the shuttle is hidden');
+  assert.ok(hidden.gaze, 'still there while the shuttle is hidden');
   // No gap between points, when there is nothing in the air.
   game.setEffectSeconds('invisible', 0.1);
   let guard = 0;
   while (game.view().phase === 'live' && guard++ < 4000) run(game, 0.05);
-  assert.equal(game.view().shadow, undefined);
+  assert.equal(game.view().gaze, undefined);
 });

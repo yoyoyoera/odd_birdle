@@ -64,7 +64,7 @@ const effects = [
 export const defaultNetScales = { highNet: 2, lowNet: 0.3 };
 
 // INVISIBLE: how long the shuttle shows itself after a hit, and how far off the CPU's idea of its
-// height can be. The CPU sees what a player sees (the shadow's position, and the shuttle for an
+// height can be. The CPU sees what a player sees (where the crowd is looking, and the shuttle for an
 // instant at each hit), so it has to guess the height; the weaker the CPU, the bigger the guess is off.
 const revealSeconds = 0.12;
 export const cpuSightError = level => 14 + (5 - level) * 12;
@@ -734,7 +734,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     advanceFlight(shuttle, dt, scale, drag, gravity * push.gravity / airDrag + push.y, push.x);
     if (cpuPrediction) {
       advanceFlight(cpuPrediction, dt, scale, drag, terminalVelocity);
-      // The shadow tells the CPU exactly where the shuttle is sideways; only the height is a guess.
+      // The crowd's eyes tell the CPU exactly where the shuttle is sideways; only the height is a guess.
       cpuPrediction.x = shuttle.x;
       cpuPrediction.vx = shuttle.vx;
     }
@@ -851,9 +851,9 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
       phase, score, message, winner, eventText, eventWind, flash, frozen, support, cpuLevel, netTop: matchNetTop,
       strike: strike?.flight === flight ? strike : undefined,
       force: currentForce(),
-      // Where the shuttle blocks the court lights: its place along the floor, and how near the floor it
-      // is (0 high up, 1 at the floor). Sent all through a rally, so it is still there when INVISIBLE hides the shuttle.
-      shadow: shuttle && phase === 'live' ? { x: shuttle.x, y: shuttle.y, r: shuttlePose().size } : undefined,
+      // Where the crowd is looking: the shuttle's place, sent all through a rally so it is still there when
+      // INVISIBLE hides the shuttle itself.
+      gaze: shuttle && phase === 'live' ? { x: shuttle.x, y: shuttle.y } : undefined,
       shake: activeEffect?.id === 'shock' ? activeEffect.remaining : 0,
       shuttle: visible ? { ...shuttlePose(), flight, baseSize: shuttle.size, canHit: hitCooldown <= 0 && !pendingLanding && !frozen } : undefined,
       left: position(rackets.left),

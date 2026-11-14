@@ -1,4 +1,5 @@
 import { center, clamp, createGame, floor, height, leftLine, netTop, racketRadius, rightLine, shuttleOutline, step, width, contactMotion, isSwing, projectStrike, forceAt, effectIds, shapeCount, shuttleSizeOptions, racketTouches, supportedShuttleY, swingMotion } from './game.js';
+import { makeStands, drawStands } from './stands.js';
 import { createPlayback, followStrikeClock, legacyTuning } from './playback.js';
 import { createRacketSender } from './net-send.js';
 import { createNetMeter } from './net-quality.js';
@@ -463,7 +464,7 @@ function drawCourt(view) {
   ctx.fillRect(0, 0, width, height);
   ctx.fillStyle = palette.floor;
   ctx.fillRect(0, floor, width, height - floor);
-  drawLamps(view.shadow);
+  drawStands(ctx, standsFor(view), view.gaze, palette, performance.now() < cheerUntil);
   ctx.fillStyle = palette.line;
   ctx.fillRect(leftLine, floor, rightLine - leftLine, 8);
 
@@ -539,6 +540,7 @@ function drawHint(view) {
 
 function playJuice(events, time, side) {
   for (const event of events) {
+    if (event.type === 'score') cheerUntil = performance.now() + 1100;
     if (event.type === 'hit') {
       squashes[event.side] = { start: time, angle: event.angle };
       if (event.side === side && hint.shown && hint.fading === undefined) {
@@ -553,58 +555,15 @@ function playJuice(events, time, side) {
   }
 }
 
-const lampAimedAt = 410;
-
-// The court lights: a spotlight in each top corner shining across the court. Where the shuttle gets in
-// the way the beam stops: a dark wedge runs on behind it, away from the lamp. When INVISIBLE hides the
-// shuttle, the wedge is still drawn, and its point is where the shuttle is.
-function drawLamps(shadow) {
-  const lamps = [{ x: 62, y: 80, side: 1 }, { x: width - 62, y: 80, side: -1 }];
-  for (const lamp of lamps) {
-    const toward = x => lamp.side === 1 ? x : width - x;
-    ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(lamp.x, lamp.y);
-    ctx.lineTo(toward(137), floor);
-    ctx.lineTo(toward(684), floor);
-    ctx.closePath();
-    ctx.clip();
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.10)';
-    ctx.beginPath();
-    ctx.rect(0, 0, width, floor);
-    if (shadow) {
-      const dx = shadow.x - lamp.x;
-      const dy = shadow.y - lamp.y;
-      const distance = Math.hypot(dx, dy);
-      if (distance > shadow.r + 1) {
-        const angle = Math.atan2(dy, dx);
-        const spread = Math.asin(Math.min(1, shadow.r / distance));
-        const near = Math.sqrt(distance * distance - shadow.r * shadow.r);
-        const edge = (turn, length) => ({ x: lamp.x + Math.cos(angle + turn) * length, y: lamp.y + Math.sin(angle + turn) * length });
-        const [a1, a2, b1, b2] = [edge(-spread, near), edge(spread, near), edge(-spread, 3000), edge(spread, 3000)];
-        // The shadow is the shuttle's own round shape plus the wedge running on behind it, so the lit side
-        // of the shuttle stays curved instead of being cut off straight.
-        ctx.moveTo(a1.x, a1.y);
-        ctx.lineTo(b1.x, b1.y);
-        ctx.lineTo(b2.x, b2.y);
-        ctx.lineTo(a2.x, a2.y);
-        ctx.arc(shadow.x, shadow.y, shadow.r, angle + Math.PI / 2 + spread, angle + Math.PI * 1.5 - spread);
-        ctx.closePath();
-      } else {
-        ctx.moveTo(shadow.x + shadow.r, shadow.y);
-        ctx.arc(shadow.x, shadow.y, shadow.r, 0, Math.PI * 2);
-      }
-    }
-    ctx.fill('evenodd');
-    ctx.restore();
-    const aim = Math.atan2(floor - lamp.y, toward(lampAimedAt) - lamp.x);
-    ctx.save();
-    ctx.translate(lamp.x - Math.cos(aim) * 4, lamp.y - Math.sin(aim) * 4);
-    ctx.rotate(aim + Math.PI / 2);
-    ctx.fillStyle = palette.floor;
-    ctx.fillRect(-24, -9, 48, 14);
-    ctx.restore();
-  }
+let stands;
+let standsScore = -1;
+let cheerUntil = 0;
+// A new crowd for every match: the score going back down means a new one began.
+function standsFor(view) {
+  const total = view.score ? view.score.left + view.score.right : 0;
+  if (!stands || total < standsScore) stands = makeStands();
+  standsScore = total;
+  return stands;
 }
 
 // GUST: faint streaks flowing the way the wind blows (still and fainter with reduced motion).

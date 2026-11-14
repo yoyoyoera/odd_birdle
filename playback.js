@@ -306,9 +306,9 @@ export function createPlayback(tuning = {}) {
       ...withRackets(a, target, 0, dt),
       netTop: Number.isFinite(a.netTop) && Number.isFinite(b.netTop)
         ? mix(a.netTop, b.netTop, fraction) : a.netTop,
-      // INVISIBLE's shadow slides smoothly between snapshots like the shuttle would.
-      shadow: a.shadow && b.shadow
-        ? { x: mix(a.shadow.x, b.shadow.x, fraction), y: mix(a.shadow.y, b.shadow.y, fraction), r: a.shadow.r } : a.shadow,
+      // The crowd's gaze slides smoothly between snapshots like the shuttle would.
+      gaze: a.gaze && b.gaze
+        ? { x: mix(a.gaze.x, b.gaze.x, fraction), y: mix(a.gaze.y, b.gaze.y, fraction) } : a.gaze,
       shuttle
     }, shuttle?.flight, false, dt, earlier.time);
   }
