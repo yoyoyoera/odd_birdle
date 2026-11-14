@@ -1,6 +1,7 @@
 import { center, clamp, createGame, floor, height, leftLine, netTop, racketRadius, rightLine, shuttleOutline, step, width, contactMotion, isSwing, projectStrike, forceAt, effectIds, shapeCount, shuttleSizeOptions, racketTouches, supportedShuttleY, swingMotion } from './game.js';
 import { createPlayback, followStrikeClock, legacyTuning } from './playback.js';
 import { createRacketSender } from './net-send.js';
+import { createNetMeter } from './net-quality.js';
 import { normalizeRoomCode, roomFromLink, roomLink } from './room-link.js';
 import { createDemo } from './demo.js';
 import { startHeartbeat, track, trackVisit } from './analytics.js';
@@ -64,6 +65,18 @@ const debugNet = testParams.get('debug') === 'net';
 // ?net=old: the earlier playback and unbundled touch input, to compare on the same phones.
 const oldNet = testParams.get('net') === 'old';
 const netDebug = { states: 0, rtts: [], frames: [] };
+// While an online match runs: round trips, how late packets run and the frame rate, boiled down at
+// the end to coarse buckets (see net-quality.js). Nothing here leaves the page except those buckets.
+const netMeter = createNetMeter();
+// Once a match is over, or the player leaves one that has run a while, send its summary (once).
+function reportNet() {
+  const { starved, frames } = playback.stats;
+  const summary = netMeter.summary({
+    guessedPct: starved / Math.max(1, frames) * 100, touch: racketIsTouch, link: navigator.connection?.effectiveType
+  });
+  netMeter.end();
+  if (summary) track('net_quality', summary);
+}
 // Phones report a touch many times a frame: their racket moves are bundled (see net-send.js).
 let racketIsTouch = false;
 const racketSender = createRacketSender(message => send(message), { interval: () => (racketIsTouch && !oldNet ? 33 : 0) });
@@ -156,6 +169,7 @@ function resetPrediction() {
 
 // stay: keep the current screen (quick match going back to its CPU game).
 function leave(message = '', stay = false) {
+  if (mode === 'online') reportNet();
   roomLeft();
   const previous = socket;
   socket = undefined;
@@ -213,6 +227,7 @@ function connect(request, via = request.type === 'join' ? 'code' : 'create') {
         localRacket = undefined;
         onlineView = message.state;
         playback.reset();
+        netMeter.begin();
         resetPrediction();
         playback.push(message.time, message.state, performance.now());
         setMode('online');
@@ -227,9 +242,10 @@ function connect(request, via = request.type === 'join' ? 'code' : 'create') {
         playback.push(message.time, message.state, performance.now());
         break;
       case 'pong':
-        if (debugNet && Number.isFinite(message.t)) {
+        if (Number.isFinite(message.t)) {
           const now = performance.now();
-          netDebug.rtts.push({ at: now, rtt: now - message.t });
+          netMeter.rtt(now - message.t);
+          if (debugNet) netDebug.rtts.push({ at: now, rtt: now - message.t });
         }
         break;
       case 'error':
@@ -291,6 +307,7 @@ function updateHud(view) {
 function noteFinish(view) {
   if ((mode !== 'solo' && mode !== 'online') || view.phase !== 'finished' || finishedNoted || !view.winner) return;
   finishedNoted = true;
+  if (mode === 'online') reportNet();
   const result = view.winner === (mode === 'solo' ? 'left' : localSide) ? 'win' : 'lose';
   noteRecord(view, result);
   track('game_finish', mode === 'solo'
@@ -598,6 +615,7 @@ function drawShuttle({ flash, phase, shuttle, frozen }, alpha = 1) {
 
 function frame(time) {
   if (debugNet) netDebug.frames.push(time);
+  if (mode === 'online') netMeter.frame(time);
   const scenery = demoShowing();
   if ((mode === 'solo' || scenery) && lastFrame !== undefined) {
     accumulator += Math.min((time - lastFrame) / 1000, 0.05);
@@ -767,6 +785,14 @@ if (testEffects) {
 }
 
 
+// While playing online: measure the round trip (a tiny ping the server echoes) and note how late
+// packets are running. Every 2 seconds, or every second with the readout on.
+setInterval(() => {
+  if (mode !== 'online' || socket?.readyState !== WebSocket.OPEN) return;
+  send({ type: 'ping', t: performance.now() });
+  netMeter.late(playback.stats.jitterP95);
+}, debugNet ? 1000 : 2000);
+
 // ?debug=net: a small readout of how the connection is doing, for checking on a phone.
 if (debugNet) {
   const panel = document.createElement('pre');
@@ -780,7 +806,6 @@ if (debugNet) {
   let statesPerSecond = 0;
   setInterval(() => {
     const now = performance.now();
-    if (socket?.readyState === WebSocket.OPEN && mode === 'online') send({ type: 'ping', t: now });
     netDebug.rtts = netDebug.rtts.filter(entry => now - entry.at < window10);
     netDebug.frames = netDebug.frames.filter(time => now - time < window10);
     statesPerSecond = (netDebug.states - lastStates) / ((now - lastStatesAt) / 1000);

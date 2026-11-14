@@ -1,4 +1,4 @@
-import { cleanEvent, fields } from '../event-schema.js';
+import { cleanEvent, fields, netFields } from '../event-schema.js';
 import { originSource } from '../origins.js';
 
 // Writes one anonymous data point to Workers Analytics Engine (binding EVENTS).
@@ -36,7 +36,7 @@ export async function onRequestPost({ request, env }) {
   try {
     env.EVENTS?.writeDataPoint({
       indexes: [event.name],
-      blobs: [event.name, ...fields.map(field => event[field] ?? ''), source],
+      blobs: [event.name, ...fields.map(field => event[field] ?? ''), source, ...netFields.map(field => event[field] ?? '')],
       doubles: [1]
     });
   } catch {

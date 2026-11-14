@@ -26,9 +26,9 @@ test('event endpoint writes one anonymous data point', async () => {
   const env = { EVENTS: { writeDataPoint: point => points.push(point) } };
   const response = await post(JSON.stringify({ name: 'rematch', mode: 'cpu' }), env);
   assert.equal(response.status, 204);
-  assert.deepEqual(points, [{ indexes: ['rematch'], blobs: ['rematch', 'cpu', '', '', '', '', 'site'], doubles: [1] }]);
+  assert.deepEqual(points, [{ indexes: ['rematch'], blobs: ['rematch', 'cpu', '', '', '', '', 'site', '', '', '', '', '', ''], doubles: [1] }]);
   await post(JSON.stringify({ name: 'page_view', returning: 'no' }), env, 'https://html-classic.itch.zone');
-  assert.equal(points.at(-1).blobs.at(-1), 'itch');
+  assert.equal(points.at(-1).blobs[6], 'itch');
 });
 
 test('event endpoint rejects junk and survives a missing binding', async () => {
@@ -138,4 +138,30 @@ test('a refused origin is recorded as text when it is not a URL', async () => {
   assert.deepEqual(points.at(-1).blobs, ['origin_rejected', 'null']);
   await post(JSON.stringify({ name: 'link_copy' }), env, null);
   assert.deepEqual(points.at(-1).blobs, ['origin_rejected', 'none']);
+});
+
+test('network summaries are accepted only as known buckets and are stored after the source', async () => {
+  const good = { name: 'net_quality', ping: '100-200', late: '80-150', guess: '3-10', fps: '25-45', input: 'touch', link: '4g' };
+  assert.deepEqual(cleanEvent(good), good);
+  assert.equal(cleanEvent({ ...good, ping: '123' }), undefined, 'exact numbers are refused');
+  assert.equal(cleanEvent({ ...good, link: 'wifi' }), undefined);
+  assert.deepEqual(cleanEvent({ ...good, userAgent: 'x' }), good, 'unknown fields are dropped');
+  const points = [];
+  const env = { EVENTS: { writeDataPoint: point => points.push(point) } };
+  assert.equal((await post(JSON.stringify(good), env)).status, 204);
+  assert.deepEqual(points[0].blobs, ['net_quality', '', '', '', '', '', 'site', '100-200', '80-150', '3-10', '25-45', 'touch', '4g']);
+});
+
+test('stats show the network summaries overall and for phones', async () => {
+  const { summarizeNet } = await import('../scripts/stats.mjs');
+  const text = summarizeNet([
+    { ping: '<50', late: '<30', guess: '<1', fps: '45+', input: 'mouse', link: 'unknown', n: '6' },
+    { ping: '100-200', late: '80-150', guess: '3-10', fps: '25-45', input: 'touch', link: '4g', n: '3' },
+    { ping: '50-100', late: '30-80', guess: '1-3', fps: '45+', input: 'touch', link: '4g', n: '1' }
+  ]);
+  assert.match(text, /전체 \(10건\)/);
+  assert.match(text, /폰·태블릿\(터치\) \(4건\)/);
+  assert.match(text, /핑\(ms\) <50 60% · 50-100 10% · 100-200 30% · 200\+ 0%/);
+  assert.match(text, /회선 종류: 4g 4 · unknown 6/);
+  assert.match(summarizeNet([]), /아직 데이터 없음/);
 });

@@ -42,6 +42,36 @@ export function summarize(rows) {
   ].join('\n');
 }
 
+// How online matches went for the players, from the anonymous end-of-match summaries.
+// rows: [{ ping, late, guess, fps, input, link, n }]
+export function summarizeNet(rows) {
+  const total = rows.reduce((sum, row) => sum + Number(row.n), 0);
+  if (!total) return '네트워크 요약: 아직 데이터 없음';
+  const spread = (list, key, labels) => labels.map(label => {
+    const n = list.filter(row => row[key] === label).reduce((sum, row) => sum + Number(row.n), 0);
+    const all = list.reduce((sum, row) => sum + Number(row.n), 0);
+    return `${label} ${all ? Math.round(n / all * 100) : 0}%`;
+  }).join(' · ');
+  const block = (title, list) => {
+    const n = list.reduce((sum, row) => sum + Number(row.n), 0);
+    if (!n) return [];
+    return [`  ${title} (${n}건)`,
+      `    핑(ms) ${spread(list, 'ping', ['<50', '50-100', '100-200', '200+'])}`,
+      `    패킷 늦음 p95(ms) ${spread(list, 'late', ['<30', '30-80', '80-150', '150+'])}`,
+      `    추측으로 그린 프레임(%) ${spread(list, 'guess', ['<1', '1-3', '3-10', '10+'])}`,
+      `    fps ${spread(list, 'fps', ['<25', '25-45', '45+'])}`];
+  };
+  const links = ['4g', '3g', '2g', 'slow-2g', 'unknown'].map(link => {
+    const n = rows.filter(row => row.link === link).reduce((sum, row) => sum + Number(row.n), 0);
+    return n ? `${link} ${n}` : undefined;
+  }).filter(Boolean).join(' · ');
+  return ['네트워크 요약 (경기 끝날 때 각자 한 번):',
+    ...block('전체', rows),
+    ...block('폰·태블릿(터치)', rows.filter(row => row.input === 'touch')),
+    ...block('마우스', rows.filter(row => row.input === 'mouse')),
+    `  회선 종류: ${links || '-'}`].join('\n');
+}
+
 // Heartbeats arrive once a minute per open game, so the count in a minute ~= people playing then.
 // minutes: [{ minute: 'YYYY-MM-DD HH:MM:SS' (UTC), n }]
 export function summarizeConcurrency(minutes, now = new Date()) {
@@ -88,7 +118,11 @@ async function main() {
     SUM(_sample_interval) AS n FROM oddbirdle_events
     WHERE timestamp > NOW() - INTERVAL '${days}' DAY AND blob1 = 'heartbeat'
     GROUP BY minute ORDER BY minute FORMAT JSON`);
-  console.log(`최근 ${days}일\n` + summarize(data) + '\n' + summarizeConcurrency(minutes));
+  const net = await query(account, token, `SELECT blob8 AS ping, blob9 AS late, blob10 AS guess, blob11 AS fps,
+    blob12 AS input, blob13 AS link, SUM(_sample_interval) AS n FROM oddbirdle_events
+    WHERE timestamp > NOW() - INTERVAL '${days}' DAY AND blob1 = 'net_quality'
+    GROUP BY ping, late, guess, fps, input, link FORMAT JSON`);
+  console.log(`최근 ${days}일\n` + summarize(data) + '\n' + summarizeNet(net) + '\n' + summarizeConcurrency(minutes));
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) await main();
