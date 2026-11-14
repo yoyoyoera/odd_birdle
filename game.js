@@ -851,8 +851,9 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
       phase, score, message, winner, eventText, eventWind, flash, frozen, support, cpuLevel, netTop: matchNetTop,
       strike: strike?.flight === flight ? strike : undefined,
       force: currentForce(),
-      // INVISIBLE: where the shuttle's shadow falls on the floor line; near is 0 (high up) to 1 (at the floor).
-      shadow: invisible && shuttle && phase === 'live' ? { x: shuttle.x, near: clamp(shuttle.y / floor, 0, 1) } : undefined,
+      // Where the shuttle blocks the court lights: its place along the floor, and how near the floor it
+      // is (0 high up, 1 at the floor). Sent all through a rally, so it is still there when INVISIBLE hides the shuttle.
+      shadow: shuttle && phase === 'live' ? { x: shuttle.x, near: clamp(shuttle.y / floor, 0, 1) } : undefined,
       shake: activeEffect?.id === 'shock' ? activeEffect.remaining : 0,
       shuttle: visible ? { ...shuttlePose(), flight, baseSize: shuttle.size, canHit: hitCooldown <= 0 && !pendingLanding && !frozen } : undefined,
       left: position(rackets.left),

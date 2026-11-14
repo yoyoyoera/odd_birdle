@@ -463,6 +463,7 @@ function drawCourt(view) {
   ctx.fillRect(0, 0, width, height);
   ctx.fillStyle = palette.floor;
   ctx.fillRect(0, floor, width, height - floor);
+  drawFloorLight(view.shadow);
   ctx.fillStyle = palette.line;
   ctx.fillRect(leftLine, floor, rightLine - leftLine, 8);
 
@@ -482,7 +483,6 @@ function draw(view, scenery = false) {
   }
   drawCourt(view);
   if (view.force?.type === 'wind') drawWind(view.force);
-  if (view.shadow) drawShadow(view.shadow);
   if (view.phase !== 'ready') {
     if (scenery) ctx.globalAlpha = demoAlpha.racket;
     const other = localSide === 'left' ? 'right' : 'left';
@@ -553,16 +553,36 @@ function playJuice(events, time, side) {
   }
 }
 
-// INVISIBLE: the shuttle cannot be seen, but a faint shadow slides along the floor line beneath it.
-// Lower means darker and a little wider, so the height can be read roughly, never exactly.
-function drawShadow({ x, near }) {
-  ctx.save();
-  ctx.globalAlpha = 0.07 + near * 0.15;
-  ctx.fillStyle = palette.ink;
-  ctx.beginPath();
-  ctx.ellipse(x, floor + 5, 14 + near * 16, 4, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
+const rgba = (hex, alpha) => {
+  const value = parseInt(hex.slice(1), 16);
+  return `rgba(${value >> 16}, ${(value >> 8) & 255}, ${value & 255}, ${alpha})`;
+};
+
+// The court lights: a pool of light on the floor of each court, brightest towards the net. The shuttle
+// blocks the light, so a dark gap follows it along the floor: crisp when it is low, soft when it is high.
+// Straight overhead lights, so the gap sits right under the shuttle. It stays while INVISIBLE hides the
+// shuttle itself, which is how it is found then.
+function drawFloorLight(shadow) {
+  const strip = height - floor;
+  for (const [outer, inner] of [[leftLine - 40, center], [rightLine + 40, center]]) {
+    const gradient = ctx.createLinearGradient(outer, 0, inner, 0);
+    gradient.addColorStop(0, rgba(palette.court, 0.15));
+    gradient.addColorStop(1, rgba(palette.court, 0.95));
+    ctx.fillStyle = gradient;
+    ctx.fillRect(Math.min(outer, inner), floor, Math.abs(inner - outer), strip);
+  }
+  if (!shadow) return;
+  const core = 14;
+  const soft = 4 + (1 - shadow.near) * 18;
+  const half = core + soft;
+  const gap = ctx.createLinearGradient(shadow.x - half, 0, shadow.x + half, 0);
+  const dark = 0.4 + shadow.near * 0.2;
+  gap.addColorStop(0, rgba(palette.ink, 0));
+  gap.addColorStop(soft / (2 * half), rgba(palette.ink, dark));
+  gap.addColorStop(1 - soft / (2 * half), rgba(palette.ink, dark));
+  gap.addColorStop(1, rgba(palette.ink, 0));
+  ctx.fillStyle = gap;
+  ctx.fillRect(shadow.x - half, floor, 2 * half, strip);
 }
 
 // GUST: faint streaks flowing the way the wind blows (still and fainter with reduced motion).
@@ -816,6 +836,21 @@ if (testEffects) {
   }
   panel.append(note);
   document.body.append(panel);
+  // The panel covers part of the floor, where the lights and their gap are: fold it away with the button or H.
+  const foldPanel = document.createElement('button');
+  foldPanel.type = 'button';
+  foldPanel.style.cssText = 'padding:6px 8px;border:0;background:var(--court);color:var(--ink);cursor:pointer;font:inherit';
+  let panelOpen = true;
+  const showPanel = () => {
+    for (const child of panel.children) if (child !== foldPanel) child.hidden = !panelOpen;
+    foldPanel.textContent = panelOpen ? 'FOLD (H)' : 'PANEL \u25b8 (H)';
+  };
+  foldPanel.addEventListener('click', () => { panelOpen = !panelOpen; showPanel(); foldPanel.blur(); });
+  panel.prepend(foldPanel);
+  document.addEventListener('keydown', event => {
+    if (event.key.toLowerCase() === 'h') { panelOpen = !panelOpen; showPanel(); }
+  });
+  showPanel();
   document.addEventListener('keydown', event => {
     const index = Number(event.key) - 1;
     if (index >= 0 && index < effectIds.length) trigger(index);

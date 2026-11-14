@@ -120,3 +120,21 @@ test('the CPU no longer knows an invisible shuttle perfectly: weaker CPUs return
   assert.ok(strong.reached > 30 && weak.reached > 30, `enough lobs reached the CPU (${strong.reached}, ${weak.reached})`);
   assert.ok(strong.rate >= weak.rate, `Lv5 ${strong.rate.toFixed(2)} should not be worse than Lv1 ${weak.rate.toFixed(2)}`);
 });
+
+test('the gap in the court lights follows the shuttle all through a rally, with or without INVISIBLE', t => {
+  const game = serve(t);
+  run(game, 0.2);
+  const plain = game.view();
+  assert.ok(plain.shuttle && plain.shadow, 'the lights have a gap in normal play too');
+  assert.ok(Math.abs(plain.shadow.x - plain.shuttle.x) < 1e-9, 'straight under the shuttle');
+  game.triggerEffect('invisible');
+  run(game, 0.05);
+  const hidden = game.view();
+  assert.equal(hidden.shuttle, undefined);
+  assert.ok(hidden.shadow, 'still there while the shuttle is hidden');
+  // No gap between points, when there is nothing in the air.
+  game.setEffectSeconds('invisible', 0.1);
+  let guard = 0;
+  while (game.view().phase === 'live' && guard++ < 4000) run(game, 0.05);
+  assert.equal(game.view().shadow, undefined);
+});
