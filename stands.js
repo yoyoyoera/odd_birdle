@@ -159,6 +159,10 @@ const noMood = { effect: undefined, effectAge: 0, wind: 0, standing: 0, surprise
 // Draws the stands. `cheer` is { side, since, finale } for the side that just scored: that side's crowd cheers and
 // the other side sinks a little. `mood` (from crowd.js) carries the effect running, the rally's standing crowd and
 // the crowd's own clock; `jolt` is the SHOCK flinch.
+// How hard the crowd flinches at SHOCK (px at full jolt, before scale): sideways shake, sinking, shake speed.
+// A little stronger than before (was 2.2 / 6 / 22 ms; tuned up again after a first bump was too faint to see); reduced motion turns the jolt off in client.js.
+export const joltPower = { shake: 7, drop: 15, period: 14 };
+
 export function drawStands(ctx, stands, { gaze, palette, cheer, now = 0, jolt = 0, mood = noMood }) {
   let tones = toneCache.get(palette);
   if (!tones) toneCache.set(palette, tones = tonesFor(palette));
@@ -181,7 +185,7 @@ export function drawStands(ctx, stands, { gaze, palette, cheer, now = 0, jolt = 
       const raise = onCheerSide && (p.fan || cheer.finale) ? cheerAmount(seconds, cheer.finale) : 0;
       const droop = cheer && !onCheerSide ? cheerAmount(seconds, cheer.finale, droopTiming) : 0;
       let dx = 0, dy = Math.sin(clock / 650 + p.x * 0.05) * 0.8 * s;
-      if (jolt > 0) { dx += Math.sin(now / 22 + p.x) * 2.2 * jolt * s; dy += jolt * 6 * s; }
+      if (jolt > 0) { dx += Math.sin(now / joltPower.period + p.x) * joltPower.shake * jolt * s; dy += jolt * joltPower.drop * s; }
       dy += droop * 5 * s - surprise * 3 * s;
       if (p.stand) dy -= standing * (9 + Math.abs(Math.sin(clock / 170 + p.x)) * 2.5) * s;
       let tilt = 0;

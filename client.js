@@ -64,6 +64,8 @@ for (const [property, value] of Object.entries({
 const testParams = new URLSearchParams(location.search);
 const testEffects = testParams.get('test') === 'effects';
 const testShapes = testParams.get('test') === 'shapes';
+// ?test=freeze / balloon / shock: a CPU Lv.4 match where the random effect is always that one (for recording).
+const onlyEffectTest = ['freeze', 'balloon', 'shock'].includes(testParams.get('test')) ? testParams.get('test') : undefined;
 const debugNet = testParams.get('debug') === 'net';
 // ?net=old: the earlier playback and unbundled touch input, to compare on the same phones.
 const oldNet = testParams.get('net') === 'old';
@@ -85,7 +87,7 @@ let racketIsTouch = false;
 const racketSender = createRacketSender(message => send(message), { interval: () => (racketIsTouch && !oldNet ? 33 : 0) });
 // ?test=juice opens a CPU Lv.4 match with switches for each screen touch below.
 const testJuice = testParams.get('test') === 'juice';
-const solo = createGame({ withCpu: true, quickEvents: testEffects && testParams.get('fast') === '1' });
+const solo = createGame({ withCpu: true, quickEvents: (testEffects || onlyEffectTest) && testParams.get('fast') === '1' });
 const demo = createDemo();
 const sound = createSound();
 const soundCues = createCueTracker();
@@ -1021,6 +1023,14 @@ if (testShapes) {
   showPanel(true);
   box.append(body, fold);
   document.body.append(box);
+  startCpu();
+}
+
+if (onlyEffectTest) {
+  // No panel on screen. Only the chosen effect comes up; &fast=1 makes it come sooner.
+  selectedCpuLevel = 4;
+  showCpuLevel();
+  solo.setOnlyEffect(onlyEffectTest);
   startCpu();
 }
 

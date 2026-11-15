@@ -282,6 +282,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
   // Test page only: pin the shuttle shape / size tier (undefined = random) and switch effects on or off.
   const shuttleChoice = { shape: undefined, size: undefined };
   let effectsOn = true;
+  let onlyEffect;
   let cpuOutFeint;
   let flight = 0;
   let strike;
@@ -400,7 +401,8 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
   }
 
   function startEffect(chosen) {
-    const effect = chosen ?? effects[Math.floor(Math.random() * effects.length)];
+    const pool = onlyEffect ? effects.filter(candidate => candidate.id === onlyEffect) : effects;
+    const effect = chosen ?? pool[Math.floor(Math.random() * pool.length)];
     const length = effectSeconds[effect.id] ?? (Array.isArray(effect.duration)
       ? effect.duration[0] + Math.random() * (effect.duration[1] - effect.duration[0]) : effect.duration);
     activeEffect = { id: effect.id, remaining: length, total: length, netScale: netScales[effect.id] ?? effect.netScale };
@@ -895,10 +897,15 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     else delete effectSeconds[id];
   }
 
+  // Test page only: random effects are always this one (undefined or an unknown id = any effect).
+  function setOnlyEffect(id) {
+    onlyEffect = effectIds.includes(id) ? id : undefined;
+  }
+
   // Test page only: pick the next HIGH NET / LOW NET size.
   function setNetScale(id, scale) {
     if (id in netScales && Number.isFinite(scale) && scale > 0 && scale < 4) netScales[id] = scale;
   }
 
-  return { restart, moveRacket, holdRacket, contactFrame, simulate, view, triggerEffect, setNetScale, setEffectSeconds, setShuttle, setEffects };
+  return { restart, moveRacket, holdRacket, contactFrame, simulate, view, triggerEffect, setNetScale, setEffectSeconds, setShuttle, setEffects, setOnlyEffect };
 }

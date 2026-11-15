@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createGame, forceAt, projectStrike, step } from '../game.js';
+import { createGame, effectLabels, forceAt, projectStrike, step } from '../game.js';
 
 // Math.random is pinned so serves are repeatable; `roll.value` picks shapes and gust directions.
 function pinned(t, value = 0.5) {
@@ -166,4 +166,22 @@ test('HIGH NET and LOW NET use the size picked for them', t => {
   assert.equal(Math.round(netAfter('lowNet', 0.5)), 448 - Math.round(106 * 0.5));
   // Nonsense sizes are ignored.
   assert.equal(Math.round(netAfter('highNet', -3)), 448 - Math.round(106 * 2));
+});
+
+test('a pinned test effect is the only random effect that comes up', () => {
+  for (const id of ['freeze', 'balloon', 'shock']) {
+    const game = createGame({ withCpu: true, quickEvents: true });
+    game.setOnlyEffect(id);
+    game.restart(3, 4);
+    const seen = new Set();
+    for (let i = 0; i < 120 * 400; i++) {
+      game.moveRacket('left', { x: 300 + Math.sin(i / 90) * 120, y: 380, time: i * 8 });
+      game.simulate(1 / 120);
+      const text = game.view().eventText;
+      const effect = effectLabels.find(label => text?.startsWith(label));
+      if (effect) seen.add(effect);
+      if (game.view().phase === 'finished') game.restart(3, 4);
+    }
+    assert.deepEqual([...seen], [id.toUpperCase()]);
+  }
 });

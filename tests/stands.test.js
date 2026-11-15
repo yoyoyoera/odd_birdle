@@ -62,3 +62,11 @@ test('SHOCK blinks dark first, then bright, then settles; the crowd flinches and
   assert.deepEqual(shockFlicker(0), { dark: 0, light: 0 });
   assert.ok(shockJolt(0.55 - 0.08) === 1 && shockJolt(0.2) < 1 && shockJolt(0.55) === 0);
 });
+
+import { joltPower } from '../stands.js';
+
+test('the SHOCK flinch is clearly stronger than before, within bounds', () => {
+  assert.ok(joltPower.shake > 2.2 && joltPower.shake <= 2.2 * 3.5);
+  assert.ok(joltPower.drop > 6 && joltPower.drop <= 6 * 3);
+  assert.ok(joltPower.period < 22 && joltPower.period >= 22 / 2);
+});
