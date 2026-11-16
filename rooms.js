@@ -40,12 +40,15 @@ export function createRooms(randomIndex) {
   }
 
   function start(room) {
+    room.round = (room.round ?? 0) + 1;
+    room.rematchReady = new Set();
+    room.restartBarrier ??= [room.left, room.right].some(peer => states.get(peer)?.restartBarrier);
     room.game.restart(3);
     room.history = [];
     const state = room.game.view();
     const time = simulationTick * step * 1000;
-    send(room.left, { type: 'start', side: 'left', code: room.code, time, state });
-    send(room.right, { type: 'start', side: 'right', code: room.code, time, state });
+    send(room.left, { type: 'start', side: 'left', code: room.code, round: room.round, time, state });
+    send(room.right, { type: 'start', side: 'right', code: room.code, round: room.round, time, state });
   }
 
   const isOpen = peer => peer.readyState === 1;
@@ -159,9 +162,25 @@ export function createRooms(randomIndex) {
         return;
       }
 
+      if (!room && ['create', 'join', 'queue'].includes(message.type)) {
+        states.get(peer).restartBarrier = message.restartBarrier === true;
+      }
+
       if (room?.game) {
         const previousStrike = room.game.view().strike?.flight;
-        if (message.type === 'restart' && room.game.view().phase === 'finished') start(room);
+        if (message.type === 'restart' && room.game.view().phase === 'finished') {
+          // GD players click Replay and finish their own ad before saying they are ready.
+          // Legacy rooms keep their existing one-click restart behavior.
+          if (message.round !== undefined && message.round !== room.round) return;
+          if (states.get(peer).restartBarrier && message.round !== room.round) return;
+          if (room.restartBarrier) {
+            room.rematchReady.add(side);
+            if (room.rematchReady.size === 2) start(room);
+            else for (const [member, memberSide] of [[room.left, 'left'], [room.right, 'right']]) {
+              send(member, { type: 'rematch_wait', round: room.round, ready: room.rematchReady.has(memberSide) });
+            }
+          } else start(room);
+        }
         if (message.type === 'racket') {
           const input = message.input;
           if (input === null || (input && [input.x, input.y, input.time].every(Number.isFinite))) {

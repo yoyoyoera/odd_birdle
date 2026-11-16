@@ -106,6 +106,27 @@ let socket;
 let onlineView;
 const playback = createPlayback(oldNet ? legacyTuning : beforeNet ? { peakWindowMs: 0 } : {});
 let mode = 'menu';
+let onlineRound;
+let rematchReady = false;
+let rematchStatus = '';
+let breakPending = false;
+
+// One menu action at a time: repeated taps must not start two games after the same ad.
+async function afterMatchBreak(action) {
+  if (breakPending) return;
+  breakPending = true;
+  if (portal === 'gamedistribution') stage.inert = true;
+  try {
+    // Stop waiting for an opponent before an ad can take over a quick-match CPU game.
+    if (portal === 'gamedistribution' && quick.on && mode === 'solo' && socket) leave('', true);
+    await matchBreak();
+    action();
+    if (portal === 'gamedistribution' && quick.on && mode === 'solo' && !socket) connect({ type: 'queue' }, 'quick');
+  } finally {
+    stage.inert = false;
+    breakPending = false;
+  }
+}
 let joinVia = 'create';
 let finishedNoted = false;
 let selectedCpuLevel;
@@ -178,6 +199,9 @@ function resetPrediction() {
 
 // stay: keep the current screen (quick match going back to its CPU game).
 function leave(message = '', stay = false) {
+  rematchReady = false;
+  rematchStatus = '';
+  onlineRound = undefined;
   if (mode === 'online') reportNet();
   roomLeft();
   const previous = socket;
@@ -209,7 +233,7 @@ function connect(request, via = request.type === 'join' ? 'code' : 'create') {
   connection.addEventListener('open', () => {
     if (socket !== connection) return;
     if (queueing) updateQueue();
-    else send(request);
+    else send({ ...request, restartBarrier: portal === 'gamedistribution' });
   });
   connection.addEventListener('message', ({ data }) => {
     if (socket !== connection) return;
@@ -226,6 +250,9 @@ function connect(request, via = request.type === 'join' ? 'code' : 'create') {
         showQueueStatus();
         break;
       case 'start':
+        onlineRound = message.round;
+        rematchReady = false;
+        rematchStatus = '';
         if (queueing && mode === 'solo') {
           quick.found = performance.now();
           quick.finished = false;
@@ -246,6 +273,11 @@ function connect(request, via = request.type === 'join' ? 'code' : 'create') {
         roomFull(message.code ?? request.code ?? roomCode.value);
         track('game_start', { mode: 'online', via: queueing ? 'quick' : joinVia });
         showQueueStatus();
+        break;
+      case 'rematch_wait':
+        if (message.round !== onlineRound) break;
+        rematchReady = message.ready;
+        rematchStatus = message.ready ? 'Waiting for opponent…' : 'Opponent ready. Play again?';
         break;
       case 'state':
         netDebug.states++;
@@ -314,11 +346,11 @@ function updateHud(view) {
   const record = phase === 'finished' && juice.record ? recordText : '';
   recordLabel.hidden = !record;
   setText(recordLabel, record);
-  setText(status, message);
+  setText(status, rematchStatus || message);
   eventBanner.hidden = !eventText;
   eventBanner.toggleAttribute('data-wind', eventWind);
   setText(eventBanner, eventText);
-  gameControl.hidden = mode !== 'solo' && !(mode === 'online' && phase === 'finished');
+  gameControl.hidden = mode !== 'solo' && !(mode === 'online' && phase === 'finished' && !rematchReady);
 }
 
 // Counts each match that reaches its final point once.
@@ -807,7 +839,8 @@ for (const event of ['pointerleave', 'pointercancel', 'lostpointercapture']) {
 court.addEventListener('pointerup', event => {
   if (event.pointerType !== 'mouse') setRacket(null);
 });
-document.querySelector('#create').addEventListener('click', () => connect({ type: 'create' }));
+document.querySelector('#create').addEventListener('click', () =>
+  portal === 'gamedistribution' ? afterMatchBreak(() => connect({ type: 'create' })) : connect({ type: 'create' }));
 document.querySelector('#join').addEventListener('click', () => {
   setMode('join');
   codeInput.focus();
@@ -842,7 +875,7 @@ function startCpu() {
   finishedNoted = false;
   track('game_start', { mode: 'cpu', level: String(selectedCpuLevel ?? 'random') });
 }
-document.querySelector('#cpu').addEventListener('click', () => matchBreak().then(startCpu));
+document.querySelector('#cpu').addEventListener('click', () => afterMatchBreak(startCpu));
 
 if (testEffects) {
   // A CPU Lv.4 match straight away, with a button (or number key 1-7) per effect.
@@ -1134,10 +1167,10 @@ function showQueueStatus() {
 }
 
 function updateQueue() {
-  const want = quick.on && mode === 'solo' && document.visibilityState === 'visible' &&
+  const want = !gamePaused && !breakPending && quick.on && mode === 'solo' && document.visibilityState === 'visible' &&
     performance.now() - lastInput < idleMs;
   if (want !== quick.queued && socket?.readyState === WebSocket.OPEN) {
-    send({ type: want ? 'queue' : 'unqueue' });
+    send({ type: want ? 'queue' : 'unqueue', restartBarrier: portal === 'gamedistribution' });
     if (!want) quick.queued = false;
   }
 }
@@ -1151,14 +1184,13 @@ function backToQuick(abortReason) {
   connect({ type: 'queue' }, 'quick');
 }
 
-document.querySelector('#quick').addEventListener('click', async () => {
-  await matchBreak();
+document.querySelector('#quick').addEventListener('click', () => afterMatchBreak(() => {
   quick.on = true;
   track('quick_match_enter');
   startCpu();
   connect({ type: 'queue' }, 'quick');
   showQueueStatus();
-});
+}));
 joinForm.addEventListener('submit', event => {
   event.preventDefault();
   const code = normalizeRoomCode(codeInput.value);
@@ -1167,7 +1199,8 @@ joinForm.addEventListener('submit', event => {
     codeInput.focus();
     return;
   }
-  connect({ type: 'join', code });
+  if (portal === 'gamedistribution') afterMatchBreak(() => connect({ type: 'join', code }));
+  else connect({ type: 'join', code });
 });
 codeInput.addEventListener('input', () => {
   if (mode === 'join' && !socket) setMode('join');
@@ -1218,7 +1251,8 @@ initPortal().then(() => {
   if (invitedRoom) {
     if (!portal) history.replaceState(null, '', location.pathname);
     codeInput.value = invitedRoom;
-    connect({ type: 'join', code: invitedRoom }, 'link');
+    if (portal === 'gamedistribution') setMode('join');
+    else connect({ type: 'join', code: invitedRoom }, 'link');
   } else if (isInstantMultiplayer()) {
     // A CrazyGames party leader: skip the menu and open a room to invite friends into.
     connect({ type: 'create' });
@@ -1258,17 +1292,21 @@ soundToggle.addEventListener('click', () => {
   showSoundState();
 });
 showSoundState();
-gameControl.addEventListener('click', async () => {
+gameControl.addEventListener('click', () => {
+  if (breakPending || rematchReady) return;
   const rematch = currentView().phase === 'finished' || onlineView?.phase === 'finished';
-  if (rematch) await matchBreak();
-  if (currentView().phase === 'finished' || onlineView?.phase === 'finished') {
-    track('rematch', { mode: mode === 'solo' ? 'cpu' : 'online' });
-  }
-  finishedNoted = false;
-  // Online restarts arrive as a new 'start' message; CPU ones are counted here.
-  if (mode === 'solo') track('game_start', { mode: 'cpu', level: selectedCpuLevel ?? 'random' });
-  if (mode === 'solo') solo.restart(3, selectedCpuLevel);
-  else send({ type: 'restart' });
+  const restart = () => {
+    if (currentView().phase === 'finished' || onlineView?.phase === 'finished') {
+      track('rematch', { mode: mode === 'solo' ? 'cpu' : 'online' });
+    }
+    finishedNoted = false;
+    // Online restarts arrive as a new 'start' message; CPU ones are counted here.
+    if (mode === 'solo') track('game_start', { mode: 'cpu', level: selectedCpuLevel ?? 'random' });
+    if (mode === 'solo') solo.restart(3, selectedCpuLevel);
+    else send({ type: 'restart', round: onlineRound });
+  };
+  if (rematch) afterMatchBreak(restart);
+  else restart();
 });
 resize();
 new ResizeObserver(resize).observe(court);

@@ -1,14 +1,17 @@
 // Where the game is running: our site (''), or a portal build ('crazygames', 'itch', 'newgrounds')
 // marked on <html data-portal> by scripts/build-portal.mjs ('gamepix' and 'y8' too).
+import { createGdAds, showGdContinue } from './gd-ads.js';
+
 export const portal = document.documentElement.dataset.portal ?? '';
 export const siteUrl = 'https://oddbirdle.pages.dev/';
 // Portals that allow no links out of the game and no analytics of our own: invites are the room code, nothing is
 // counted, and the debug and test pages are off.
-export const closedPortal = portal === 'gamepix' || portal === 'y8';
+export const closedPortal = ['gamepix', 'y8', 'gamedistribution'].includes(portal);
 // Portal builds are served from the portal's domain but play on our server.
 export const serverBase = portal ? siteUrl : new URL('./', location.href).href;
 
 let sdk;
+let gd;
 let playing = false;
 
 // GamePix SDK v3 (portal 'gamepix'): pause/resume are required, the loading signals and the ads are optional.
@@ -75,6 +78,7 @@ export function matchEnded(won) {
 // Called before a new match begins. After a few finished matches, and not more than every few minutes, the
 // portal's ad runs here, between matches and never during one. Resolves when it is over (or at once if none).
 export async function matchBreak() {
+  if (portal === 'gamedistribution') return gd?.request();
   if (portal === 'y8') return y8Break();
   if (!gamepix || !ready || paused || matchesSinceAd < adEveryMatches || Date.now() - lastAd < adGapMs) return;
   matchesSinceAd = 0;
@@ -112,6 +116,21 @@ async function y8Break() {
 
 // CrazyGames SDK v3. Every call throws outside CrazyGames, so only use it there.
 export async function initPortal() {
+  if (portal === 'gamedistribution') {
+    gd = createGdAds({
+      getSdk: () => window.gdsdk,
+      pause: value => { sdkPaused = value; refreshPause(); },
+      showContinue: showGdContinue
+    });
+    window.oddbirdleGdEvent = event => gd.event(event);
+    for (const event of window.oddbirdleGdEvents ?? []) gd.event(event);
+    window.oddbirdleGdEvents = [];
+    const stage = document.querySelector('#stage');
+    if (stage) stage.inert = true;
+    try { await window.oddbirdleGdReady; }
+    finally { if (stage) stage.inert = false; }
+    return;
+  }
   if (portal === 'gamepix') {
     initGamepix();
     return;

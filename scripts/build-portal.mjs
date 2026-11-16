@@ -1,15 +1,20 @@
 // Builds an upload zip for a game portal from the site build.
-// Usage: node scripts/build-portal.mjs crazygames|itch|newgrounds|gamepix|y8  ->  portal/oddbirdle-<name>.zip
+// Usage: node scripts/build-portal.mjs crazygames|itch|newgrounds|gamepix|y8|gamedistribution  ->  portal/oddbirdle-<name>.zip
 import { execFileSync } from 'node:child_process';
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 
 // Portals that must make no outside requests carry the font themselves instead of asking Google Fonts.
-const ownFont = ['gamepix', 'y8'];
+const ownFont = ['gamepix', 'y8', 'gamedistribution'];
 
 const name = process.argv[2];
-if (!['crazygames', 'itch', 'newgrounds', 'gamepix', 'y8'].includes(name)) {
-  console.error('Usage: node scripts/build-portal.mjs crazygames|itch|newgrounds|gamepix|y8');
+if (!['crazygames', 'itch', 'newgrounds', 'gamepix', 'y8', 'gamedistribution'].includes(name)) {
+  console.error('Usage: node scripts/build-portal.mjs crazygames|itch|newgrounds|gamepix|y8|gamedistribution');
   process.exit(1);
+}
+const gdPreview = name === 'gamedistribution' && process.argv.includes('--preview');
+const gameId = process.env.GD_GAME_ID ?? '';
+if (name === 'gamedistribution' && !gdPreview && !/^[a-f0-9]{32}$/i.test(gameId)) {
+  throw new Error('Set GD_GAME_ID to the game ID from your GD dashboard, or use --preview for a local build without ads.');
 }
 const root = new URL('../', import.meta.url);
 execFileSync(process.execPath, [new URL('build-pages.js', root).pathname], { stdio: 'inherit' });
@@ -34,7 +39,7 @@ if (ownFont.includes(name)) {
       src: url(fonts/space-grotesk-650-latin.woff2) format('woff2');
       unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }`);
 }
-if (name === 'gamepix' || name === 'y8') {
+if (ownFont.includes(name)) {
   // No links, previews or analytics leave the game; the portal's own SDK is the only thing loaded from outside.
   html = html
     .replace(/\s*<meta (?:property="og:|name="twitter:)[^>]*>/g, '')
@@ -51,6 +56,28 @@ if (name === 'gamepix') {
     #gamepix-loading { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; background: #182223;
       color: #e8ebd6; font: 650 clamp(1.5rem, 6vw, 3rem) system-ui, sans-serif; letter-spacing: -.02em; }`)
     .replace(/<body([^>]*)>/, '<body$1>\n  <div id="gamepix-loading">ODD BIRDLE</div>');
+}
+if (name === 'gamedistribution') {
+  if (!gdPreview) {
+    html = html.replace('<style>', `<script>
+    window.oddbirdleGdEvents = [];
+    window.oddbirdleGdReady = new Promise(function (resolve) {
+      window.oddbirdleGdLoaded = resolve;
+      setTimeout(resolve, 6000);
+    });
+    window.GD_OPTIONS = {
+      gameId: '${gameId}',
+      onEvent: function (event) {
+        if (event.name === 'SDK_READY' || event.name === 'SDK_ERROR') window.oddbirdleGdLoaded();
+        if (window.oddbirdleGdEvent) window.oddbirdleGdEvent(event);
+        else window.oddbirdleGdEvents.push(event);
+      }
+    };
+  </script>
+  <script src="https://html5.api.gamedistribution.com/main.js" async onerror="window.oddbirdleGdLoaded()"></script>
+  <style>`);
+  }
+  html = html.replace('<style>', '<style>\n    html, body { overscroll-behavior: none; }\n    body { touch-action: none; }');
 }
 if (name === 'y8') {
   // Y8's SDK, started the way its dashboard says. The page stays playable as a guest, with the SDK blocked,
@@ -71,16 +98,16 @@ if (name === 'y8') {
     html, body { overscroll-behavior: none; }
     body { touch-action: none; }`);
 }
-if (name === 'gamepix' || name === 'y8') {
+if (ownFont.includes(name)) {
   // Nothing may point anywhere else: the only web address left in the page is the portal's SDK.
-  const sdkHost = name === 'gamepix' ? 'integration.gamepix.com' : 'cdn.y8.com';
+  const sdkHost = name === 'gamepix' ? 'integration.gamepix.com' : name === 'y8' ? 'cdn.y8.com' : 'html5.api.gamedistribution.com';
   const outside = [...html.matchAll(/https?:\/\/[^"'\s)<]+/g)].map(match => match[0]).filter(link => !link.includes(sdkHost));
   if (outside.length) throw new Error(name + ' build still links out: ' + outside.join(', '));
 }
 if (!html.includes(`data-portal="${name}"`)) throw new Error('Could not mark index.html for the portal.');
 writeFileSync(indexUrl, html);
 
-const zip = new URL(`portal/oddbirdle-${name}.zip`, root).pathname;
+const zip = new URL(`portal/oddbirdle-${name}${gdPreview ? "-preview" : ""}.zip`, root).pathname;
 rmSync(zip, { force: true });
 execFileSync('zip', ['-qr', zip, '.'], { cwd: out.pathname });
 console.log('wrote', zip);
