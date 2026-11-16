@@ -11,6 +11,10 @@ const startBufferMs = 70;
 const bufferPercentile = 0.85;
 const bufferMargin = 8;
 const latenessWindowMs = 2000;
+// A burst (Wi-Fi holding packets back, then releasing them together) is rarer than 15% of packets, so the
+// percentile above skips it. Remember the worst recent lateness for a while and keep part of it as cushion.
+const peakWindowMs = 6000;
+const peakShare = 0.8;
 // Growing the wait slows playback briefly (never below ~88% speed, so it does not read as slow
 // motion); shrinking it speeds playback up a little. Whatever the buffer cannot cover yet is
 // bridged by the short guess below.
@@ -97,11 +101,11 @@ function createSmoother() {
 // (?net=old on the preview page). Nothing in the live game uses it.
 export const legacyTuning = {
   maxBufferMs: 150, growPerMs: 0.6, bufferPercentile: 0.95, bufferMargin: 12,
-  birdExtrapolateMs: 120, racketExtrapolateMs: 90
+  birdExtrapolateMs: 120, racketExtrapolateMs: 90, peakWindowMs: 0
 };
 
 export function createPlayback(tuning = {}) {
-  const tune = { maxBufferMs, growPerMs, bufferPercentile, bufferMargin, birdExtrapolateMs, racketExtrapolateMs, ...tuning };
+  const tune = { maxBufferMs, growPerMs, bufferPercentile, bufferMargin, birdExtrapolateMs, racketExtrapolateMs, peakWindowMs, peakShare, ...tuning };
   const samples = [];
   let previousSample;
   let clockOffset;
@@ -114,6 +118,7 @@ export function createPlayback(tuning = {}) {
   // For the ?debug=net overlay: how playback is coping.
   const counters = { frames: 0, starved: 0, rate: 1 };
   const lateness = [];
+  const peaks = [];
   const rackets = { left: [], right: [] };
   const racketOffsets = { left: 0, right: 0 };
   const racketClocks = { left: undefined, right: undefined };
@@ -183,6 +188,7 @@ export function createPlayback(tuning = {}) {
     lastNow = undefined;
     Object.assign(counters, { frames: 0, starved: 0, rate: 1 });
     lateness.length = 0;
+    peaks.length = 0;
     rackets.left.length = 0;
     rackets.right.length = 0;
     racketOffsets.left = racketOffsets.right = 0;
@@ -198,6 +204,13 @@ export function createPlayback(tuning = {}) {
     clockOffset = clockOffset === undefined ? offset : Math.min(offset, clockOffset + 0.35);
     lateness.push({ receivedAt, late: offset - clockOffset });
     while (lateness.length && lateness[0].receivedAt < receivedAt - latenessWindowMs) lateness.shift();
+    if (tune.peakWindowMs > 0) {
+      // Only the largest values in the window matter, so keep a decreasing run of them.
+      const late = offset - clockOffset;
+      while (peaks.length && peaks.at(-1).late <= late) peaks.pop();
+      peaks.push({ receivedAt, late });
+      while (peaks.length && peaks[0].receivedAt < receivedAt - tune.peakWindowMs) peaks.shift();
+    }
     latestTime = Math.max(latestTime, time);
     if (view.strike && view.strike.flight !== latestStrike?.flight) {
       latestStrike = view.strike;
@@ -218,7 +231,9 @@ export function createPlayback(tuning = {}) {
   }
 
   function updateBuffer(dt) {
-    const wanted = clamp(percentile(lateness.map(entry => entry.late), tune.bufferPercentile) + tune.bufferMargin, minBufferMs, tune.maxBufferMs);
+    const typical = percentile(lateness.map(entry => entry.late), tune.bufferPercentile);
+    const worst = tune.peakWindowMs > 0 && peaks.length ? peaks[0].late * tune.peakShare : 0;
+    const wanted = clamp(Math.max(typical, worst) + tune.bufferMargin, minBufferMs, tune.maxBufferMs);
     if (wanted > bufferMs) bufferMs = Math.min(wanted, bufferMs + dt * tune.growPerMs);
     else bufferMs = Math.max(wanted, bufferMs - dt * shrinkPerMs);
   }
