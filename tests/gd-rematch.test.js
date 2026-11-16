@@ -71,6 +71,7 @@ test('rooms without GD keep their existing single-click rematch', t => {
 
 test('only the official GD game host is allowed, including strict HTTPS', () => {
   assert.equal(originSource('https://html5.gamedistribution.com'), 'gamedistribution');
+  assert.equal(originSource('https://revision.gamedistribution.com'), 'gamedistribution');
   for (const host of ['http://html5.gamedistribution.com', 'https://gamedistribution.com.evil.test',
     'https://evil.gamedistribution.com']) assert.equal(originSource(host), undefined);
 });

@@ -21,7 +21,8 @@ export function originSource(origin) {
   if (within('itch.zone') || within('itch.io')) return 'itch';
   if (host === 'uploads.ungrounded.net') return 'newgrounds';
   // Y8 serves uploaded games from its item CDN (seen in the server log when a test build tried to connect): that one host.
-  if (host === 'html5.gamedistribution.com') return 'gamedistribution';
+  // Live GD frames and the revision frame supplied by its developer dashboard.
+  if (host === 'html5.gamedistribution.com' || host === 'revision.gamedistribution.com') return 'gamedistribution';
   if (host === 'item-cdn.y8.com') return 'y8';
   return undefined;
 }

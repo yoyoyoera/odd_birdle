@@ -10,9 +10,11 @@ Local build without GD SDK or advertisements (not for submission):
 
     node scripts/build-portal.mjs gamedistribution --preview
 
-Real SDK build, after saving the game in the dashboard and obtaining its 32-character game ID:
+Assigned GD game ID: `e2d1ed4845d7412a976f3337355b1d7b`.
 
-    GD_GAME_ID=<your-game-id> node scripts/build-portal.mjs gamedistribution
+Real SDK build:
+
+    GD_GAME_ID=e2d1ed4845d7412a976f3337355b1d7b node scripts/build-portal.mjs gamedistribution
 
 The outputs are `portal/oddbirdle-gamedistribution-preview.zip` and `portal/oddbirdle-gamedistribution.zip`. No example or another game's ID is embedded. Production builds fail before writing files if the ID is missing or invalid. A game ID is public configuration, not an authentication secret.
 
@@ -29,7 +31,7 @@ The GD build bundles Space Grotesk and removes external navigation links, Google
 
 ## Before real multiplayer testing
 
-The changed `rooms.js` and `origins.js` require a matchmaker deployment; a ZIP alone cannot add the rematch protocol to the live server. Test on a separate preview matchmaker first. The prepared origin allowlist accepts only `https://html5.gamedistribution.com` for GD; confirm the actual frame origin in GD testing before changing it. Do not allow all origins.
+The changed `rooms.js` and `origins.js` require a matchmaker deployment; a ZIP alone cannot add the rematch protocol to the live server. Test on a separate preview matchmaker first. The prepared origin allowlist accepts `https://html5.gamedistribution.com` and the dashboard-supplied test host `https://revision.gamedistribution.com` for GD; confirm the actual frame origin in GD testing before changing it. Do not allow all origins.
 
 SDK unit tests use a fake SDK and do not prove actual ad delivery or GD acceptance. Check the saved game's UPLOAD test frame, SDK detection, real preroll and midroll, two-browser rematches, ad-blocker behavior, and keyboard/mouse input after CONTINUE before activation.
 
@@ -78,4 +80,6 @@ No registration required
 - https://static.gamedistribution.com/developer/design-guidelines.html
 - https://static.gamedistribution.com/terms/developer.html
 
-Outstanding: GD response, assigned Game ID, actual SDK/ad integration checks, dedicated preview deployment, and thumbnail preparation (512×512, 512×384, 200×120; smallest thumbnail without a logo).
+Dashboard revision URL supplied by the user: https://revision.gamedistribution.com/e2d1ed4845d7412a976f3337355b1d7b/?correlator=1794842810206 . A direct unauthenticated fetch returned 403 AccessDenied; the actual page contents were not verified.
+
+Outstanding: GD response, actual SDK/ad integration checks, dedicated preview deployment, and thumbnail preparation (512×512, 512×384, 200×120; smallest thumbnail without a logo).
