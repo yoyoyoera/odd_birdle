@@ -40,7 +40,9 @@
     #sound-toggle .muted, #sound-toggle[aria-pressed="true"] .on { display: none; }
     #sound-toggle[aria-pressed="true"] .muted { display: inline; }
     #studio-links a:focus-visible { outline: 2px solid currentColor; outline-offset: -3px; }
-    @media (orientation: landscape) and (pointer: coarse) {
+    /* Phones on their side, and any wide window too short for the court plus a row below it (a portal's embed
+       frame is often about 740x390): the buttons move to a column beside the court, so nothing is cut off. */
+    @media (orientation: landscape) and ((pointer: coarse) or (max-height: 620px)) {
       main { display: grid; grid-template-columns: minmax(0, 1fr) 44px; align-items: center;
         column-gap: 8px; width: min(992px, 100% - 24px, calc((100svh - 12px) * 1.8 + 52px));
         padding-block: 6px; }
