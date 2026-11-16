@@ -228,3 +228,24 @@ test('the old tuning is still available for side-by-side comparison, and differs
   }
   assert.ok(playback.stats.bufferMs <= 150);
 });
+
+test('after a burst of late packets the cushion stays for a few seconds; a steady link keeps the minimum', async () => {
+  const { createPlayback: make, minBufferMs } = await import('../playback.js');
+  const view = time => ({ phase: 'live', shuttle: { x: 100 + time / 10, y: 200, angle: 0, flight: 1, shape: 0, size: 14 } });
+  const run = (burstAt, tuning = {}) => {
+    const playback = make(tuning);
+    let now = 1000;
+    for (let i = 0; i < 360; i++) {
+      const time = i * (1000 / 60);
+      const late = burstAt.some(at => time >= at && time < at + 90) ? 100 : 15;
+      playback.push(time, view(time), 1000 + time + late);
+      playback.at(1000 + time + 15);
+      now = 1000 + time + 15;
+    }
+    return playback.bufferMs;
+  };
+  assert.equal(run([]), minBufferMs, 'a steady link stays at the minimum');
+  const withBurst = run([1500, 3500, 5000]);
+  assert.ok(withBurst > minBufferMs + 20, 'bursts keep a cushion');
+  assert.ok(run([1500, 3500, 5000], { peakWindowMs: 0 }) < withBurst, 'more than without the burst memory');
+});

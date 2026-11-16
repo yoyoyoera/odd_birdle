@@ -69,6 +69,8 @@ const onlyEffectTest = ['freeze', 'balloon', 'shock'].includes(testParams.get('t
 const debugNet = testParams.get('debug') === 'net';
 // ?net=old: the earlier playback and unbundled touch input, to compare on the same phones.
 const oldNet = testParams.get('net') === 'old';
+// ?net=before: the playback of the version before burst cushioning, for comparing side by side.
+const beforeNet = testParams.get('net') === 'before';
 const netDebug = { states: 0, rtts: [], frames: [] };
 // While an online match runs: round trips, how late packets run and the frame rate, boiled down at
 // the end to coarse buckets (see net-quality.js). Nothing here leaves the page except those buckets.
@@ -100,7 +102,7 @@ const demoAlpha = { racket: 0.4, bird: 0.75 };
 const ready = { phase: 'ready' };
 let socket;
 let onlineView;
-const playback = createPlayback(oldNet ? legacyTuning : {});
+const playback = createPlayback(oldNet ? legacyTuning : beforeNet ? { peakWindowMs: 0 } : {});
 let mode = 'menu';
 let joinVia = 'create';
 let finishedNoted = false;
@@ -944,7 +946,7 @@ if (debugNet) {
     const round = value => (value === undefined ? '-' : Math.round(value));
     const online = mode === 'online';
     panel.textContent = [
-      `${oldNet ? 'OLD net behaviour' : 'new net behaviour'} | mode ${mode} | ${online ? 'ping ' + round(rtts.at(-1)) + 'ms (median ' + round(median(rtts)) + ', worst ' + round(Math.max(...rtts, 0)) + ')' : 'not in an online match'}`,
+      `${oldNet ? 'OLD net behaviour' : beforeNet ? 'BEFORE (no burst cushion)' : 'new net behaviour'} | mode ${mode} | ${online ? 'ping ' + round(rtts.at(-1)) + 'ms (median ' + round(median(rtts)) + ', worst ' + round(Math.max(...rtts, 0)) + ')' : 'not in an online match'}`,
       online ? `snapshots ${statesPerSecond.toFixed(0)}/s | late p95 ${round(stats.jitterP95)}ms` : '',
       online ? `buffer ${round(stats.bufferMs)}ms | speed ${round(stats.rate * 100)}% | guessed ${(stats.starved / Math.max(1, stats.frames) * 100).toFixed(1)}% of frames` : '',
       `fps ${inLastSecond} | worst frame gap ${round(Math.max(...gaps, 0))}ms | ${racketIsTouch ? 'touch' : 'mouse'} | dpr ${devicePixelRatio}`,
