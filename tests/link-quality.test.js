@@ -8,12 +8,14 @@ test('bars follow ping, lateness and guessed frames: Good needs all three to be 
   assert.equal(barsFor(300, 10, 0), 1);
   assert.equal(barsFor(30, 200, 0), 1, 'a good ping with very late packets is still a bad link');
   assert.equal(barsFor(30, 50, 0), 2);
+  assert.equal(barsFor(30, 100, 0), 1);
 });
 
-test('a Wi-Fi link that felt terrible (ping < 50, lateness 30-80, 3-10 % guessed frames) is not Good', () => {
+test('a Wi-Fi link that felt terrible (3-10 % guessed frames) is Poor, one that plays fine (1-3 %) is Fair, wired is Good', () => {
   assert.equal(barsFor(40, 55, 6), 1);
-  assert.equal(barsFor(40, 30, 3), 1);
-  assert.equal(barsFor(40, 20, 2), 2, 'a couple of guessed frames per hundred is fair at best');
+  assert.equal(barsFor(40, 55, 4.5), 1);
+  assert.equal(barsFor(40, 55, 2), 2, 'ping under 50, lateness 30-80, 1-3 % guessed: Fair');
+  assert.equal(barsFor(40, 80, 3), 2);
   assert.equal(barsFor(40, 20, 0.2), 3);
 });
 

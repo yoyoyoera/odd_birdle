@@ -3,9 +3,10 @@
 // actually feel on Wi-Fi: a fine ping can still hide a jittery link). Values are smoothed over a few seconds, and
 // the bars only get better once things are clearly better, so they never flicker around a limit. Pure maths.
 
-// A level is at most this bad to count as 3 or 2 bars; worse is 1. (Set from a real Wi-Fi match that felt bad:
-// ping under 50 ms, lateness 30-80 ms, 3-10 % guessed frames. That has to read as poor.)
-const limits = { three: { rtt: 60, late: 30, guess: 1 }, two: { rtt: 150, late: 70, guess: 3 } };
+// A level is at most this bad to count as 3 or 2 bars; worse is 1. Good is a wired PC. Fair is a usable Wi-Fi:
+// a real Wi-Fi match that now plays fine measured ping under 50 ms, lateness 30-80 ms, 1-3 % guessed frames.
+// Before the burst cushion the same Wi-Fi had 3-10 % guessed frames and felt bad, which has to read as poor.
+const limits = { three: { rtt: 60, late: 30, guess: 1 }, two: { rtt: 150, late: 90, guess: 4 } };
 // Moving up a bar needs a clear margin below the limit.
 const margin = 0.8;
 const smoothing = 0.35;
