@@ -23,7 +23,7 @@ The GD build bundles Space Grotesk and removes external navigation links, Google
 ## Advertisements and matches
 
 - Initialize GD_OPTIONS before loading https://html5.api.gamedistribution.com/main.js. Queue early SDK events until the game is ready. Initial controls wait for SDK readiness, a load failure, or a bounded readiness timeout.
-- Request showAd directly from the user's CPU, CREATE, JOIN-submit, QUICK MATCH, or replay action. Never request ads from a server message, automatic matchmaking, or during a rally. GD controls ad frequency.
+- Request one initial ad on the first CPU, CREATE, JOIN-submit, or QUICK MATCH action per page visit. After that, request another ad only on a completed match's replay click and only when at least two minutes have elapsed since the previous request. Returning to the menu, changing mode, or creating/joining another room does not request additional ads. This is a request interval; GD still decides whether an ad is served. Never request ads from a server message, automatic matchmaking, or during a rally. Y8/GamePix retain their existing three-match/three-minute policy.
 - Pause CPU simulation and mute sound while a request is running. An actual advertisement returns to a CONTINUE screen before proceeding. Missing/blocked/failed SDK requests allow play to continue.
 - Prevent duplicate menu actions during an ad. Quick matchmaking disconnects before an ad and reconnects afterward so another player is not seated while this player watches an ad.
 - GD connections opt into a server rematch barrier. Each player clicks replay and completes their own break; the server starts the next three-second countdown only when both are ready. Round identifiers reject stale readiness. Other rooms retain their current one-click rematch.

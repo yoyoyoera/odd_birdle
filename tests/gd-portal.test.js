@@ -31,3 +31,32 @@ test('GD processes early events, releases initial controls, and has no outside i
   await portal.matchBreak();
   assert.equal(portal.isPaused(), false, 'SDK blocked: still playable');
 });
+
+test('GD requests one preroll then only finished-match replays at least two minutes apart', async t => {
+  let now = 10000;
+  let calls = 0;
+  t.mock.method(Date, 'now', () => now);
+  window.gdsdk = { showAd: async () => { calls++; } };
+
+  await portal.matchBreak();
+  assert.equal(calls, 1, 'missing SDK earlier did not consume the initial request');
+  await portal.matchBreak();
+  await portal.matchBreak({ rematch: true });
+  assert.equal(calls, 1, 'neither repeated entry nor immediate replay requests another ad');
+  now += 119999;
+  await portal.matchBreak({ rematch: true });
+  assert.equal(calls, 1, 'one millisecond before the boundary is too soon');
+  now++;
+  await portal.matchBreak();
+  assert.equal(calls, 1, 'mode changes and room entry do not request ads even after two minutes');
+  await portal.matchBreak({ rematch: true });
+  assert.equal(calls, 2, 'exactly two minutes and a replay click requests the next ad');
+  await portal.matchBreak({ rematch: true });
+  assert.equal(calls, 2, 'request resets the interval');
+  now += 120000;
+  delete window.gdsdk;
+  await portal.matchBreak({ rematch: true });
+  window.gdsdk = { showAd: async () => { calls++; } };
+  await portal.matchBreak({ rematch: true });
+  assert.equal(calls, 3, 'an unavailable SDK does not consume the next eligible break');
+});

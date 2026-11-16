@@ -125,14 +125,14 @@ let rematchStatus = '';
 let breakPending = false;
 
 // One menu action at a time: repeated taps must not start two games after the same ad.
-async function afterMatchBreak(action) {
+async function afterMatchBreak(action, options) {
   if (breakPending) return;
   breakPending = true;
   if (portal === 'gamedistribution') stage.inert = true;
   try {
     // Stop waiting for an opponent before an ad can take over a quick-match CPU game.
     if (portal === 'gamedistribution' && quick.on && mode === 'solo' && socket) leave('', true);
-    await matchBreak();
+    await matchBreak(options);
     action();
     if (portal === 'gamedistribution' && quick.on && mode === 'solo' && !socket) connect({ type: 'queue' }, 'quick');
   } finally {
@@ -1330,7 +1330,7 @@ gameControl.addEventListener('click', () => {
     if (mode === 'solo') solo.restart(3, selectedCpuLevel);
     else send({ type: 'restart', round: onlineRound });
   };
-  if (rematch) afterMatchBreak(restart);
+  if (rematch) afterMatchBreak(restart, { rematch: true });
   else restart();
 });
 resize();

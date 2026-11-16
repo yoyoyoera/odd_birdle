@@ -12,6 +12,7 @@ export const serverBase = portal ? siteUrl : new URL('./', location.href).href;
 
 let sdk;
 let gd;
+let gdPrerollRequested = false;
 let playing = false;
 
 // GamePix SDK v3 (portal 'gamepix'): pause/resume are required, the loading signals and the ads are optional.
@@ -28,6 +29,7 @@ const pauseListeners = [];
 const muteListeners = [];
 const adGapMs = 3 * 60 * 1000;
 const adEveryMatches = 3;
+const gdAdGapMs = 2 * 60 * 1000;
 
 function refreshPause() {
   const next = sdkPaused || focusPaused || adPaused;
@@ -77,8 +79,17 @@ export function matchEnded(won) {
 
 // Called before a new match begins. After a few finished matches, and not more than every few minutes, the
 // portal's ad runs here, between matches and never during one. Resolves when it is over (or at once if none).
-export async function matchBreak() {
-  if (portal === 'gamedistribution') return gd?.request();
+export async function matchBreak({ rematch = false } = {}) {
+  if (portal === 'gamedistribution') {
+    if (!gd || paused || typeof window.gdsdk?.showAd !== 'function') return;
+    // One initial request per page visit. Subsequent requests are allowed only on
+    // a finished match's Replay click, at least two minutes after the last request.
+    // Merely switching modes or making/joining another room must not request ads.
+    if (gdPrerollRequested && (!rematch || Date.now() - lastAd < gdAdGapMs)) return;
+    gdPrerollRequested = true;
+    lastAd = Date.now();
+    return gd.request();
+  }
   if (portal === 'y8') return y8Break();
   if (!gamepix || !ready || paused || matchesSinceAd < adEveryMatches || Date.now() - lastAd < adGapMs) return;
   matchesSinceAd = 0;
