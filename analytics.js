@@ -3,11 +3,33 @@ import { portal, serverBase } from './portal.js';
 
 const local = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
 
+// Your own devices stay out of the numbers: open the game once with ?me=1 on each (?me=0 turns it off again).
+// The choice lives only in that browser, and the tab title says when it is on.
+const meKey = 'oddbirdle-me';
+function readMe() {
+  try {
+    const setting = new URLSearchParams(location.search).get('me');
+    if (setting === '1') localStorage.setItem(meKey, '1');
+    else if (setting === '0') localStorage.removeItem(meKey);
+    return localStorage.getItem(meKey) === '1';
+  } catch {
+    return false;
+  }
+}
+export const mine = readMe();
+if (mine) {
+  try {
+    document.title += ' (stats off)';
+  } catch {
+    // No page title to change (tests).
+  }
+}
+
 // Fire-and-forget anonymous counts; failures never touch the game.
 export function track(name, details = {}) {
   const event = cleanEvent({ name, ...details });
   // GamePix builds make no connection but the match server, so nothing is counted there.
-  if (!event || local || portal === 'gamepix') return;
+  if (!event || local || mine || portal === 'gamepix') return;
   try {
     const body = JSON.stringify(event);
     const endpoint = serverBase + 'event';
