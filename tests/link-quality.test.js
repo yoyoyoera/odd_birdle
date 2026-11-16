@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { barsFor, cleanReport, createLinkQuality } from '../link-quality.js';
+import { barsFor, createLinkQuality } from '../link-quality.js';
 
 test('bars follow the round trip and lateness: 3 under 80 ms, 2 up to 180, 1 beyond or when packets run very late', () => {
   assert.equal(barsFor(40, 10), 3);
@@ -27,13 +27,5 @@ test('measurements are smoothed over a few seconds', () => {
   assert.equal(link.level, 2, 'one bad reading does not make it one bar');
   for (let t = 4000; t <= 12000; t += 2000) link.observe(300, 10, t);
   assert.equal(link.level, 1);
-  assert.deepEqual(link.report().level, 1);
-});
-
-test('an opponent report is only taken when it is a sensible bar count and round trip', () => {
-  assert.deepEqual(cleanReport({ type: 'peer-link', level: 2, rtt: 120.4 }), { level: 2, rtt: 120 });
-  assert.equal(cleanReport({ level: 4, rtt: 10 }), undefined);
-  assert.equal(cleanReport({ level: 2, rtt: -1 }), undefined);
-  assert.equal(cleanReport({ level: 2, rtt: 'fast' }), undefined);
-  assert.equal(cleanReport({ level: 2, rtt: 1e9 }), undefined);
+  assert.ok(link.rtt > 250 && link.rtt <= 300, "the shown round trip is the smoothed one");
 });

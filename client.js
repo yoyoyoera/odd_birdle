@@ -1,7 +1,7 @@
 import { center, clamp, createGame, floor, height, leftLine, netTop, racketRadius, rightLine, shuttleOutline, step, width, contactMotion, isSwing, projectStrike, forceAt, effectIds, shapeCount, shuttleSizeOptions, racketTouches, supportedShuttleY, swingMotion } from './game.js';
 import { makeStands, drawStands } from './stands.js';
 import { createCrowd } from './crowd.js';
-import { cleanReport, createLinkQuality } from './link-quality.js';
+import { createLinkQuality } from './link-quality.js';
 import { launchConfetti, confettiAt } from './confetti.js';
 import { createPlayback, followStrikeClock, legacyTuning } from './playback.js';
 import { createRacketSender } from './net-send.js';
@@ -181,7 +181,6 @@ function leave(message = '', stay = false) {
   socket = undefined;
   previous?.close();
   onlineView = undefined;
-  peerLink = undefined;
   playback.reset();
   resetPrediction();
   localRacket = undefined;
@@ -236,7 +235,6 @@ function connect(request, via = request.type === 'join' ? 'code' : 'create') {
         playback.reset();
         netMeter.begin();
         linkQuality.reset();
-        peerLink = undefined;
         resetPrediction();
         playback.push(message.time, message.state, performance.now());
         setMode('online');
@@ -260,11 +258,6 @@ function connect(request, via = request.type === 'join' ? 'code' : 'create') {
           if (debugNet) netDebug.rtts.push({ at: now, rtt: now - message.t });
         }
         break;
-      case 'peer-link': {
-        const report = cleanReport(message);
-        if (report) peerLink = { ...report, at: performance.now() };
-        break;
-      }
       case 'error':
         leave();
         setMode(join ? 'join' : 'menu', message.message);
@@ -590,44 +583,28 @@ function playJuice(events, time, side) {
   }
 }
 
-// Connection bars (online only), next to the YOU label at the top: yours, and the opponent's at their end.
+// Your connection as 1-3 bars beside the sound button (online only). A word shows only when it is poor,
+// or for a moment after a tap (the round trip in ms); hovering shows the same as a tooltip.
 const linkQuality = createLinkQuality();
 const forcedSignal = [1, 2, 3].includes(Number(testParams.get('signal'))) ? Number(testParams.get('signal')) : 0;
-let peerLink;
-let linkNumberUntil = { own: 0, peer: 0 };
-const linkViews = {
-  own: document.querySelector('#link-own'),
-  peer: document.querySelector('#link-peer')
-};
-const linkWords = ['', 'Poor', 'Fair', 'Good'];
+let linkNumberUntil = 0;
+const linkView = document.querySelector('#link-own');
 
-// Bars always; a word only when the connection is not good (or for a moment after a tap), so a good one stays quiet.
 function showLinkBars() {
-  const now = performance.now();
   const online = mode === 'online';
-  const peer = peerLink && now - peerLink.at < 15000 ? peerLink : undefined;
-  const own = linkQuality.known ? { level: linkQuality.level, rtt: linkQuality.rtt } : undefined;
-  for (const which of ['own', 'peer']) {
-    const view = linkViews[which];
-    const data = which === 'own' ? own : peer;
-    view.hidden = !online;
-    if (!online) continue;
-    const side = which === 'own' ? localSide : localSide === 'left' ? 'right' : 'left';
-    const level = String(data?.level ?? '');
-    let text = '';
-    if (data && now < linkNumberUntil[which]) text = data.rtt + ' ms';
-    else if (data && data.level < 3) text = (which === 'peer' ? 'Opponent: ' : '') + linkWords[data.level];
-    if (view.dataset.side !== side) view.dataset.side = side;
-    if (view.dataset.level !== level) view.dataset.level = level;
-    const word = view.querySelector('b');
-    if (word.textContent !== text) word.textContent = text;
-    view.title = data ? data.rtt + ' ms' : '';
-  }
+  linkView.hidden = !online;
+  if (!online) return;
+  const known = linkQuality.known;
+  const level = known ? String(linkQuality.level) : '';
+  let text = '';
+  if (known && performance.now() < linkNumberUntil) text = linkQuality.rtt + ' ms';
+  else if (known && linkQuality.level === 1) text = 'Poor';
+  if (linkView.dataset.level !== level) linkView.dataset.level = level;
+  const word = linkView.querySelector('b');
+  if (word.textContent !== text) word.textContent = text;
+  linkView.title = known ? linkQuality.rtt + ' ms' : '';
 }
-// Tapping the bars shows the round trip in ms for a moment (hovering shows it as a tooltip).
-for (const which of ['own', 'peer']) {
-  linkViews[which].addEventListener('pointerdown', () => { linkNumberUntil[which] = performance.now() + 2500; });
-}
+linkView.addEventListener('pointerdown', () => { linkNumberUntil = performance.now() + 2500; });
 
 let stands;
 let standsScore = -1;
@@ -960,14 +937,10 @@ if (testEffects) {
 
 // While playing online: measure the round trip (a tiny ping the server echoes) and note how late
 // packets are running. Every 2 seconds, or every second with the readout on.
-let linkTick = 0;
 setInterval(() => {
   if (mode !== 'online' || socket?.readyState !== WebSocket.OPEN) return;
   send({ type: 'ping', t: performance.now() });
   netMeter.late(playback.stats.jitterP95);
-  // Every other time, tell the opponent how the connection is (bars and a round trip, nothing else).
-  const report = ++linkTick % 2 === 0 ? linkQuality.report() : undefined;
-  if (report) send({ type: 'link', ...report });
 }, debugNet ? 1000 : 2000);
 
 // ?debug=net: a small readout of how the connection is doing, for checking on a phone.

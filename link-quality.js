@@ -34,16 +34,6 @@ export function createLinkQuality() {
     },
     get known() { return rtt !== undefined; },
     get level() { return level; },
-    get rtt() { return rtt === undefined ? undefined : Math.round(rtt); },
-    // What the opponent is told: a bar count and a round trip, nothing else.
-    report() { return rtt === undefined ? undefined : { level, rtt: Math.min(9999, Math.round(rtt)) }; }
+    get rtt() { return rtt === undefined ? undefined : Math.round(rtt); }
   };
-}
-
-// What came in from the opponent, cleaned up (or undefined when it is not a sensible report).
-export function cleanReport(message) {
-  const level = message?.level;
-  const roundTrip = message?.rtt;
-  if (![1, 2, 3].includes(level) || !Number.isFinite(roundTrip) || roundTrip < 0 || roundTrip > 9999) return undefined;
-  return { level, rtt: Math.round(roundTrip) };
 }
