@@ -254,8 +254,8 @@ function connect(request, via = request.type === 'join' ? 'code' : 'create') {
         if (Number.isFinite(message.t)) {
           const now = performance.now();
           netMeter.rtt(now - message.t);
-          // ?signal=1|2|3 pretends the connection is that bad, to look at what the bars do.
-          const pretend = forcedSignal ? [[40, 10], [120, 80], [320, 200]][forcedSignal - 1] : undefined;
+          // ?signal=1|2|3 pretends the connection has that many bars (1 = bad), to look at what the bars do.
+          const pretend = forcedSignal ? [[320, 200], [120, 80], [40, 10]][forcedSignal - 1] : undefined;
           linkQuality.observe(pretend?.[0] ?? now - message.t, pretend?.[1] ?? playback.stats.jitterP95, now);
           if (debugNet) netDebug.rtts.push({ at: now, rtt: now - message.t });
         }
