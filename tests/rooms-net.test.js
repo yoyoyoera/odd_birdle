@@ -30,3 +30,25 @@ test('the server echoes a ping so a client can measure its round trip', () => {
 test('the lag window covers a phone on mobile data (buffer up to 250ms plus the trip)', () => {
   assert.ok(lagWindowMs >= 500);
 });
+
+test('each player is told the other one\'s connection report, and only sensible ones, not too often', () => {
+  const rooms = createRooms(limit => limit - 1);
+  const a = new FakePeer();
+  const b = new FakePeer();
+  rooms.attach(a);
+  rooms.attach(b);
+  a.say({ type: 'create' });
+  const code = a.sent.find(message => message.code)?.code;
+  b.say({ type: 'join', code });
+  a.sent.length = 0;
+  b.sent.length = 0;
+  a.say({ type: 'link', level: 2, rtt: 130 });
+  assert.deepEqual(b.sent.filter(message => message.type === 'peer-link'), [{ type: 'peer-link', level: 2, rtt: 130 }]);
+  assert.equal(a.sent.filter(message => message.type === 'peer-link').length, 0, 'not echoed back');
+  a.say({ type: 'link', level: 1, rtt: 400 });
+  assert.equal(b.sent.filter(message => message.type === 'peer-link').length, 1, 'a second one right away is dropped');
+  b.say({ type: 'link', level: 9, rtt: 5 });
+  assert.equal(a.sent.filter(message => message.type === 'peer-link').length, 0, 'nonsense is ignored');
+  a.close();
+  b.close();
+});

@@ -1,4 +1,5 @@
 import { createGame, step } from './game.js';
+import { cleanReport } from './link-quality.js';
 
 // Quick match: at most this many players wait at once.
 const maxQueue = 200;
@@ -127,6 +128,7 @@ export function createRooms(randomIndex) {
     });
     let windowStart = performance.now();
     let messages = 0;
+    let lastLink = -Infinity;
     peer.addEventListener('close', () => {
       dequeue(peer);
       states.delete(peer);
@@ -160,6 +162,15 @@ export function createRooms(randomIndex) {
       }
 
       if (room?.game) {
+        // Each player tells the other how good their connection is (1-3 bars and a round trip), nothing else.
+        if (message.type === 'link') {
+          const report = cleanReport(message);
+          if (report && now - lastLink >= 1500) {
+            lastLink = now;
+            send(side === 'left' ? room.right : room.left, { type: 'peer-link', ...report });
+          }
+          return;
+        }
         const previousStrike = room.game.view().strike?.flight;
         if (message.type === 'restart' && room.game.view().phase === 'finished') start(room);
         if (message.type === 'racket') {

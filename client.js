@@ -1,6 +1,7 @@
 import { center, clamp, createGame, floor, height, leftLine, netTop, racketRadius, rightLine, shuttleOutline, step, width, contactMotion, isSwing, projectStrike, forceAt, effectIds, shapeCount, shuttleSizeOptions, racketTouches, supportedShuttleY, swingMotion } from './game.js';
 import { makeStands, drawStands } from './stands.js';
 import { createCrowd } from './crowd.js';
+import { cleanReport, createLinkQuality } from './link-quality.js';
 import { launchConfetti, confettiAt } from './confetti.js';
 import { createPlayback, followStrikeClock, legacyTuning } from './playback.js';
 import { createRacketSender } from './net-send.js';
@@ -180,6 +181,7 @@ function leave(message = '', stay = false) {
   socket = undefined;
   previous?.close();
   onlineView = undefined;
+  peerLink = undefined;
   playback.reset();
   resetPrediction();
   localRacket = undefined;
@@ -233,6 +235,8 @@ function connect(request, via = request.type === 'join' ? 'code' : 'create') {
         onlineView = message.state;
         playback.reset();
         netMeter.begin();
+        linkQuality.reset();
+        peerLink = undefined;
         resetPrediction();
         playback.push(message.time, message.state, performance.now());
         setMode('online');
@@ -250,9 +254,17 @@ function connect(request, via = request.type === 'join' ? 'code' : 'create') {
         if (Number.isFinite(message.t)) {
           const now = performance.now();
           netMeter.rtt(now - message.t);
+          // ?signal=1|2|3 pretends the connection is that bad, to look at what the bars do.
+          const pretend = forcedSignal ? [[40, 10], [120, 80], [320, 200]][forcedSignal - 1] : undefined;
+          linkQuality.observe(pretend?.[0] ?? now - message.t, pretend?.[1] ?? playback.stats.jitterP95, now);
           if (debugNet) netDebug.rtts.push({ at: now, rtt: now - message.t });
         }
         break;
+      case 'peer-link': {
+        const report = cleanReport(message);
+        if (report) peerLink = { ...report, at: performance.now() };
+        break;
+      }
       case 'error':
         leave();
         setMode(join ? 'join' : 'menu', message.message);
@@ -514,6 +526,7 @@ function draw(view, scenery = false) {
     }
   }
   ctx.restore();
+  if (mode === 'online' && !scenery) drawLinkBars();
   if (view.shake && !reduceMotion.matches) {
     const veil = shockFlicker(view.shake);
     for (const [color, alpha] of [['#0b1410', veil.dark], ['#ffffff', veil.light]]) {
@@ -577,6 +590,69 @@ function playJuice(events, time, side) {
     }
   }
 }
+
+// Connection bars, bottom corners of the court: yours on your side, the opponent's on theirs.
+const linkQuality = createLinkQuality();
+const forcedSignal = [1, 2, 3].includes(Number(testParams.get('signal'))) ? Number(testParams.get('signal')) : 0;
+let peerLink;
+let linkNumberUntil = { own: 0, peer: 0 };
+let linkHover;
+const barsWidth = 24;
+const barsBase = 486;
+
+function barsX(which) {
+  const left = (which === 'own') === (localSide === 'left');
+  return left ? 24 : width - 24 - barsWidth;
+}
+
+function drawBars(x, level, label, alignRight) {
+  ctx.fillStyle = palette.ink;
+  [7, 12, 17].forEach((barHeight, index) => {
+    ctx.globalAlpha = level !== undefined && index < level ? 0.9 : 0.18;
+    ctx.fillRect(x + index * 9, barsBase - barHeight, 6, barHeight);
+  });
+  if (!label) return;
+  ctx.globalAlpha = 0.85;
+  ctx.font = '650 13px "Space Grotesk", system-ui, sans-serif';
+  ctx.textBaseline = 'alphabetic';
+  ctx.textAlign = alignRight ? 'right' : 'left';
+  ctx.fillText(label, alignRight ? x - 8 : x + barsWidth + 8, barsBase - 1);
+}
+
+function drawLinkBars() {
+  const now = performance.now();
+  const peer = peerLink && now - peerLink.at < 15000 ? peerLink : undefined;
+  ctx.save();
+  for (const which of ['own', 'peer']) {
+    const data = which === 'own' ? (linkQuality.known ? { level: linkQuality.level, rtt: linkQuality.rtt } : undefined) : peer;
+    const x = barsX(which);
+    const alignRight = x > width / 2;
+    let label = '';
+    if (data && (linkHover === which || now < linkNumberUntil[which])) label = data.rtt + ' ms';
+    else if (which === 'own' && linkQuality.notice(now)) label = 'Unstable connection';
+    drawBars(x, data?.level, label, alignRight);
+  }
+  ctx.restore();
+}
+
+// Hover (mouse) or tap on the bars shows the round trip in ms for a moment.
+function barsUnder(event) {
+  const bounds = court.getBoundingClientRect();
+  const x = (event.clientX - bounds.left) * width / bounds.width;
+  const y = (event.clientY - bounds.top) * height / bounds.height;
+  if (y < barsBase - 26 || y > barsBase + 8) return undefined;
+  for (const which of ['own', 'peer']) {
+    const at = barsX(which);
+    if (x >= at - 8 && x <= at + barsWidth + 8) return which;
+  }
+  return undefined;
+}
+court.addEventListener('pointermove', event => { linkHover = event.pointerType === 'mouse' ? barsUnder(event) : undefined; });
+court.addEventListener('pointerleave', () => { linkHover = undefined; });
+court.addEventListener('pointerdown', event => {
+  const which = barsUnder(event);
+  if (which) linkNumberUntil[which] = performance.now() + 2500;
+});
 
 let stands;
 let standsScore = -1;
@@ -908,10 +984,14 @@ if (testEffects) {
 
 // While playing online: measure the round trip (a tiny ping the server echoes) and note how late
 // packets are running. Every 2 seconds, or every second with the readout on.
+let linkTick = 0;
 setInterval(() => {
   if (mode !== 'online' || socket?.readyState !== WebSocket.OPEN) return;
   send({ type: 'ping', t: performance.now() });
   netMeter.late(playback.stats.jitterP95);
+  // Every other time, tell the opponent how the connection is (bars and a round trip, nothing else).
+  const report = ++linkTick % 2 === 0 ? linkQuality.report() : undefined;
+  if (report) send({ type: 'link', ...report });
 }, debugNet ? 1000 : 2000);
 
 // ?debug=net: a small readout of how the connection is doing, for checking on a phone.
