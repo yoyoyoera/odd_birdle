@@ -110,13 +110,23 @@ async function y8Break() {
   matchesSinceAd = 0;
   lastAd = Date.now();
   await new Promise(resolve => {
-    const finish = () => { clearTimeout(giveUp); adPaused = false; refreshPause(); resolve(); };
-    const giveUp = setTimeout(finish, 20000);
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(giveUp);
+      adPaused = false;
+      refreshPause();
+      resolve();
+    };
+    // Recover if a break never starts. Once an ad starts, only the SDK's end
+    // callback may release readiness: a long ad must not start an online rematch.
+    const giveUp = setTimeout(() => { if (!adPaused) finish(); }, 20000);
     try {
       Promise.resolve(sdk.showAd({
         type: 'next', name: 'match-end',
-        beforeAd: () => { adPaused = true; refreshPause(); },
-        afterAd: () => { adPaused = false; refreshPause(); },
+        beforeAd: () => { clearTimeout(giveUp); adPaused = true; refreshPause(); },
+        afterAd: finish,
         adBreakDone: finish
       })).catch(finish);
     } catch {

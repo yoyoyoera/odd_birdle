@@ -101,3 +101,27 @@ test('invites are just the room code and nothing is counted', () => {
   assert.deepEqual(sent, []);
   assert.equal(portal.closedPortal, true);
 });
+
+test('an ad longer than twenty seconds cannot release rematch readiness early', async t => {
+  t.mock.method(Date, 'now', () => 9999999999999);
+  let timer;
+  let cancelled = false;
+  t.mock.method(globalThis, 'setTimeout', fn => { timer = fn; return 123; });
+  t.mock.method(globalThis, 'clearTimeout', id => { if (id === 123) cancelled = true; });
+  let options;
+  window.y8Sdk = { showAd(value) { options = value; value.beforeAd(); return Promise.resolve(); } };
+  portal.matchEnded(true); portal.matchEnded(true); portal.matchEnded(true);
+  let ready = false;
+  const waiting = portal.matchBreak().then(() => { ready = true; });
+  assert.ok(cancelled, 'the no-start timer is cancelled once the ad starts');
+  timer(); // Even a timer callback already queued before cancellation must be harmless.
+  await Promise.resolve();
+  assert.equal(ready, false);
+  assert.equal(portal.isPaused(), true);
+  options.afterAd(); // Some SDKs report afterAd without a separate adBreakDone.
+  await waiting;
+  assert.equal(ready, true);
+  assert.equal(portal.isPaused(), false);
+  options.adBreakDone();
+  assert.equal(portal.isPaused(), false);
+});
