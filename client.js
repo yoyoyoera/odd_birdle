@@ -583,8 +583,8 @@ function playJuice(events, time, side) {
   }
 }
 
-// Your connection as 1-3 bars beside the sound button (online only). A word shows only when it is poor,
-// or for a moment after a tap (the round trip in ms); hovering shows the same as a tooltip.
+// Your connection as 1-3 bars and a word (Good / Fair / Poor) beside the sound button (online only). A tap shows
+// the round trip in ms for a moment; hovering shows it as a tooltip.
 const linkQuality = createLinkQuality();
 const forcedSignal = [1, 2, 3].includes(Number(testParams.get('signal'))) ? Number(testParams.get('signal')) : 0;
 let linkNumberUntil = 0;
@@ -598,7 +598,7 @@ function showLinkBars() {
   const level = known ? String(linkQuality.level) : '';
   let text = '';
   if (known && performance.now() < linkNumberUntil) text = linkQuality.rtt + ' ms';
-  else if (known && linkQuality.level === 1) text = 'Poor';
+  else if (known) text = ['', 'Poor', 'Fair', 'Good'][linkQuality.level];
   if (linkView.dataset.level !== level) linkView.dataset.level = level;
   const word = linkView.querySelector('b');
   if (word.textContent !== text) word.textContent = text;
