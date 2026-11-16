@@ -82,6 +82,10 @@ test('only our site and the portals are allowed, by source', () => {
   assert.equal(originSource('https://html-classic.itch.zone'), 'itch');
   // Newgrounds: the one host that serves uploaded games, over https only.
   assert.equal(originSource('https://uploads.ungrounded.net'), 'newgrounds');
+  assert.equal(originSource('https://item-cdn.y8.com'), 'y8');
+  assert.equal(originSource('https://evil.item-cdn.y8.com'), undefined, 'only that one host');
+  assert.equal(originSource('https://www.y8.com'), undefined);
+  assert.equal(originSource('http://item-cdn.y8.com'), undefined, 'not over plain http');
   assert.equal(originSource('http://uploads.ungrounded.net'), undefined);
   assert.equal(originSource('https://ungrounded.net'), undefined);
   assert.equal(originSource('https://evil.ungrounded.net'), undefined);
@@ -115,8 +119,8 @@ test('stats split visits by source and list refused hosts', async () => {
     { name: 'game_start', mode: 'cpu', level: 'random', source: 'itch', n: '2' },
     { name: 'origin_rejected', mode: 'games.example.com', n: '4' }
   ]);
-  assert.match(text, /출처별 방문: site 3 · crazygames 5 · itch 0 · newgrounds 0/);
-  assert.match(text, /출처별 게임 시작: site 0 · crazygames 0 · itch 2 · newgrounds 0/);
+  assert.match(text, /출처별 방문: site 3 · crazygames 5 · itch 0 · newgrounds 0 · y8 0/);
+  assert.match(text, /출처별 게임 시작: site 0 · crazygames 0 · itch 2 · newgrounds 0 · y8 0/);
   assert.match(text, /거절된 출처: games.example.com 4/);
 });
 

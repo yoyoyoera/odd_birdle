@@ -20,5 +20,7 @@ export function originSource(origin) {
   if (within('crazygames.com')) return 'crazygames';
   if (within('itch.zone') || within('itch.io')) return 'itch';
   if (host === 'uploads.ungrounded.net') return 'newgrounds';
+  // Y8 serves uploaded games from its item CDN (seen in the server log when a test build tried to connect): that one host.
+  if (host === 'item-cdn.y8.com') return 'y8';
   return undefined;
 }
