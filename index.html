@@ -57,6 +57,17 @@
       color: var(--ink); font-size: clamp(.65rem, 1.7vw, .875rem); font-weight: 650;
       letter-spacing: .08em; pointer-events: none; }
     #side-label[data-side="right"], #cpu-label { left: 75%; }
+    /* Connection bars (online only): thin bars next to the YOU label, and the opponent's at their end. */
+    .link { position: absolute; top: 5%; display: flex; align-items: flex-end; gap: 2px; color: var(--ink);
+      font-size: clamp(.65rem, 1.7vw, .875rem); font-weight: 650; letter-spacing: .08em; line-height: 1; cursor: default; }
+    .link i { width: 3px; background: currentColor; opacity: .18; }
+    .link i:nth-child(1) { height: .55em; } .link i:nth-child(2) { height: .8em; } .link i:nth-child(3) { height: 1.05em; }
+    .link[data-level="1"] i:nth-child(1), .link[data-level="2"] i:nth-child(-n+2), .link[data-level="3"] i { opacity: .85; }
+    .link b { margin-left: .7em; font-weight: 650; opacity: .8; white-space: nowrap; }
+    #link-own { left: calc(25% + 1.9em); }
+    #link-own[data-side="right"] { left: calc(75% + 1.9em); }
+    #link-peer { left: calc(75% - .9em); }
+    #link-peer[data-side="left"] { left: calc(25% - .9em); }
     #winner { position: absolute; bottom: calc(50% + clamp(1rem, 5vw, 2.25rem)); left: 50%;
       transform: translateX(-50%); margin: 0; color: var(--ink);
       font-size: clamp(1rem, 3.8vw, 1.75rem); font-weight: 650; white-space: nowrap; pointer-events: none; }
@@ -121,6 +132,8 @@
     <output id="score" aria-label="Left and right scores" hidden>0:0</output>
     <span id="side-label" hidden>YOU</span>
     <span id="cpu-label" hidden></span>
+    <div id="link-own" class="link" hidden><i></i><i></i><i></i><b></b></div>
+    <div id="link-peer" class="link" hidden><i></i><i></i><i></i><b></b></div>
     <p id="winner" role="status" hidden></p>
     <p id="record" hidden></p>
     <span id="status" class="sr-only" role="status"></span>

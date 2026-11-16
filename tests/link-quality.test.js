@@ -30,23 +30,6 @@ test('measurements are smoothed over a few seconds', () => {
   assert.deepEqual(link.report().level, 1);
 });
 
-test('"Unstable connection" shows briefly when the link drops to one bar, and not again for a while', () => {
-  const link = createLinkQuality();
-  link.observe(40, 10, 0);
-  for (let t = 2000; t <= 12000; t += 2000) link.observe(400, 10, t);
-  assert.equal(link.level, 1);
-  assert.equal(link.notice(4000), true);
-  assert.equal(link.notice(4000 + 3600), false, 'it goes away again');
-  // Recovering and dropping again right away does not bring the message back at once.
-  for (let t = 14000; t <= 34000; t += 2000) link.observe(30, 5, t);
-  assert.equal(link.level, 3);
-  link.observe(900, 300, 36000);
-  link.observe(900, 300, 38000);
-  link.observe(900, 300, 40000);
-  assert.equal(link.level, 1);
-  assert.equal(link.notice(40100), false, 'too soon after the last one');
-});
-
 test('an opponent report is only taken when it is a sensible bar count and round trip', () => {
   assert.deepEqual(cleanReport({ type: 'peer-link', level: 2, rtt: 120.4 }), { level: 2, rtt: 120 });
   assert.equal(cleanReport({ level: 4, rtt: 10 }), undefined);

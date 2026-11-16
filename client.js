@@ -526,7 +526,6 @@ function draw(view, scenery = false) {
     }
   }
   ctx.restore();
-  if (mode === 'online' && !scenery) drawLinkBars();
   if (view.shake && !reduceMotion.matches) {
     const veil = shockFlicker(view.shake);
     for (const [color, alpha] of [['#0b1410', veil.dark], ['#ffffff', veil.light]]) {
@@ -591,68 +590,44 @@ function playJuice(events, time, side) {
   }
 }
 
-// Connection bars, bottom corners of the court: yours on your side, the opponent's on theirs.
+// Connection bars (online only), next to the YOU label at the top: yours, and the opponent's at their end.
 const linkQuality = createLinkQuality();
 const forcedSignal = [1, 2, 3].includes(Number(testParams.get('signal'))) ? Number(testParams.get('signal')) : 0;
 let peerLink;
 let linkNumberUntil = { own: 0, peer: 0 };
-let linkHover;
-const barsWidth = 24;
-const barsBase = 486;
+const linkViews = {
+  own: document.querySelector('#link-own'),
+  peer: document.querySelector('#link-peer')
+};
+const linkWords = ['', 'Poor', 'Fair', 'Good'];
 
-function barsX(which) {
-  const left = (which === 'own') === (localSide === 'left');
-  return left ? 24 : width - 24 - barsWidth;
-}
-
-function drawBars(x, level, label, alignRight) {
-  ctx.fillStyle = palette.ink;
-  [7, 12, 17].forEach((barHeight, index) => {
-    ctx.globalAlpha = level !== undefined && index < level ? 0.9 : 0.18;
-    ctx.fillRect(x + index * 9, barsBase - barHeight, 6, barHeight);
-  });
-  if (!label) return;
-  ctx.globalAlpha = 0.85;
-  ctx.font = '650 13px "Space Grotesk", system-ui, sans-serif';
-  ctx.textBaseline = 'alphabetic';
-  ctx.textAlign = alignRight ? 'right' : 'left';
-  ctx.fillText(label, alignRight ? x - 8 : x + barsWidth + 8, barsBase - 1);
-}
-
-function drawLinkBars() {
+// Bars always; a word only when the connection is not good (or for a moment after a tap), so a good one stays quiet.
+function showLinkBars() {
   const now = performance.now();
+  const online = mode === 'online';
   const peer = peerLink && now - peerLink.at < 15000 ? peerLink : undefined;
-  ctx.save();
+  const own = linkQuality.known ? { level: linkQuality.level, rtt: linkQuality.rtt } : undefined;
   for (const which of ['own', 'peer']) {
-    const data = which === 'own' ? (linkQuality.known ? { level: linkQuality.level, rtt: linkQuality.rtt } : undefined) : peer;
-    const x = barsX(which);
-    const alignRight = x > width / 2;
-    let label = '';
-    if (data && (linkHover === which || now < linkNumberUntil[which])) label = data.rtt + ' ms';
-    else if (which === 'own' && linkQuality.notice(now)) label = 'Unstable connection';
-    drawBars(x, data?.level, label, alignRight);
+    const view = linkViews[which];
+    const data = which === 'own' ? own : peer;
+    view.hidden = !online;
+    if (!online) continue;
+    const side = which === 'own' ? localSide : localSide === 'left' ? 'right' : 'left';
+    const level = String(data?.level ?? '');
+    let text = '';
+    if (data && now < linkNumberUntil[which]) text = data.rtt + ' ms';
+    else if (data && data.level < 3) text = (which === 'peer' ? 'Opponent: ' : '') + linkWords[data.level];
+    if (view.dataset.side !== side) view.dataset.side = side;
+    if (view.dataset.level !== level) view.dataset.level = level;
+    const word = view.querySelector('b');
+    if (word.textContent !== text) word.textContent = text;
+    view.title = data ? data.rtt + ' ms' : '';
   }
-  ctx.restore();
 }
-
-// Hover (mouse) or tap on the bars shows the round trip in ms for a moment.
-function barsUnder(event) {
-  const bounds = court.getBoundingClientRect();
-  const x = (event.clientX - bounds.left) * width / bounds.width;
-  const y = (event.clientY - bounds.top) * height / bounds.height;
-  if (y < barsBase - 26 || y > barsBase + 8) return undefined;
-  for (const which of ['own', 'peer']) {
-    const at = barsX(which);
-    if (x >= at - 8 && x <= at + barsWidth + 8) return which;
-  }
-  return undefined;
+// Tapping the bars shows the round trip in ms for a moment (hovering shows it as a tooltip).
+for (const which of ['own', 'peer']) {
+  linkViews[which].addEventListener('pointerdown', () => { linkNumberUntil[which] = performance.now() + 2500; });
 }
-court.addEventListener('pointermove', event => { linkHover = event.pointerType === 'mouse' ? barsUnder(event) : undefined; });
-court.addEventListener('pointerleave', () => { linkHover = undefined; });
-court.addEventListener('pointerdown', event => {
-  const which = barsUnder(event);
-  if (which) linkNumberUntil[which] = performance.now() + 2500;
-});
 
 let stands;
 let standsScore = -1;
@@ -806,6 +781,7 @@ function frame(time) {
   // Effect names from the demo show on the plain menus, not over codes or messages.
   const demoBanner = demoView && mode === 'menu' && !lobbyMessage.textContent;
   updateHud(demoBanner ? { ...view, eventText: demoView.eventText, eventWind: demoView.eventWind } : view);
+  showLinkBars();
   let drawing = mode === 'online' ? predictedView(view, time) : view;
   if (mode === 'solo' || mode === 'online') {
     for (const cue of soundCues.cues(drawing, time, mode === 'solo' ? 'left' : localSide)) sound.play(cue);
