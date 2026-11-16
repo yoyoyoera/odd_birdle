@@ -1,6 +1,6 @@
 # GameDistribution preparation
 
-Status: local implementation only. No GD upload, activation request, live-site deployment, or matchmaker deployment has been made. The external-server and native-release questions have been emailed to GD; their reply is pending.
+Status: the user uploaded the GD ZIP. The shared matchmaker has now been deployed as version f32f6894-9ada-4b9d-a2a8-d2dcf3742f3e. No activation request has been made by this assistant. GD external-server and native-release answers are still pending.
 
 Base: GitHub main afed214 (2026-11-16). The supplied Y8 archive's 21 source/font files match this revision.
 
@@ -88,4 +88,10 @@ Outstanding: GD response, actual SDK/ad integration checks, dedicated preview de
 
 The supplied Y8 ZIP awaits matchBreak() before sending its legacy `{ type: "restart" }` message. The Worker now derives a mandatory rematch barrier from the request Origin (Y8 or GD), independently of client flags. Code-room hosts and guests, including mixed old website/itch and Y8 peers, wait until both restart requests arrive. Old clients do not display the new waiting message but keep their existing replay button; they can still signal readiness. Website/itch-only rooms retain one-click restarts. This is server-only: no Y8 resubmission is needed for this fix. Real cross-portal validation remains pending deployment. All 126 automated tests pass.
 
-Deployment is still blocked in this assistant environment by the network policy blocking Cloudflare OAuth. No live server update has been made. The user can deploy the prepared Worker from their own terminal with `npx wrangler deploy -c wrangler.worker.toml` after local login.
+Cloudflare authentication was rechecked and is now valid. Shared Worker oddbridge-matchmaker was deployed successfully as f32f6894-9ada-4b9d-a2a8-d2dcf3742f3e. Previous rollback version: 219aa7d1-a941-4619-8c41-7dd803859af3. Website, Y8, itch, GD revision and GD live Origins all passed real public WebSocket room creation. Public website/Y8 and website/GD rematch verification is in progress; record its final results below.
+
+## Cross-portal integration checks
+
+127 automated tests pass, including real local WebSocket transport across all 16 ordered website/Y8/itch/GD pairs. Each pairing ran an initial match plus two rematches, alternating the player who clicks first. Simulated time accelerates gameplay in this local test; it does not emulate an actual portal advertisement. The test verifies request readiness and server countdowns, not third-party SDK behavior.
+
+Important: an unchanged legacy portal does not display the new waiting message. Players must both press the existing replay icon. The server cannot independently observe a third-party ad ending; it trusts the portal client to send restart only after its own break completes. Actual SDK ad playback still needs a browser check. The submitted Y8 client has a 20-second fallback timer; if Y8 serves an ad longer than that, its client may report readiness early. That separate legacy-client timer behavior is not resolved by a server readiness barrier.
