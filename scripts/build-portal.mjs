@@ -12,6 +12,7 @@ if (!['crazygames', 'itch', 'newgrounds', 'gamepix', 'y8', 'gamedistribution'].i
   process.exit(1);
 }
 const gdPreview = name === 'gamedistribution' && process.argv.includes('--preview');
+const diagnostics = name === 'gamedistribution' && process.argv.includes('--diagnostics');
 const gameId = process.env.GD_GAME_ID ?? '';
 if (name === 'gamedistribution' && !gdPreview && !/^[a-f0-9]{32}$/i.test(gameId)) {
   throw new Error('Set GD_GAME_ID to the game ID from your GD dashboard, or use --preview for a local build without ads.');
@@ -28,6 +29,7 @@ cpSync(new URL('dist/', root), out, { recursive: true, filter: source => !/fonts
 const indexUrl = new URL('index.html', out);
 let html = readFileSync(indexUrl, 'utf8');
 html = html.replace('<html lang="en">', `<html lang="en" data-portal="${name}">`);
+if (diagnostics) html = html.replace('data-portal="gamedistribution"', 'data-portal="gamedistribution" data-gd-diagnostics="true"');
 if (name === 'crazygames') {
   // SDK v3 must load before the game code.
   html = html.replace('<link rel="stylesheet"', '<script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>\n  <link rel="stylesheet"');
@@ -107,7 +109,7 @@ if (ownFont.includes(name)) {
 if (!html.includes(`data-portal="${name}"`)) throw new Error('Could not mark index.html for the portal.');
 writeFileSync(indexUrl, html);
 
-const zip = new URL(`portal/oddbirdle-${name}${gdPreview ? "-preview" : ""}.zip`, root).pathname;
+const zip = new URL(`portal/oddbirdle-${name}${gdPreview ? "-preview" : ""}${diagnostics ? "-diagnostics" : ""}.zip`, root).pathname;
 rmSync(zip, { force: true });
 execFileSync('zip', ['-qr', zip, '.'], { cwd: out.pathname });
 console.log('wrote', zip);

@@ -2,6 +2,7 @@ import { center, clamp, createGame, floor, height, leftLine, netTop, racketRadiu
 import { makeStands, drawStands } from './stands.js';
 import { createCrowd } from './crowd.js';
 import { createLinkQuality } from './link-quality.js';
+import { createFrameMeter } from './frame-meter.js';
 import { launchConfetti, confettiAt } from './confetti.js';
 import { createPlayback, followStrikeClock, legacyTuning } from './playback.js';
 import { createRacketSender } from './net-send.js';
@@ -22,6 +23,18 @@ import {
 
 const court = document.querySelector('#court');
 const ctx = court.getContext('2d');
+// A separate diagnostics ZIP enables this; release builds show no diagnostic UI.
+const frameDiagnostics = document.documentElement.dataset.gdDiagnostics === 'true';
+const frameMeter = frameDiagnostics ? createFrameMeter() : undefined;
+let frameReport;
+let lastFrameReport = 0;
+if (frameDiagnostics) {
+  frameReport = document.createElement('output');
+  frameReport.style.cssText = 'position:fixed;top:4px;left:4px;z-index:9999;padding:5px 8px;white-space:pre;background:#182223e8;color:#e8ebd6;font:650 12px "Space Grotesk",sans-serif;pointer-events:none';
+  frameReport.textContent = 'Measuring FPS…';
+  document.body.append(frameReport);
+  document.addEventListener('visibilitychange', () => frameMeter.reset());
+}
 const stage = document.querySelector('#stage');
 const scoreboard = document.querySelector('#score');
 const sideLabel = document.querySelector('#side-label');
@@ -758,6 +771,7 @@ function drawShuttle({ flash, phase, shuttle, frozen }, alpha = 1) {
 }
 
 function frame(time) {
+  const workStart = frameMeter ? performance.now() : 0;
   if (debugNet) netDebug.frames.push(time);
   if (mode === 'online') netMeter.frame(time);
   const scenery = demoShowing();
@@ -825,6 +839,17 @@ function frame(time) {
   }
   if (scenery) draw(demoView, true);
   else draw(drawing);
+  if (frameMeter) {
+    if (gamePaused || document.hidden) frameMeter.reset();
+    else frameMeter.record(time, performance.now() - workStart);
+    if (time - lastFrameReport > 500) {
+      lastFrameReport = time;
+      const s = frameMeter.summary();
+      frameReport.textContent = s
+        ? `${s.fps.toFixed(0)} FPS | JS p95 ${s.workP95.toFixed(1)} ms | frame p95 ${s.gapP95.toFixed(1)} ms\n${window.top === window ? 'direct' : 'iframe'} | ${mode} | canvas ${court.width}×${court.height} | DPR ${devicePixelRatio}`
+        : 'Measuring FPS…';
+    }
+  }
   requestAnimationFrame(frame);
 }
 
