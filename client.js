@@ -235,6 +235,7 @@ function connect(request, via = request.type === 'join' ? 'code' : 'create') {
         playback.reset();
         netMeter.begin();
         linkQuality.reset();
+        linkFrames = { frames: 0, starved: 0 };
         resetPrediction();
         playback.push(message.time, message.state, performance.now());
         setMode('online');
@@ -253,8 +254,12 @@ function connect(request, via = request.type === 'join' ? 'code' : 'create') {
           const now = performance.now();
           netMeter.rtt(now - message.t);
           // ?signal=1|2|3 pretends the connection has that many bars (1 = bad), to look at what the bars do.
-          const pretend = forcedSignal ? [[320, 200], [120, 80], [40, 10]][forcedSignal - 1] : undefined;
-          linkQuality.observe(pretend?.[0] ?? now - message.t, pretend?.[1] ?? playback.stats.jitterP95, now);
+          const pretend = forcedSignal ? [[320, 200, 12], [120, 60, 2], [30, 10, 0]][forcedSignal - 1] : undefined;
+          const stats = playback.stats;
+          const frames = stats.frames - linkFrames.frames;
+          const guessed = frames > 20 ? (stats.starved - linkFrames.starved) / frames * 100 : 0;
+          if (frames > 20 || frames < 0) linkFrames = { frames: stats.frames, starved: stats.starved };
+          linkQuality.observe(pretend?.[0] ?? now - message.t, pretend?.[1] ?? stats.jitterP95, pretend?.[2] ?? guessed);
           if (debugNet) netDebug.rtts.push({ at: now, rtt: now - message.t });
         }
         break;
@@ -588,6 +593,7 @@ function playJuice(events, time, side) {
 const linkQuality = createLinkQuality();
 const forcedSignal = [1, 2, 3].includes(Number(testParams.get('signal'))) ? Number(testParams.get('signal')) : 0;
 let linkNumberUntil = 0;
+let linkFrames = { frames: 0, starved: 0 };
 let linkHover = false;
 const linkView = document.querySelector('#link-own');
 

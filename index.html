@@ -67,8 +67,9 @@
     .link i:nth-child(1) { height: 6px; } .link i:nth-child(2) { height: 10px; } .link i:nth-child(3) { height: 14px; }
     .link[data-level="1"] i:nth-child(1), .link[data-level="2"] i:nth-child(-n+2), .link[data-level="3"] i { opacity: .85; }
     .link { position: relative; }
+    .link:hover { background: var(--page-hover); }
     /* The details float under the bars, so showing them never moves the buttons around the bars. */
-    .link b { position: absolute; top: calc(100% - 8px); left: 50%; transform: translateX(-50%); font-size: .75rem;
+    .link b { position: absolute; top: calc(100% + 2px); left: 50%; transform: translateX(-50%); font-size: .75rem;
       font-weight: 650; opacity: .85; white-space: nowrap; pointer-events: none; }
     #winner { position: absolute; bottom: calc(50% + clamp(1rem, 5vw, 2.25rem)); left: 50%;
       transform: translateX(-50%); margin: 0; color: var(--ink);
