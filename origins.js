@@ -5,6 +5,10 @@
 // The CrazyGames iOS app embeds games from this (non-https) page; it is allowed as one exact origin.
 const appOrigins = new Map([['capacitor://app.crazygames.com', 'crazygames']]);
 
+export function requiresRematchReady(origin) {
+  return ['y8', 'gamepix', 'gamedistribution'].includes(originSource(origin));
+}
+
 export function originSource(origin) {
   if (appOrigins.has(origin)) return appOrigins.get(origin);
   let url;

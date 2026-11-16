@@ -26,7 +26,7 @@ The GD build bundles Space Grotesk and removes external navigation links, Google
 - Request one initial ad on the first CPU, CREATE, JOIN-submit, or QUICK MATCH action per page visit. After that, request another ad only on a completed match's replay click and only when at least two minutes have elapsed since the previous request. Returning to the menu, changing mode, or creating/joining another room does not request additional ads. This is a request interval; GD still decides whether an ad is served. Never request ads from a server message, automatic matchmaking, or during a rally. Y8/GamePix retain their existing three-match/three-minute policy.
 - Pause CPU simulation and mute sound while a request is running. An actual advertisement returns to a CONTINUE screen before proceeding. Missing/blocked/failed SDK requests allow play to continue.
 - Prevent duplicate menu actions during an ad. Quick matchmaking disconnects before an ad and reconnects afterward so another player is not seated while this player watches an ad.
-- GD connections opt into a server rematch barrier. Each player clicks replay and completes their own break; the server starts the next three-second countdown only when both are ready. Round identifiers reject stale readiness. Other rooms retain their current one-click rematch.
+- GD connections opt into a server rematch barrier. The Worker also enforces the same barrier for Y8 and GD request Origins, so already-submitted Y8 clients need no protocol update. Each player clicks replay and completes their own break; the server starts the next three-second countdown only when both are ready. Round identifiers reject stale readiness. Other rooms retain their current one-click rematch.
 - Multiplayer focus-loss pausing is not introduced: locally freezing a live network match cannot pause the other player/server.
 
 ## Before real multiplayer testing
@@ -83,3 +83,9 @@ No registration required
 Dashboard revision URL supplied by the user: https://revision.gamedistribution.com/e2d1ed4845d7412a976f3337355b1d7b/?correlator=1794842810206 . A direct unauthenticated fetch returned 403 AccessDenied; the actual page contents were not verified.
 
 Outstanding: GD response, actual SDK/ad integration checks, dedicated preview deployment, and thumbnail preparation (512×512, 512×384, 200×120; smallest thumbnail without a logo).
+
+## Legacy portal compatibility
+
+The supplied Y8 ZIP awaits matchBreak() before sending its legacy `{ type: "restart" }` message. The Worker now derives a mandatory rematch barrier from the request Origin (Y8 or GD), independently of client flags. Code-room hosts and guests, including mixed old website/itch and Y8 peers, wait until both restart requests arrive. Old clients do not display the new waiting message but keep their existing replay button; they can still signal readiness. Website/itch-only rooms retain one-click restarts. This is server-only: no Y8 resubmission is needed for this fix. Real cross-portal validation remains pending deployment. All 126 automated tests pass.
+
+Deployment is still blocked in this assistant environment by the network policy blocking Cloudflare OAuth. No live server update has been made. The user can deploy the prepared Worker from their own terminal with `npx wrangler deploy -c wrangler.worker.toml` after local login.

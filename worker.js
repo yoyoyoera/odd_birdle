@@ -1,6 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
 import { createRooms } from './rooms.js';
-import { originSource } from './origins.js';
+import { originSource, requiresRematchReady } from './origins.js';
 
 export default {
   fetch(request, env) {
@@ -24,11 +24,11 @@ export class RoomHub extends DurableObject {
     this.rooms = createRooms(limit => crypto.getRandomValues(new Uint32Array(1))[0] % limit);
   }
 
-  fetch() {
+  fetch(request) {
     if (this.rooms.size >= 256) return new Response('Lobby full', { status: 503 });
     const pair = new WebSocketPair();
     pair[1].accept();
-    this.rooms.attach(pair[1]);
+    this.rooms.attach(pair[1], { restartBarrier: requiresRematchReady(request.headers.get('Origin')) });
     return new Response(null, { status: 101, webSocket: pair[0] });
   }
 }

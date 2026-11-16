@@ -42,7 +42,10 @@ export function createRooms(randomIndex) {
   function start(room) {
     room.round = (room.round ?? 0) + 1;
     room.rematchReady = new Set();
-    room.restartBarrier ??= [room.left, room.right].some(peer => states.get(peer)?.restartBarrier);
+    room.restartBarrier ??= [room.left, room.right].some(peer => {
+      const state = states.get(peer);
+      return state?.restartBarrier || state?.serverRestartBarrier;
+    });
     room.game.restart(3);
     room.history = [];
     const state = room.game.view();
@@ -115,13 +118,16 @@ export function createRooms(randomIndex) {
     }
   }
 
-  function attach(peer) {
+  function attach(peer, { restartBarrier = false } = {}) {
     peers.add(peer);
     startTimers();
     let room;
     let side;
     states.set(peer, {
       id: ++nextPeerId,
+      // Set by the server from a trusted request Origin, not by the client protocol.
+      // This covers already-submitted portal builds which know only { type: 'restart' }.
+      serverRestartBarrier: restartBarrier,
       inRoom: () => Boolean(room),
       seat(next, nextSide) {
         room = next;
