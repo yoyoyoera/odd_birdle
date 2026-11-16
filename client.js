@@ -17,7 +17,7 @@ import {
 } from './juice.js';
 import {
   initPortal, isInstantMultiplayer, loadingStart, loadingStop, matchBreak, matchEnded, onJoinRoom, onPortalMute, onPortalPause,
-  portal, portalInviteLink, portalInviteRoom, portalMuted, roomFull, roomLeft, roomOpen, serverBase, setPlaying, siteUrl
+  closedPortal, portal, portalInviteLink, portalInviteRoom, portalMuted, roomFull, roomLeft, roomOpen, serverBase, setPlaying, siteUrl
 } from './portal.js';
 
 const court = document.querySelector('#court');
@@ -62,7 +62,8 @@ for (const [property, value] of Object.entries({
 }
 
 // ?test=effects opens a CPU match with buttons for trying each random effect (&fast=1: they come sooner).
-const testParams = new URLSearchParams(location.search);
+// Portals with strict reviews get no test or debug pages, whatever the address says.
+const testParams = new URLSearchParams(closedPortal ? '' : location.search);
 const testEffects = testParams.get('test') === 'effects';
 const testShapes = testParams.get('test') === 'shapes';
 // ?test=freeze / balloon / shock: a CPU Lv.4 match where the random effect is always that one (for recording).
@@ -1174,7 +1175,7 @@ codeInput.addEventListener('input', () => {
 back.addEventListener('click', () => leave());
 
 // GamePix has no links out of the game, so there the room code itself is what gets copied.
-const copyLabel = portal === 'gamepix' ? 'COPY CODE' : 'COPY LINK';
+const copyLabel = closedPortal ? 'COPY CODE' : 'COPY LINK';
 let copyReset;
 function showCopyResult(label) {
   setText(copyLink, label);

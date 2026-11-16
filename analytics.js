@@ -1,5 +1,5 @@
 import { cleanEvent } from './event-schema.js';
-import { portal, serverBase } from './portal.js';
+import { closedPortal, serverBase } from './portal.js';
 
 const local = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
 
@@ -28,8 +28,8 @@ if (mine) {
 // Fire-and-forget anonymous counts; failures never touch the game.
 export function track(name, details = {}) {
   const event = cleanEvent({ name, ...details });
-  // GamePix builds make no connection but the match server, so nothing is counted there.
-  if (!event || local || mine || portal === 'gamepix') return;
+  // GamePix and Y8 builds make no connection but the match server, so nothing is counted there.
+  if (!event || local || mine || closedPortal) return;
   try {
     const body = JSON.stringify(event);
     const endpoint = serverBase + 'event';

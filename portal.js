@@ -1,7 +1,10 @@
 // Where the game is running: our site (''), or a portal build ('crazygames', 'itch', 'newgrounds')
-// marked on <html data-portal> by scripts/build-portal.mjs ('gamepix' too).
+// marked on <html data-portal> by scripts/build-portal.mjs ('gamepix' and 'y8' too).
 export const portal = document.documentElement.dataset.portal ?? '';
 export const siteUrl = 'https://oddbirdle.pages.dev/';
+// Portals that allow no links out of the game and no analytics of our own: invites are the room code, nothing is
+// counted, and the debug and test pages are off.
+export const closedPortal = portal === 'gamepix' || portal === 'y8';
 // Portal builds are served from the portal's domain but play on our server.
 export const serverBase = portal ? siteUrl : new URL('./', location.href).href;
 
@@ -15,12 +18,16 @@ let started = false;
 let ready = false;
 let matchesSinceAd = 0;
 let lastAd = -Infinity;
+let sdkPaused = false;
+let focusPaused = false;
+let adPaused = false;
 const pauseListeners = [];
 const muteListeners = [];
 const adGapMs = 3 * 60 * 1000;
 const adEveryMatches = 3;
 
-function setPaused(next) {
+function refreshPause() {
+  const next = sdkPaused || focusPaused || adPaused;
   if (next === paused) return;
   paused = next;
   for (const listener of pauseListeners) listener(paused);
@@ -36,8 +43,18 @@ function initGamepix() {
   const candidate = window.GamePix;
   if (!candidate?.events) return;
   gamepix = candidate;
-  candidate.events.on('pause', () => setPaused(true));
-  candidate.events.on('resume', () => setPaused(false));
+  candidate.events.on('pause', () => { sdkPaused = true; refreshPause(); });
+  candidate.events.on('resume', () => { sdkPaused = false; refreshPause(); });
+}
+
+// Y8: the game pauses and goes quiet when the tab is hidden or the window loses focus (a click outside the frame
+// counts), and while one of its ads is on. The SDK itself is started by the page (see build-portal.mjs).
+function initY8() {
+  const lose = () => { focusPaused = true; refreshPause(); };
+  const regain = () => { if (!document.hidden) { focusPaused = false; refreshPause(); } };
+  window.addEventListener('blur', lose);
+  window.addEventListener('focus', regain);
+  document.addEventListener('visibilitychange', () => (document.hidden ? lose() : regain()));
 }
 
 function gamepixCall(action) {
@@ -58,6 +75,7 @@ export function matchEnded(won) {
 // Called before a new match begins. After a few finished matches, and not more than every few minutes, the
 // portal's ad runs here, between matches and never during one. Resolves when it is over (or at once if none).
 export async function matchBreak() {
+  if (portal === 'y8') return y8Break();
   if (!gamepix || !ready || paused || matchesSinceAd < adEveryMatches || Date.now() - lastAd < adGapMs) return;
   matchesSinceAd = 0;
   lastAd = Date.now();
@@ -68,10 +86,38 @@ export async function matchBreak() {
   }
 }
 
+// Y8: an interstitial between matches, never during one, as rarely as for GamePix (Y8 also caps them itself).
+// Paused in beforeAd and resumed in afterAd, as its guide says; a skipped break calls neither, and the game
+// carries on whatever happens (no SDK, an ad blocker, an error, a break that never reports back).
+async function y8Break() {
+  const sdk = window.y8Sdk;
+  if (!sdk?.showAd || paused || matchesSinceAd < adEveryMatches || Date.now() - lastAd < adGapMs) return;
+  matchesSinceAd = 0;
+  lastAd = Date.now();
+  await new Promise(resolve => {
+    const finish = () => { clearTimeout(giveUp); adPaused = false; refreshPause(); resolve(); };
+    const giveUp = setTimeout(finish, 20000);
+    try {
+      Promise.resolve(sdk.showAd({
+        type: 'next', name: 'match-end',
+        beforeAd: () => { adPaused = true; refreshPause(); },
+        afterAd: () => { adPaused = false; refreshPause(); },
+        adBreakDone: finish
+      })).catch(finish);
+    } catch {
+      finish();
+    }
+  });
+}
+
 // CrazyGames SDK v3. Every call throws outside CrazyGames, so only use it there.
 export async function initPortal() {
   if (portal === 'gamepix') {
     initGamepix();
+    return;
+  }
+  if (portal === 'y8') {
+    initY8();
     return;
   }
   const candidate = portal === 'crazygames' ? window.CrazyGames?.SDK : undefined;
@@ -124,7 +170,7 @@ export function setPlaying(active) {
 // Invite links that stay on the portal; undefined when the SDK is not available.
 export function portalInviteLink(code) {
   // GamePix: no links out of the game, so the invite is the room code itself.
-  if (portal === 'gamepix') return code;
+  if (closedPortal) return code;
   let link;
   call(game => { link = game.inviteLink({ room: code }); });
   return link;
@@ -162,7 +208,7 @@ export function onJoinRoom(handler) {
 
 // CrazyGames can mute the game; that wins over the in-game sound button.
 export function portalMuted() {
-  if (portal === 'gamepix') return paused;
+  if (closedPortal) return paused;
   let muted = false;
   call(game => { muted = game.settings?.muteAudio === true; });
   return muted;
