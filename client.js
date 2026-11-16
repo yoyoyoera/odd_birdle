@@ -583,11 +583,12 @@ function playJuice(events, time, side) {
   }
 }
 
-// Your connection as 1-3 bars and a word (Good / Fair / Poor) beside the sound button (online only). A tap shows
-// the round trip in ms for a moment; hovering shows it as a tooltip.
+// Your connection as 1-3 bars beside the sound button (online only). Nothing else is shown until you hover
+// over the bars (mouse) or tap them (touch, 2.5 seconds): then "42 ms (Good)", the round trip and a word for it.
 const linkQuality = createLinkQuality();
 const forcedSignal = [1, 2, 3].includes(Number(testParams.get('signal'))) ? Number(testParams.get('signal')) : 0;
 let linkNumberUntil = 0;
+let linkHover = false;
 const linkView = document.querySelector('#link-own');
 
 function showLinkBars() {
@@ -596,14 +597,14 @@ function showLinkBars() {
   if (!online) return;
   const known = linkQuality.known;
   const level = known ? String(linkQuality.level) : '';
-  let text = '';
-  if (known && performance.now() < linkNumberUntil) text = linkQuality.rtt + ' ms';
-  else if (known) text = ['', 'Poor', 'Fair', 'Good'][linkQuality.level];
+  const details = known && (linkHover || performance.now() < linkNumberUntil);
+  const text = details ? linkQuality.rtt + ' ms (' + ['', 'Poor', 'Fair', 'Good'][linkQuality.level] + ')' : '';
   if (linkView.dataset.level !== level) linkView.dataset.level = level;
   const word = linkView.querySelector('b');
   if (word.textContent !== text) word.textContent = text;
-  linkView.title = known ? linkQuality.rtt + ' ms' : '';
 }
+linkView.addEventListener('pointerenter', event => { linkHover = event.pointerType === 'mouse'; });
+linkView.addEventListener('pointerleave', () => { linkHover = false; });
 linkView.addEventListener('pointerdown', () => { linkNumberUntil = performance.now() + 2500; });
 
 let stands;

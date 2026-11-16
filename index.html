@@ -45,7 +45,8 @@
         column-gap: 8px; width: min(992px, 100% - 24px, calc((100svh - 12px) * 1.8 + 52px));
         padding-block: 6px; }
       #studio-links { flex-direction: column; margin-top: 0; }
-      .link { flex-direction: column; height: auto; min-height: 44px; gap: 2px; font-size: .6rem; }
+      .link { height: auto; min-height: 44px; }
+      .link b { top: auto; left: auto; right: calc(100% + 4px); bottom: 50%; transform: translateY(50%); }
     }
     canvas { display: block; width: 100%; aspect-ratio: 9 / 5; background: var(--court);
       touch-action: none; cursor: none; }
@@ -65,8 +66,10 @@
     .link i { width: 3px; background: currentColor; opacity: .2; }
     .link i:nth-child(1) { height: 6px; } .link i:nth-child(2) { height: 10px; } .link i:nth-child(3) { height: 14px; }
     .link[data-level="1"] i:nth-child(1), .link[data-level="2"] i:nth-child(-n+2), .link[data-level="3"] i { opacity: .85; }
-    .link b { font-weight: 650; opacity: .85; white-space: nowrap; }
-    .link b:empty { display: none; }
+    .link { position: relative; }
+    /* The details float under the bars, so showing them never moves the buttons around the bars. */
+    .link b { position: absolute; top: calc(100% - 8px); left: 50%; transform: translateX(-50%); font-size: .75rem;
+      font-weight: 650; opacity: .85; white-space: nowrap; pointer-events: none; }
     #winner { position: absolute; bottom: calc(50% + clamp(1rem, 5vw, 2.25rem)); left: 50%;
       transform: translateX(-50%); margin: 0; color: var(--ink);
       font-size: clamp(1rem, 3.8vw, 1.75rem); font-weight: 650; white-space: nowrap; pointer-events: none; }
