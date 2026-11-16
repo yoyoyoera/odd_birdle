@@ -47,8 +47,11 @@
         column-gap: 8px; width: min(992px, 100% - 24px, calc((100svh - 12px) * 1.8 + 52px));
         padding-block: 6px; }
       #studio-links { flex-direction: column; margin-top: 0; }
-      .link { height: auto; min-height: 44px; }
-      .link b { top: auto; left: auto; right: calc(100% + 4px); bottom: 50%; transform: translateY(50%); }
+      /* More specific than the plain .link rules below, which come later. The words sit under the bars in two short
+         lines (the column is only 44px wide) instead of floating out of the frame. */
+      #studio-links .link { flex-direction: column; height: auto; min-height: 44px; gap: 2px; padding: 6px 0; }
+      #studio-links .link b { position: static; transform: none; width: 44px; white-space: normal; text-align: center;
+        font-size: .6rem; line-height: 1.15; letter-spacing: 0; }
     }
     canvas { display: block; width: 100%; aspect-ratio: 9 / 5; background: var(--court);
       touch-action: none; cursor: none; }
