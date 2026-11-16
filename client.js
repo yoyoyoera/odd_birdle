@@ -583,7 +583,7 @@ function playJuice(events, time, side) {
   }
 }
 
-// Your connection as 1-3 bars beside the sound button (online only). Nothing else is shown until you hover
+// Your connection as 1-3 bars beside the sound button, always shown. Nothing else is shown until you hover
 // over the bars (mouse) or tap them (touch, 2.5 seconds): then "42 ms (Good)", the round trip and a word for it.
 const linkQuality = createLinkQuality();
 const forcedSignal = [1, 2, 3].includes(Number(testParams.get('signal'))) ? Number(testParams.get('signal')) : 0;
@@ -592,13 +592,13 @@ let linkHover = false;
 const linkView = document.querySelector('#link-own');
 
 function showLinkBars() {
+  // Always on screen. Online it is your measured connection; in a CPU game or a menu nothing travels over the
+  // network, so it simply shows full bars.
   const online = mode === 'online';
-  linkView.hidden = !online;
-  if (!online) return;
-  const known = linkQuality.known;
-  const level = known ? String(linkQuality.level) : '';
-  const details = known && (linkHover || performance.now() < linkNumberUntil);
-  const text = details ? linkQuality.rtt + ' ms (' + ['', 'Poor', 'Fair', 'Good'][linkQuality.level] + ')' : '';
+  const known = online && linkQuality.known;
+  const level = online ? (known ? String(linkQuality.level) : '') : '3';
+  const details = (online ? known : true) && (linkHover || performance.now() < linkNumberUntil);
+  const text = !details ? '' : online ? linkQuality.rtt + ' ms (' + ['', 'Poor', 'Fair', 'Good'][linkQuality.level] + ')' : 'Offline (Good)';
   if (linkView.dataset.level !== level) linkView.dataset.level = level;
   const word = linkView.querySelector('b');
   if (word.textContent !== text) word.textContent = text;
