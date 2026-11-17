@@ -2,6 +2,7 @@
 // Usage: node scripts/build-portal.mjs crazygames|itch|newgrounds|gamepix|y8|gamedistribution  ->  portal/oddbirdle-<name>.zip
 import { execFileSync } from 'node:child_process';
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 // Portals that must make no outside requests carry the font themselves instead of asking Google Fonts.
 const ownFont = ['gamepix', 'y8', 'gamedistribution'];
@@ -18,16 +19,19 @@ if (name === 'gamedistribution' && !gdPreview && !/^[a-f0-9]{32}$/i.test(gameId)
   throw new Error('Set GD_GAME_ID to the game ID from your GD dashboard, or use --preview for a local build without ads.');
 }
 const root = new URL('../', import.meta.url);
-execFileSync(process.execPath, [new URL('build-pages.js', root).pathname], { stdio: 'inherit' });
+execFileSync(process.execPath, [fileURLToPath(new URL('build-pages.js', root))], { stdio: 'inherit' });
 
 const out = new URL(`portal/${name}/`, root);
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 // Everything the game needs, all referenced by relative paths; the font page and preview image stay on the site.
-cpSync(new URL('dist/', root), out, { recursive: true, filter: source => !/fonts\.html$|og\.png$/.test(source) });
+cpSync(new URL('dist/', root), out, { recursive: true, filter: source => !/(?:fonts\.html|og\.png|ads\.txt)$/.test(source) });
 
 const indexUrl = new URL('index.html', out);
 let html = readFileSync(indexUrl, 'utf8');
+// The user's own AdSense account belongs only to the standalone website.
+// Portal versions keep their existing SDK advertising and must not load this tag.
+html = html.replace(/<!-- standalone-adsense:start -->[\s\S]*?<!-- standalone-adsense:end -->/g, '');
 html = html.replace('<html lang="en">', `<html lang="en" data-portal="${name}">`);
 if (diagnostics) html = html.replace('data-portal="gamedistribution"', 'data-portal="gamedistribution" data-gd-diagnostics="true"');
 if (name === 'crazygames') {
@@ -110,7 +114,7 @@ if (ownFont.includes(name)) {
 if (!html.includes(`data-portal="${name}"`)) throw new Error('Could not mark index.html for the portal.');
 writeFileSync(indexUrl, html);
 
-const zip = new URL(`portal/oddbirdle-${name}${gdPreview ? "-preview" : ""}${diagnostics ? "-diagnostics" : ""}.zip`, root).pathname;
+const zip = fileURLToPath(new URL(`portal/oddbirdle-${name}${gdPreview ? "-preview" : ""}${diagnostics ? "-diagnostics" : ""}.zip`, root));
 rmSync(zip, { force: true });
-execFileSync('zip', ['-qr', zip, '.'], { cwd: out.pathname });
+execFileSync('zip', ['-qr', zip, '.'], { cwd: fileURLToPath(out) });
 console.log('wrote', zip);
