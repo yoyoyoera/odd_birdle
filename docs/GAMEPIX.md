@@ -1,5 +1,7 @@
 # GamePix submission
 
+Current update: see [READY-REMATCHES.md](READY-REMATCHES.md) for website/itch readiness, the visible waiting prompt, and separate GamePix sound controls. This supersedes the historical website/itch single-click behavior below.
+
 Prepared 2026-11-17. Support ticket #10156460 grants written consent for the external multiplayer server. The user sent the follow-up confirming these endpoints:
 
 - Game-server domain: `oddbirdle.pages.dev`

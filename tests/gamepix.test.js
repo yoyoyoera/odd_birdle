@@ -81,6 +81,24 @@ test('invites are just the room code, and nothing is counted or sent out', () =>
   assert.deepEqual(sent, []);
 });
 
+test('GamePix sound callbacks mute audio independently and preserve overlapping pauses', () => {
+  const sdk = window.GamePix;
+  sdk.soundOff();
+  assert.equal(portal.portalMuted(), true);
+  assert.equal(portal.isPaused(), false, 'turning sound off does not pause a match');
+  handlers.pause();
+  sdk.soundOn();
+  assert.equal(portal.portalMuted(), true, 'soundOn cannot override an active pause');
+  handlers.resume();
+  assert.equal(portal.portalMuted(), false);
+  sdk.soundOff();
+  handlers.pause();
+  handlers.resume();
+  assert.equal(portal.portalMuted(), true, 'resume cannot override the player mute');
+  sdk.soundOn();
+  assert.equal(portal.portalMuted(), false);
+});
+
 test('an ad is offered only between matches: every third match, and not twice in a few minutes', async () => {
   calls.length = 0;
   await portal.matchBreak();

@@ -1,5 +1,7 @@
 # GameDistribution preparation
 
+Current update: see [READY-REMATCHES.md](READY-REMATCHES.md). Website and itch rooms also require both players to be ready; new builds display the waiting prompt visibly. References below to website/itch-only single-click rooms describe the earlier deployment.
+
 Status: the user uploaded the GD ZIP. The shared matchmaker has now been deployed as version f32f6894-9ada-4b9d-a2a8-d2dcf3742f3e. No activation request has been made by this assistant. GD external-server and native-release answers are still pending.
 
 Base: GitHub main afed214 (2026-11-16). The supplied Y8 archive's 21 source/font files match this revision.

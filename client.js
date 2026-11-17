@@ -41,6 +41,7 @@ const sideLabel = document.querySelector('#side-label');
 const cpuLabel = document.querySelector('#cpu-label');
 const winnerLabel = document.querySelector('#winner');
 const recordLabel = document.querySelector('#record');
+const rematchLabel = document.querySelector('#rematch-status');
 const status = document.querySelector('#status');
 const eventBanner = document.querySelector('#event-banner');
 const gameControl = document.querySelector('#game-control');
@@ -359,11 +360,16 @@ function updateHud(view) {
   const record = phase === 'finished' && juice.record ? recordText : '';
   recordLabel.hidden = !record;
   setText(recordLabel, record);
-  setText(status, rematchStatus || message);
+  setText(status, message);
+  rematchLabel.hidden = mode !== 'online' || phase !== 'finished' || !rematchStatus;
+  setText(rematchLabel, rematchStatus);
   eventBanner.hidden = !eventText;
   eventBanner.toggleAttribute('data-wind', eventWind);
   setText(eventBanner, eventText);
   gameControl.hidden = mode !== 'solo' && !(mode === 'online' && phase === 'finished' && !rematchReady);
+  const controlLabel = mode === 'online' ? 'Ready for rematch' : 'Restart';
+  gameControl.setAttribute('aria-label', controlLabel);
+  gameControl.title = controlLabel;
 }
 
 // Counts each match that reaches its final point once.
@@ -1186,9 +1192,11 @@ function showQueueStatus() {
   // Only for the first countdown after a match is found, not for rematches.
   const found = quick.on && mode === 'online' && quick.found !== undefined;
   const looking = quick.on && mode === 'solo';
+  const idle = performance.now() - lastInput >= idleMs;
+  const lookingText = gamePaused || breakPending ? 'Matchmaking paused' : idle ? 'Move to keep searching…' : 'Looking for a player…';
   queueStatus.hidden = !(found || looking);
   queueStatus.toggleAttribute('data-found', found);
-  setText(queueStatus, found ? 'Opponent found!' : looking ? 'Looking for a player…' : '');
+  setText(queueStatus, found ? 'Opponent found!' : looking ? lookingText : '');
 }
 
 function updateQueue() {
@@ -1198,6 +1206,7 @@ function updateQueue() {
     send({ type: want ? 'queue' : 'unqueue', restartBarrier: coordinatedBreak });
     if (!want) quick.queued = false;
   }
+  showQueueStatus();
 }
 setInterval(updateQueue, 1000);
 document.addEventListener('visibilitychange', updateQueue);
@@ -1268,7 +1277,11 @@ copyLink.addEventListener('click', async () => {
 
 // Opening an invite link joins that room straight away, then tidies the address bar.
 // GamePix pauses the game (for its ads, and when asked to): nothing moves, nothing is heard, no touch counts.
-onPortalPause(paused => { gamePaused = paused; if (paused) setRacket(null); });
+onPortalPause(paused => {
+  gamePaused = paused;
+  if (paused) setRacket(null);
+  updateQueue();
+});
 
 initPortal().then(() => {
   loadingStart();
@@ -1328,7 +1341,11 @@ gameControl.addEventListener('click', () => {
     // Online restarts arrive as a new 'start' message; CPU ones are counted here.
     if (mode === 'solo') track('game_start', { mode: 'cpu', level: selectedCpuLevel ?? 'random' });
     if (mode === 'solo') solo.restart(3, selectedCpuLevel);
-    else send({ type: 'restart', round: onlineRound });
+    else {
+      rematchReady = true;
+      rematchStatus = 'Waiting for opponent…';
+      send({ type: 'restart', round: onlineRound });
+    }
   };
   if (rematch) afterMatchBreak(restart, { rematch: true });
   else restart();

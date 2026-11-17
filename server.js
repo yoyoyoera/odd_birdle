@@ -43,7 +43,7 @@ websocket.on('connection', peer => {
   peer.lastPong = Date.now();
   peer.on('error', () => peer.terminate());
   peer.on('pong', () => { peer.lastPong = Date.now(); });
-  rooms.attach(peer);
+  rooms.attach(peer, { restartBarrier: true });
 });
 
 setInterval(() => {

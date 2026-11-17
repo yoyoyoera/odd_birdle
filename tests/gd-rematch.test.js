@@ -62,7 +62,7 @@ for (const quick of [false, true]) {
   });
 }
 
-test('rooms without GD keep their existing single-click rematch', t => {
+test('rooms outside the coordinated sources keep their existing single-click rematch', t => {
   const { a, b } = finishedRoom(t, false);
   a.say({ type: 'restart' });
   assert.equal(a.starts().length, 2);
@@ -96,12 +96,13 @@ for (const side of ['left', 'right']) {
   });
 }
 
-test('ad-portal Origins get a server-enforced rematch wait; plain website and itch do not', () => {
+test('website, itch and ad-portal Origins all require both players to be ready', () => {
   for (const host of ['https://item-cdn.y8.com', 'https://revision.gamedistribution.com', 'https://html5.gamedistribution.com',
-    'https://gamepix.com', 'https://games.gamepix.com', 'https://preview.games.gamepix.com']) {
+    'https://gamepix.com', 'https://games.gamepix.com', 'https://preview.games.gamepix.com',
+    'https://oddbirdle.pages.dev', 'https://html-classic.itch.zone', 'https://studiyo.itch.io']) {
     assert.equal(requiresRematchReady(host), true);
   }
-  for (const host of ['https://oddbirdle.pages.dev', 'https://html-classic.itch.zone', 'https://evil.test', null]) {
+  for (const host of ['https://evil.test', 'https://oddbirdle.pages.dev.evil.test', null]) {
     assert.equal(requiresRematchReady(host), false);
   }
 });

@@ -6,7 +6,7 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { createRooms } from '../rooms.js';
 import { originSource, requiresRematchReady } from '../origins.js';
 
-test('real WebSockets: all 25 website/Y8/itch/GD/GamePix pairs retain compatible initial starts and rematches', async t => {
+test('real WebSockets: all 25 website/Y8/itch/GD/GamePix pairs support code rooms and quick matches with ready rematches', async t => {
   let clock = 0;
   let tick;
   let nextCode = 0;
@@ -59,16 +59,21 @@ test('real WebSockets: all 25 website/Y8/itch/GD/GamePix pairs retain compatible
     await wait(() => peer.latest()?.state?.phase === 'finished', 'match must finish');
   };
   try {
-    for (const left of Object.keys(origins)) for (const right of Object.keys(origins)) {
+    for (const quick of [false, true]) for (const left of Object.keys(origins)) for (const right of Object.keys(origins)) {
       const a = await connect(left);
       const b = await connect(right);
       try {
-        a.send({ type: 'create', ...(['gd', 'gamepix'].includes(left) ? { restartBarrier: true } : {}) });
-        await wait(() => a.latest()?.type === 'room', 'host receives room code');
-        b.send({ type: 'join', code: a.latest().code, ...(['gd', 'gamepix'].includes(right) ? { restartBarrier: true } : {}) });
+        if (quick) {
+          a.send({ type: 'queue' });
+          await wait(() => a.latest()?.type === 'queued', 'first player enters the shared queue');
+          b.send({ type: 'queue' });
+        } else {
+          a.send({ type: 'create', ...(['gd', 'gamepix'].includes(left) ? { restartBarrier: true } : {}) });
+          await wait(() => a.latest()?.type === 'room', 'host receives room code');
+          b.send({ type: 'join', code: a.latest().code, ...(['gd', 'gamepix'].includes(right) ? { restartBarrier: true } : {}) });
+        }
         await wait(() => a.starts().length === 1 && b.starts().length === 1, 'both get initial countdown');
         assert.equal(a.starts()[0].state.eventText, '3');
-        const barrier = [left, right].some(name => ['gd', 'y8', 'gamepix'].includes(name));
         // Two completed matches exercise resetting readiness between rounds.
         for (let replay = 0; replay < 2; replay++) {
           await finishMatch(a);
@@ -80,18 +85,18 @@ test('real WebSockets: all 25 website/Y8/itch/GD/GamePix pairs retain compatible
           const first = replay ? b : a;
           const second = replay ? a : b;
           restart(first);
-          if (barrier) {
+          {
             await wait(() => first.latest()?.type === 'rematch_wait', 'first player waits for the other');
             restart(first);
             await wait(() => first.latest()?.type === 'rematch_wait', 'duplicate readiness is harmless');
-            assert.equal(a.starts().length, count, `${left}/${right}: must not start during the other player's ad`);
+            assert.equal(a.starts().length, count, `${left}/${right}: must not start before the other player is ready`);
             restart(second); // Sent only after that player's own ad/Continue is finished.
           }
           await wait(() => a.starts().length === count + 1 && b.starts().length === count + 1, 'both get new countdown');
           assert.equal(a.starts().at(-1).state.eventText, '3');
           assert.equal(a.starts().at(-1).round, round + 1);
         }
-        t.diagnostic(`${left} → ${right}: initial match and two rematches passed`);
+        t.diagnostic(`${quick ? 'quick' : 'code'} ${left} → ${right}: initial match and two rematches passed`);
       } finally {
         const closed = [once(a.socket, 'close'), once(b.socket, 'close')];
         a.socket.close(); b.socket.close();

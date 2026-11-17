@@ -6,7 +6,7 @@
 const appOrigins = new Map([['capacitor://app.crazygames.com', 'crazygames']]);
 
 export function requiresRematchReady(origin) {
-  return ['y8', 'gamepix', 'gamedistribution'].includes(originSource(origin));
+  return ['site', 'itch', 'y8', 'gamepix', 'gamedistribution'].includes(originSource(origin));
 }
 
 export function originSource(origin) {

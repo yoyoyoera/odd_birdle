@@ -26,6 +26,8 @@ let lastAd = -Infinity;
 let sdkPaused = false;
 let focusPaused = false;
 let adPaused = false;
+let sdkMuted = false;
+let muted = false;
 const pauseListeners = [];
 const muteListeners = [];
 const adGapMs = 3 * 60 * 1000;
@@ -34,10 +36,18 @@ const gdAdGapMs = 2 * 60 * 1000;
 
 function refreshPause() {
   const next = sdkPaused || focusPaused || adPaused;
-  if (next === paused) return;
-  paused = next;
-  for (const listener of pauseListeners) listener(paused);
-  for (const listener of muteListeners) listener(paused);
+  if (next !== paused) {
+    paused = next;
+    for (const listener of pauseListeners) listener(paused);
+  }
+  refreshMute();
+}
+
+function refreshMute() {
+  const next = paused || sdkMuted;
+  if (next === muted) return;
+  muted = next;
+  for (const listener of muteListeners) listener(muted);
 }
 
 export const isPaused = () => paused;
@@ -51,6 +61,10 @@ function initGamepix() {
     gamepix = candidate;
     candidate.events.on('pause', () => { sdkPaused = true; refreshPause(); });
     candidate.events.on('resume', () => { sdkPaused = false; refreshPause(); });
+    // The Player still invokes these legacy callbacks for its sound controls,
+    // separately from pause/resume. Keep the player's mute until soundOn arrives.
+    candidate.soundOff = () => { sdkMuted = true; refreshMute(); };
+    candidate.soundOn = () => { sdkMuted = false; refreshMute(); };
   }
   // GamePix requires visibility pausing, not blur pausing when the iframe loses focus.
   const visibility = () => { focusPaused = !!document.hidden; refreshPause(); };
@@ -261,7 +275,7 @@ export function onJoinRoom(handler) {
 
 // CrazyGames can mute the game; that wins over the in-game sound button.
 export function portalMuted() {
-  if (closedPortal) return paused;
+  if (closedPortal) return paused || sdkMuted;
   let muted = false;
   call(game => { muted = game.settings?.muteAudio === true; });
   return muted;
