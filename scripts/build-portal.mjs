@@ -54,9 +54,10 @@ if (name === 'gamepix') {
     .replace('<style>', `<script>window.GamePixConfig = { lifecycle: 'manual' };</script>
   <script src="https://integration.gamepix.com/sdk/v3/gamepix.sdk.js"></script>
   <style>
+    html, body { overscroll-behavior: none; }
     body { touch-action: none; }
     #gamepix-loading { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; background: #182223;
-      color: #e8ebd6; font: 650 clamp(1.5rem, 6vw, 3rem) system-ui, sans-serif; letter-spacing: -.02em; }`)
+      color: #e8ebd6; font: 650 clamp(1.5rem, 6vw, 3rem) "Space Grotesk", sans-serif; letter-spacing: -.02em; }`)
     .replace(/<body([^>]*)>/, '<body$1>\n  <div id="gamepix-loading">ODD BIRDLE</div>');
 }
 if (name === 'gamedistribution') {

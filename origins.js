@@ -22,6 +22,8 @@ export function originSource(origin) {
   const within = domain => host === domain || host.endsWith('.' + domain);
   if (within('oddbirdle.pages.dev')) return 'site';
   if (within('crazygames.com')) return 'crazygames';
+  // GamePix support confirmed HTTPS gamepix.com subdomains for game frames.
+  if (within('gamepix.com')) return 'gamepix';
   if (within('itch.zone') || within('itch.io')) return 'itch';
   if (host === 'uploads.ungrounded.net') return 'newgrounds';
   // Y8 serves uploaded games from its item CDN (seen in the server log when a test build tried to connect): that one host.

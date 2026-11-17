@@ -18,7 +18,7 @@ import {
 } from './juice.js';
 import {
   initPortal, isInstantMultiplayer, loadingStart, loadingStop, matchBreak, matchEnded, onJoinRoom, onPortalMute, onPortalPause,
-  closedPortal, portal, portalInviteLink, portalInviteRoom, portalMuted, roomFull, roomLeft, roomOpen, serverBase, setPlaying, siteUrl
+  closedPortal, coordinatedBreak, portal, portalInviteLink, portalInviteRoom, portalMuted, roomFull, roomLeft, roomOpen, serverBase, setPlaying, siteUrl
 } from './portal.js';
 
 const court = document.querySelector('#court');
@@ -128,13 +128,13 @@ let breakPending = false;
 async function afterMatchBreak(action, options) {
   if (breakPending) return;
   breakPending = true;
-  if (portal === 'gamedistribution') stage.inert = true;
+  if (coordinatedBreak) stage.inert = true;
   try {
     // Stop waiting for an opponent before an ad can take over a quick-match CPU game.
-    if (portal === 'gamedistribution' && quick.on && mode === 'solo' && socket) leave('', true);
+    if (coordinatedBreak && quick.on && mode === 'solo' && socket) leave('', true);
     await matchBreak(options);
     action();
-    if (portal === 'gamedistribution' && quick.on && mode === 'solo' && !socket) connect({ type: 'queue' }, 'quick');
+    if (coordinatedBreak && quick.on && mode === 'solo' && !socket) connect({ type: 'queue' }, 'quick');
   } finally {
     stage.inert = false;
     breakPending = false;
@@ -246,7 +246,7 @@ function connect(request, via = request.type === 'join' ? 'code' : 'create') {
   connection.addEventListener('open', () => {
     if (socket !== connection) return;
     if (queueing) updateQueue();
-    else send({ ...request, restartBarrier: portal === 'gamedistribution' });
+    else send({ ...request, restartBarrier: coordinatedBreak });
   });
   connection.addEventListener('message', ({ data }) => {
     if (socket !== connection) return;
@@ -1195,7 +1195,7 @@ function updateQueue() {
   const want = !gamePaused && !breakPending && quick.on && mode === 'solo' && document.visibilityState === 'visible' &&
     performance.now() - lastInput < idleMs;
   if (want !== quick.queued && socket?.readyState === WebSocket.OPEN) {
-    send({ type: want ? 'queue' : 'unqueue', restartBarrier: portal === 'gamedistribution' });
+    send({ type: want ? 'queue' : 'unqueue', restartBarrier: coordinatedBreak });
     if (!want) quick.queued = false;
   }
 }
@@ -1224,7 +1224,7 @@ joinForm.addEventListener('submit', event => {
     codeInput.focus();
     return;
   }
-  if (portal === 'gamedistribution') afterMatchBreak(() => connect({ type: 'join', code }));
+  if (coordinatedBreak) afterMatchBreak(() => connect({ type: 'join', code }));
   else connect({ type: 'join', code });
 });
 codeInput.addEventListener('input', () => {
@@ -1276,7 +1276,7 @@ initPortal().then(() => {
   if (invitedRoom) {
     if (!portal) history.replaceState(null, '', location.pathname);
     codeInput.value = invitedRoom;
-    if (portal === 'gamedistribution') setMode('join');
+    if (coordinatedBreak) setMode('join');
     else connect({ type: 'join', code: invitedRoom }, 'link');
   } else if (isInstantMultiplayer()) {
     // A CrazyGames party leader: skip the menu and open a room to invite friends into.

@@ -6,7 +6,7 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { createRooms } from '../rooms.js';
 import { originSource, requiresRematchReady } from '../origins.js';
 
-test('real WebSockets: all 16 website/Y8/itch/GD pairs retain compatible initial starts and rematches', async t => {
+test('real WebSockets: all 25 website/Y8/itch/GD/GamePix pairs retain compatible initial starts and rematches', async t => {
   let clock = 0;
   let tick;
   let nextCode = 0;
@@ -28,7 +28,7 @@ test('real WebSockets: all 16 website/Y8/itch/GD pairs retain compatible initial
   const endpoint = `ws://127.0.0.1:${server.address().port}/play`;
   const origins = {
     site: 'https://oddbirdle.pages.dev', y8: 'https://item-cdn.y8.com',
-    itch: 'https://html-classic.itch.zone', gd: 'https://revision.gamedistribution.com'
+    itch: 'https://html-classic.itch.zone', gd: 'https://revision.gamedistribution.com', gamepix: 'https://games.gamepix.com'
   };
   const immediate = () => new Promise(resolve => setImmediate(resolve));
   const wait = async (condition, label) => {
@@ -63,19 +63,19 @@ test('real WebSockets: all 16 website/Y8/itch/GD pairs retain compatible initial
       const a = await connect(left);
       const b = await connect(right);
       try {
-        a.send({ type: 'create', ...(left === 'gd' ? { restartBarrier: true } : {}) });
+        a.send({ type: 'create', ...(['gd', 'gamepix'].includes(left) ? { restartBarrier: true } : {}) });
         await wait(() => a.latest()?.type === 'room', 'host receives room code');
-        b.send({ type: 'join', code: a.latest().code, ...(right === 'gd' ? { restartBarrier: true } : {}) });
+        b.send({ type: 'join', code: a.latest().code, ...(['gd', 'gamepix'].includes(right) ? { restartBarrier: true } : {}) });
         await wait(() => a.starts().length === 1 && b.starts().length === 1, 'both get initial countdown');
         assert.equal(a.starts()[0].state.eventText, '3');
-        const barrier = [left, right].some(name => ['gd', 'y8'].includes(name));
+        const barrier = [left, right].some(name => ['gd', 'y8', 'gamepix'].includes(name));
         // Two completed matches exercise resetting readiness between rounds.
         for (let replay = 0; replay < 2; replay++) {
           await finishMatch(a);
           await wait(() => b.latest()?.state?.phase === 'finished', 'guest sees match finish');
           const count = a.starts().length;
           const round = a.starts().at(-1).round;
-          const restart = peer => peer.send({ type: 'restart', ...(peer.name === 'gd' ? { round } : {}) });
+          const restart = peer => peer.send({ type: 'restart', ...(['gd', 'gamepix'].includes(peer.name) ? { round } : {}) });
           // Alternate who clicks first. Old clients send no new capability or round fields.
           const first = replay ? b : a;
           const second = replay ? a : b;

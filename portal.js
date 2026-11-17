@@ -7,6 +7,7 @@ export const siteUrl = 'https://oddbirdle.pages.dev/';
 // Portals that allow no links out of the game and no analytics of our own: invites are the room code, nothing is
 // counted, and the debug and test pages are off.
 export const closedPortal = ['gamepix', 'y8', 'gamedistribution'].includes(portal);
+export const coordinatedBreak = ['gamepix', 'gamedistribution'].includes(portal);
 // Portal builds are served from the portal's domain but play on our server.
 export const serverBase = portal ? siteUrl : new URL('./', location.href).href;
 
@@ -46,10 +47,17 @@ export function onPortalPause(handler) {
 
 function initGamepix() {
   const candidate = window.GamePix;
-  if (!candidate?.events) return;
-  gamepix = candidate;
-  candidate.events.on('pause', () => { sdkPaused = true; refreshPause(); });
-  candidate.events.on('resume', () => { sdkPaused = false; refreshPause(); });
+  if (candidate?.events) {
+    gamepix = candidate;
+    candidate.events.on('pause', () => { sdkPaused = true; refreshPause(); });
+    candidate.events.on('resume', () => { sdkPaused = false; refreshPause(); });
+  }
+  // GamePix requires visibility pausing, not blur pausing when the iframe loses focus.
+  const visibility = () => { focusPaused = !!document.hidden; refreshPause(); };
+  document.addEventListener('visibilitychange', visibility);
+  visibility();
+  const stage = document.querySelector('#stage');
+  if (stage) stage.inert = true;
 }
 
 // Y8: the game pauses and goes quiet when the tab is hidden or the window loses focus (a click outside the frame
@@ -185,15 +193,20 @@ export function loadingStart() {
 
 export async function loadingStop() {
   call(game => game.loadingStop());
-  if (!gamepix) return;
-  gamepixCall(g => g.lifecycle.loading(100));
+  if (portal !== 'gamepix') return;
   try {
-    await gamepix.lifecycle.loaded();
+    if (gamepix) {
+      gamepixCall(g => g.lifecycle.loading(100));
+      await gamepix.lifecycle.loaded();
+      ready = true;
+    }
   } catch {
     // Carry on without it.
+  } finally {
+    document.querySelector('#gamepix-loading')?.remove();
+    const stage = document.querySelector('#stage');
+    if (stage) stage.inert = false;
   }
-  ready = true;
-  document.querySelector('#gamepix-loading')?.remove();
 }
 
 // Tells CrazyGames when a match is being played (start, rematch) and when it is not (menus, results).

@@ -97,10 +97,21 @@ for (const side of ['left', 'right']) {
 }
 
 test('ad-portal Origins get a server-enforced rematch wait; plain website and itch do not', () => {
-  for (const host of ['https://item-cdn.y8.com', 'https://revision.gamedistribution.com', 'https://html5.gamedistribution.com']) {
+  for (const host of ['https://item-cdn.y8.com', 'https://revision.gamedistribution.com', 'https://html5.gamedistribution.com',
+    'https://gamepix.com', 'https://games.gamepix.com', 'https://preview.games.gamepix.com']) {
     assert.equal(requiresRematchReady(host), true);
   }
   for (const host of ['https://oddbirdle.pages.dev', 'https://html-classic.itch.zone', 'https://evil.test', null]) {
     assert.equal(requiresRematchReady(host), false);
+  }
+});
+
+test('GamePix allows HTTPS subdomains without accepting lookalike domains', () => {
+  for (const origin of ['https://gamepix.com', 'https://games.gamepix.com', 'https://preview.games.gamepix.com']) {
+    assert.equal(originSource(origin), 'gamepix');
+  }
+  for (const origin of ['http://games.gamepix.com', 'https://gamepix.com.evil.test', 'https://fakegamepix.com',
+    'https://gamepix.com@evil.test', 'null', null]) {
+    assert.equal(originSource(origin), undefined);
   }
 });
