@@ -47,3 +47,12 @@ node build-pages.js
 - ads.txt: https://support.google.com/adsense/answer/12171612
 - 게임 주변 배치: https://support.google.com/adsense/answer/2768340
 - 동의 메시지: https://support.google.com/adsense/answer/13554116
+
+## 배포 완료 기록
+
+- 프로덕션 연결 코드 커밋: `28c9173`, 브랜치 `work/adsense-site-connection`. 관리 브랜치에도 `82078c7`로 같은 변경을 반영했다.
+- 배포: https://ccfc5223.oddbirdle.pages.dev — production `main`, 공개 https://oddbirdle.pages.dev/ .
+- 이전 배포/롤백 기준: `9bc2c7c8-526c-4ba6-a7e5-1009b3e84524` (`4aca8a4`).
+- 공개 HTML HTTP 200, `<head>`의 태그 1개, ads.txt HTTP 200 및 게시자 ID 일치를 확인했다. 공개 `client.js`는 기존 공개 버전과 동일하다.
+- 신규 빌드 검사 1개가 6종 포털에서 자체 웹 코드/ads.txt 제외를 실제 생성물로 검증했다. 기존 제출 ZIP은 교체하지 않았다. 테스트 중 공백 경로의 `%20` 문제도 `fileURLToPath`로 수정했다.
+- 관리 브랜치에는 후속 GamePix Pause 변경도 포함돼 있지만, 이번 웹 배포에는 함께 넣지 않았다. 다음 전체 배포 시 이 차이를 확인한다.
