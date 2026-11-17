@@ -1,0 +1,17 @@
+{
+  "name": "Odd Birdle",
+  "github": "yoyoyoera/odd_birdle",
+  "itchGameId": 5350750,
+  "minimumIntervalHours": 6,
+  "platforms": [
+    { "id": "web", "name": "웹사이트", "status": "live", "url": "https://oddbirdle.pages.dev", "title": "ODD BIRDLE" },
+    { "id": "itch", "name": "itch.io", "status": "live", "url": "https://studiyo21.itch.io/odd-birdle", "title": "Odd Birdle" },
+    { "id": "y8", "name": "Y8", "status": "review", "url": null },
+    { "id": "gamepix", "name": "GamePix", "status": "review", "url": null },
+    { "id": "gamedistribution", "name": "GameDistribution", "status": "waiting", "url": null }
+  ],
+  "discovery": [
+    { "name": "itch 제목 검색", "url": "https://itch.io/search?q=Odd%20Birdle", "target": "https://studiyo21.itch.io/odd-birdle" },
+    { "name": "itch 무료 스포츠·온라인 목록 첫 페이지", "url": "https://itch.io/games/new-and-popular/free/genre-sports/tag-online-multiplayer", "target": "https://studiyo21.itch.io/odd-birdle" }
+  ]
+}

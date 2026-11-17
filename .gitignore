@@ -2,3 +2,5 @@ node_modules/
 dist/
 .wrangler/
 portal/
+tools/site-manager/output/
+tools/site-manager/.env
