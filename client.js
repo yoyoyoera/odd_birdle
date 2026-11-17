@@ -42,6 +42,9 @@ const cpuLabel = document.querySelector('#cpu-label');
 const winnerLabel = document.querySelector('#winner');
 const recordLabel = document.querySelector('#record');
 const rematchLabel = document.querySelector('#rematch-status');
+const pauseOverlay = document.querySelector('#pause-overlay');
+const pauseTitle = document.querySelector('#pause-title');
+const pauseDetail = document.querySelector('#pause-detail');
 const status = document.querySelector('#status');
 const eventBanner = document.querySelector('#event-banner');
 const gameControl = document.querySelector('#game-control');
@@ -118,6 +121,7 @@ const demoAlpha = { racket: 0.4, bird: 0.75 };
 const ready = { phase: 'ready' };
 let socket;
 let onlineView;
+let latestOnlineTime;
 const playback = createPlayback(oldNet ? legacyTuning : beforeNet ? { peakWindowMs: 0 } : {});
 let mode = 'menu';
 let onlineRound;
@@ -195,6 +199,7 @@ function setMode(next, message = '') {
   back.hidden = next === 'menu';
   lobbyMessage.hidden = !message;
   setText(lobbyMessage, message);
+  showPauseState();
 }
 
 function send(message) {
@@ -216,6 +221,7 @@ function leave(message = '', stay = false) {
   rematchReady = false;
   rematchStatus = '';
   onlineRound = undefined;
+  latestOnlineTime = undefined;
   if (mode === 'online') reportNet();
   roomLeft();
   const previous = socket;
@@ -235,7 +241,7 @@ function leave(message = '', stay = false) {
 function connect(request, via = request.type === 'join' ? 'code' : 'create') {
   const join = request.type === 'join';
   const queueing = request.type === 'queue';
-  if (socket) return;
+  if (socket || gamePaused) return;
   joinVia = via;
   // Quick match connects quietly while the CPU game keeps going.
   if (!queueing) setMode(join ? 'join' : 'connecting');
@@ -276,6 +282,7 @@ function connect(request, via = request.type === 'join' ? 'code' : 'create') {
         localSide = message.side;
         localRacket = undefined;
         onlineView = message.state;
+        latestOnlineTime = message.time;
         playback.reset();
         netMeter.begin();
         linkQuality.reset();
@@ -296,6 +303,7 @@ function connect(request, via = request.type === 'join' ? 'code' : 'create') {
       case 'state':
         netDebug.states++;
         onlineView = message.state;
+        latestOnlineTime = message.time;
         playback.push(message.time, message.state, performance.now());
         break;
       case 'pong':
@@ -334,7 +342,7 @@ function connect(request, via = request.type === 'join' ? 'code' : 'create') {
         leave('', true);
         quick.queued = false;
         showQueueStatus();
-        setTimeout(() => { if (quick.on && !socket) connect({ type: 'queue' }, 'quick'); }, 5000);
+        setTimeout(() => { if (quick.on && !gamePaused && !socket) connect({ type: 'queue' }, 'quick'); }, 5000);
       }
       return;
     }
@@ -501,6 +509,16 @@ function setRacket(input) {
 
 // Set while the portal (GamePix) has the game paused.
 let gamePaused = false;
+
+function showPauseState() {
+  const showing = gamePaused && (mode === 'solo' || mode === 'online');
+  pauseOverlay.hidden = !showing;
+  stage.toggleAttribute('data-paused', showing);
+  const online = mode === 'online';
+  setText(pauseTitle, online ? 'ONLINE MATCHES CANNOT BE PAUSED' : 'PAUSED');
+  setText(pauseDetail, online ? 'The match continues while you are away. Resume to return.'
+    : quick.on ? 'CPU game and matchmaking are paused. Resume to continue.' : 'Resume to continue.');
+}
 
 function moveRacket(event) {
   if (gamePaused) return;
@@ -777,6 +795,15 @@ function drawShuttle({ flash, phase, shuttle, frozen }, alpha = 1) {
 }
 
 function frame(time) {
+  // Freeze only this client's presentation. Online snapshots keep arriving;
+  // resuming jumps to the current server state instead of replaying a backlog.
+  if (gamePaused) {
+    lastFrame = undefined;
+    accumulator = 0;
+    frameMeter?.reset();
+    requestAnimationFrame(frame);
+    return;
+  }
   const workStart = frameMeter ? performance.now() : 0;
   if (debugNet) netDebug.frames.push(time);
   if (mode === 'online') netMeter.frame(time);
@@ -870,6 +897,11 @@ for (const event of ['pointerleave', 'pointercancel', 'lostpointercapture']) {
 court.addEventListener('pointerup', event => {
   if (event.pointerType !== 'mouse') setRacket(null);
 });
+stage.addEventListener('click', event => {
+  if (!gamePaused) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+}, true);
 document.querySelector('#create').addEventListener('click', () =>
   portal === 'gamedistribution' ? afterMatchBreak(() => connect({ type: 'create' })) : connect({ type: 'create' }));
 document.querySelector('#join').addEventListener('click', () => {
@@ -1276,10 +1308,32 @@ copyLink.addEventListener('click', async () => {
 });
 
 // Opening an invite link joins that room straight away, then tidies the address bar.
-// GamePix pauses the game (for its ads, and when asked to): nothing moves, nothing is heard, no touch counts.
+// CPU pause also withdraws matchmaking. A real online match continues on the
+// server; only this client's scene, sound and input pause, with a clear warning.
 onPortalPause(paused => {
+  if (gamePaused === paused) return;
   gamePaused = paused;
-  if (paused) setRacket(null);
+  lastFrame = undefined;
+  accumulator = 0;
+  if (paused) {
+    setRacket(null);
+    setPlaying(false);
+    if (quick.on && mode === 'solo' && socket) {
+      quick.queued = false;
+      // Closing also covers a start already in flight: callbacks from this old
+      // socket are ignored, so a paused player cannot be moved into a match.
+      leave('', true);
+    }
+  } else {
+    resetPrediction();
+    if (mode === 'online' && onlineView && Number.isFinite(latestOnlineTime)) {
+      playback.reset();
+      playback.push(latestOnlineTime, onlineView, performance.now());
+    }
+    lastInput = performance.now();
+    if (quick.on && mode === 'solo' && !socket) connect({ type: 'queue' }, 'quick');
+  }
+  showPauseState();
   updateQueue();
 });
 
@@ -1331,7 +1385,7 @@ soundToggle.addEventListener('click', () => {
 });
 showSoundState();
 gameControl.addEventListener('click', () => {
-  if (breakPending || rematchReady) return;
+  if (gamePaused || breakPending || rematchReady) return;
   const rematch = currentView().phase === 'finished' || onlineView?.phase === 'finished';
   const restart = () => {
     if (currentView().phase === 'finished' || onlineView?.phase === 'finished') {

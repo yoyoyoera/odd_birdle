@@ -1,5 +1,7 @@
 # GamePix submission
 
+Latest GamePix-only update: [GAMEPIX-PAUSE-POLICY.md](GAMEPIX-PAUSE-POLICY.md). Use `oddbirdle-gamepix-pause-policy.zip` for the latest request. CPU pauses; CPU quick-search pauses and withdraws matchmaking; an ongoing online match continues on the server while its local client shows the no-pause notice. This update has not been uploaded or deployed by the assistant.
+
 Current update: see [READY-REMATCHES.md](READY-REMATCHES.md) for website/itch readiness, the visible waiting prompt, and separate GamePix sound controls. This supersedes the historical website/itch single-click behavior below.
 
 Prepared 2026-11-17. Support ticket #10156460 grants written consent for the external multiplayer server. The user sent the follow-up confirming these endpoints:

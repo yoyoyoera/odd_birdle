@@ -31,6 +31,13 @@
       margin: 0; color: var(--ink); text-align: center; white-space: nowrap; pointer-events: none;
       font-size: clamp(2rem, 8vw, 5rem); font-weight: 650; line-height: 1; letter-spacing: -.04em; }
     #stage { position: relative; }
+    #pause-overlay { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center;
+      padding: 16px; background: var(--court); background: color-mix(in srgb, var(--court) 96%, transparent);
+      color: var(--ink); text-align: center; cursor: default; }
+    #pause-overlay[hidden] { display: none; }
+    #pause-overlay > div { width: min(100%, 600px); }
+    #pause-title { margin: 0; font-size: clamp(1rem, 3.8vw, 2rem); line-height: 1.15; font-weight: 650; }
+    #pause-detail { margin: 12px 0 0; font-size: clamp(.75rem, 1.9vw, 1rem); line-height: 1.4; }
     #stage:not([data-phase="ready"]) h1 { display: none; }
     #studio-links { display: flex; justify-content: center; margin-top: 8px; }
     #studio-links a, #sound-toggle { display: grid; place-items: center; width: 44px; height: 44px; color: var(--court); }
@@ -178,7 +185,11 @@
           stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     </button>
+    <div id="pause-overlay" role="status" aria-live="polite" hidden>
+      <div><h2 id="pause-title">PAUSED</h2><p id="pause-detail">Resume to continue.</p></div>
+    </div>
   </section>
+  <!-- The overlay has no online pause/resume controls; the portal owns its pause signal. -->
   <nav id="studio-links" aria-label="studiyo links and sound">
     <a href="https://studiyo.pages.dev/" target="_blank" rel="noopener"
       aria-label="studiyo website (opens in a new tab)" title="studiyo website">
