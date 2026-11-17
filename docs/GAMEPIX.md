@@ -28,7 +28,8 @@ Quick matchmaking is disconnected before a break and reconnected after it, so a 
 - GamePix SDK tests cover loading order, pause/mute, visibility versus SDK pause ownership, rate limits, waiting for an active ad Promise, rejection, and a blocked SDK.
 - ZIP CRC, module syntax, relative imports, font bundling, and absent external navigation/diagnostics were checked. ZIP size: 90,226 bytes.
 - Shared Worker deployed as `0434978e-ae16-4008-b739-60b939f0d6f4`. Prior rollback version: `f32f6894-9ada-4b9d-a2a8-d2dcf3742f3e`.
-- Public WebSocket verification is recorded below after completion. Actual GamePix iframe rendering, real SDK ad delivery and portal QA approval still require the dashboard test.
+- Public WebSocket CREATE passed for gamepix.com, games.gamepix.com, preview.games.gamepix.com, website, Y8, itch and GD revision. HTTP GamePix and a lookalike suffix were rejected. A website/GamePix match completed naturally at 13:14, stayed finished after website-only replay, then sent both players a new three-second countdown after GamePix readiness. These are protocol clients, not actual portal ad playback.
+- Actual GamePix iframe rendering, real SDK ad delivery and portal QA approval still require the dashboard test.
 
 ## Where to submit
 
