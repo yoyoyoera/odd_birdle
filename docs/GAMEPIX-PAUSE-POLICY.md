@@ -2,6 +2,8 @@
 
 Latest branch: `work/gamepix-pause-policy`, based on the already deployed `work/ready-rematches` work. This update produces a new **GamePix ZIP only**; it does not deploy the website/Worker or replace any portal's submitted game.
 
+**Status update — 2026-11-17 (KST): the user has confirmed GamePix entered Review.** Keep that review intact. Do not treat the remaining independent live-Player checks below as permission to cancel review or replace the submitted build. The latest delivered ZIP is this pause-policy archive, but the actual uploaded payload has not been independently hash-verified. Review is not approval.
+
 ## User decision
 
 The user explicitly rejected synchronized multiplayer pause because it can be abused and interrupts short matches. Do not implement a server pause protocol, opponent pause button, pause timeout, or synchronized resume countdown. The GamePix Player's pause/resume callbacks are still handled locally.
@@ -43,4 +45,4 @@ There is no new in-game multiplayer Pause button. The Player owns the pause sign
 - Supersedes `oddbirdle-gamepix-ready.zip` for the user's latest Pause request.
 - Still includes GamePix sound callbacks and the visible both-player rematch readiness prompts from the preceding release.
 
-Upload this new ZIP to the GamePix Draft when ready, then test Player Pause/Resume in CPU, QUICK MATCH's CPU waiting phase, and a real online match. Also recheck Sound off/on and an actual ad break before QA submission.
+Submission is now complete according to the user. Wait for review results or feedback. If later testing or a replacement is requested, check Player Pause/Resume in CPU, QUICK MATCH's CPU waiting phase and a real online match, plus Sound off/on and an actual ad break. Do not resubmit automatically.
