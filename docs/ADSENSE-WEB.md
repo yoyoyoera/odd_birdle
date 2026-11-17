@@ -47,3 +47,13 @@ node build-pages.js
 - ads.txt: https://support.google.com/adsense/answer/12171612
 - 게임 주변 배치: https://support.google.com/adsense/answer/2768340
 - 동의 메시지: https://support.google.com/adsense/answer/13554116
+
+## 배포 완료 기록
+
+- 연결 코드 커밋: `28c9173`, 브랜치 `work/adsense-site-connection`.
+- 프로덕션 배포: https://ccfc5223.oddbirdle.pages.dev (production branch `main`). 공개 주소는 https://oddbirdle.pages.dev/ 이다.
+- 이전 배포/롤백 기준: `9bc2c7c8-526c-4ba6-a7e5-1009b3e84524` (`4aca8a4`).
+- 공개 주소 HTTP 200, `<head>`의 일치하는 태그 1개, 루트 ads.txt HTTP 200 및 정확한 게시자 ID를 확인했다. 공개 `client.js`는 이전 공개 버전과 바이트 단위로 같다.
+- 신규 실제 빌드 검사 1개 통과. 내부에서 itch/Y8/GamePix/GD/CrazyGames/Newgrounds 6종을 생성해 자체 웹 코드 제외를 검증했다. 기존 제출 ZIP을 교체한 것이 아니다.
+- 빌드 검사 중 기존 스크립트의 URL `.pathname`이 공백 포함 경로를 `%20`으로 넘기던 문제를 발견해 `fileURLToPath`로 수정했다.
+- 후속 Pause/관리 봇 작업을 포함한 전체 인수인계는 `work/promotion-bot` 브랜치의 `docs/HANDOFF-2026-11-17.md`를 참고한다. 이 연결 배포를 위해 GamePix ZIP용 Pause 변경을 웹에 함께 배포하지 않았다.
