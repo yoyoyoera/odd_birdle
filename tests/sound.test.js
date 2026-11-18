@@ -42,3 +42,26 @@ test('screen changes become sound cues once each', () => {
   tracker.cues(live, 6000);
   assert.deepEqual(tracker.cues({ phase: 'finished', winner: 'right', flash: 0, eventText: '' }, 6016, 'left'), ['lose']);
 });
+
+test('the new effects have their own sounds', () => {
+  const tracker = createCueTracker();
+  const live = { phase: 'live', flash: 0, eventText: '' };
+  tracker.cues(live, 0);
+  assert.deepEqual(tracker.cues({ ...live, eventText: 'BALLOON' }, 100), ['doong']);
+  assert.deepEqual(tracker.cues({ ...live, eventText: 'TRAMPOLINE' }, 200), ['doong']);
+  assert.deepEqual(tracker.cues({ ...live, eventText: 'BUMPER' }, 300), ['bumperIn']);
+  assert.deepEqual(tracker.cues({ ...live, eventText: 'DECOY' }, 400), ['decoyIn']);
+  // The post rings at each bounce, once.
+  assert.deepEqual(tracker.cues({ ...live, bumper: { ring: 1 } }, 500), ['bumper']);
+  assert.deepEqual(tracker.cues({ ...live, bumper: { ring: 0.8 } }, 516), []);
+  assert.deepEqual(tracker.cues({ ...live, bumper: { ring: 0 } }, 600), []);
+  assert.deepEqual(tracker.cues({ ...live, bumper: { ring: 1 } }, 700), ['bumper']);
+  // A burst of a fake: once, even though it stays in the view for a while.
+  assert.deepEqual(tracker.cues({ ...live, pops: [{ progress: 0.02 }] }, 800), ['pop']);
+  assert.deepEqual(tracker.cues({ ...live, pops: [{ progress: 0.3 }] }, 900), []);
+  assert.deepEqual(tracker.cues({ ...live, pops: [{ progress: 0.9 }, { progress: 0.01 }] }, 1000), ['pop']);
+  // The floor taking the shuttle: one boing, and the throw-back's ring is not also a racket hit.
+  assert.deepEqual(tracker.cues({ ...live, trampoline: { swell: 1, press: { x: 200, age: 0.01 } } }, 1100), ['boing']);
+  assert.deepEqual(tracker.cues({ ...live, flash: 0.22, trampoline: { swell: 0.6, press: { x: 200, age: 0.1 } } }, 1200), []);
+  assert.deepEqual(tracker.cues({ ...live, trampoline: { swell: 0, press: { x: 200, age: 0.5 } } }, 1500), []);
+});

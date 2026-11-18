@@ -137,6 +137,46 @@ export function balloon() {
     Math.min(1, x / 0.25) * Math.exp(-Math.max(0, x - 0.35) / 0.08) * 0.6);
 }
 
+// 두웅: a low, round tone whose pitch sags and then springs back, with a soft thump at the start.
+// TRAMPOLINE (landing) and BALLOON use it, at different pitches.
+export function doong(base = 150, seconds = 0.7) {
+  const noise = seeded(41);
+  let phase = 0;
+  return make(seconds, x => {
+    const wobble = 1 + 0.06 * Math.sin(TAU * 9 * x) * Math.exp(-x / 0.3);
+    phase += TAU * base * (0.62 + 0.38 * Math.exp(-x / 0.12)) * wobble / sampleRate;
+    const body = Math.sin(phase) + 0.35 * Math.sin(2 * phase) * Math.exp(-x / 0.1);
+    return 0.75 * body * env(x, 0.004, 0.24) + 0.2 * noise() * env(x, 0.0005, 0.01);
+  });
+}
+
+// 팡: a burst, a quick falling pop with a puff of noise (a fake shuttle bursting).
+export function pop() {
+  const noise = seeded(42);
+  const phases = slidePhases(1100, 260, 0.22);
+  return make(0.22, (x, i) => 0.7 * Math.sin(phases[i]) * env(x, 0.0008, 0.05) + 0.6 * noise() * env(x, 0.0004, 0.025));
+}
+
+// BUMPER: a bright pinball "ting" over a short low thock when the shuttle bounces off the post.
+export function bumper() {
+  return make(0.4, x => 0.45 * (Math.sin(TAU * 1175 * x) + 0.7 * Math.sin(TAU * 1760 * 1.003 * x)) * env(x, 0.001, 0.11) +
+    0.5 * Math.sin(TAU * 196 * x) * env(x, 0.002, 0.05));
+}
+
+// The post popping up: a short rising blip.
+export function bumperIn() {
+  const phases = slidePhases(320, 900, 0.25);
+  return make(0.25, (x, i) => 0.6 * triangle(phases[i] / TAU) * env(x, 0.005, 0.1));
+}
+
+// The shuttle splitting: two quick rising blips.
+export function decoyIn() {
+  const out = new Float32Array(length(0.22));
+  mixInto(out, make(0.09, x => 0.5 * square(TAU * 880 * x) * env(x, 0.002, 0.04)), 0);
+  mixInto(out, make(0.12, x => 0.5 * square(TAU * 1320 * x) * env(x, 0.002, 0.05)), 0.07);
+  return out;
+}
+
 // Icy: a crack of filtered noise and a high, quickly fading chime.
 export function freeze() {
   const noise = seeded(14);
@@ -180,6 +220,8 @@ export function renderEffects() {
     netUp: [net(true), 0.8], netDown: [net(false), 0.8], wah: [wah(), 0.7],
     win: [win(), 0.55], lose: [lose(), 0.55], pointWon: [pointWon(), 0.45], pointLost: [pointLost(), 0.5],
     invisible: [invisible(), 0.7], balloon: [balloon(), 0.7], freeze: [freeze(), 0.7],
+    doong: [doong(170, 0.6), 0.9], boing: [doong(115, 0.55), 1], pop: [pop(), 0.8],
+    bumper: [bumper(), 0.7], bumperIn: [bumperIn(), 0.5], decoyIn: [decoyIn(), 0.45],
     applauseBig: [applause(2.2, 34), 0.35]
   };
 }

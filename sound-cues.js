@@ -1,9 +1,11 @@
-import { effectLabels, faultReactions } from './game.js';
+import { effectLabels, trialEffectLabels, faultReactions } from './game.js';
 
 const effectSounds = {
-  SHOCK: 'shock', INVISIBLE: 'invisible', GUST: 'gust', BALLOON: 'balloon',
-  FREEZE: 'freeze', 'HIGH NET': 'netUp', 'LOW NET': 'netDown'
+  SHOCK: 'shock', INVISIBLE: 'invisible', GUST: 'gust', BALLOON: 'doong',
+  FREEZE: 'freeze', 'HIGH NET': 'netUp', 'LOW NET': 'netDown',
+  BUMPER: 'bumperIn', DECOY: 'decoyIn', TRAMPOLINE: 'doong'
 };
+const effectNames = [...effectLabels, ...trialEffectLabels];
 const taunts = new Set([...faultReactions, 'Sleepy?']);
 // Two flashes this close together are one hit (local prediction, then the server's copy).
 const sameHitMs = 130;
@@ -20,17 +22,25 @@ export function createCueTracker() {
       const cues = [];
       if (!view) return cues;
       const text = view.eventText ?? '';
+      const fresh = (view.pops ?? []).filter(pop => pop.progress < 0.12).length;
       if (previous) {
-        if ((view.flash ?? 0) > (previous.flash ?? 0) + 0.05 && now - lastHit > sameHitMs) {
+        // The trampoline's throw-back lights the hit ring but is not a racket hit: it has its own sound.
+        const trampolineThrow = view.trampoline?.press && view.trampoline.press.age < 0.3;
+        if ((view.flash ?? 0) > (previous.flash ?? 0) + 0.05 && now - lastHit > sameHitMs && !trampolineThrow) {
           lastHit = now;
           cues.push('hit');
         }
         if (text && text !== previous.text) {
-          const effect = effectLabels.find(label => text.startsWith(label));
+          const effect = effectNames.find(label => text.startsWith(label));
           if (/^\d$/.test(text)) cues.push('tick');
           else if (effect) cues.push(effectSounds[effect]);
           else if (taunts.has(text)) cues.push('wah');
         }
+        // BUMPER: the ring starts again at each bounce. DECOY: a fresh burst. TRAMPOLINE: a new press into the floor.
+        if ((view.bumper?.ring ?? 0) > (previous.ring ?? 0) + 0.05) cues.push('bumper');
+        if (fresh > previous.fresh) cues.push('pop');
+        const pressAge = view.trampoline?.press?.age;
+        if (pressAge !== undefined && (previous.pressAge === undefined || pressAge < previous.pressAge)) cues.push('boing');
         if (view.phase === 'finished' && previous.phase !== 'finished' && view.winner) {
           cues.push(view.winner === localSide ? 'win' : 'lose');
         } else if (view.score && previous.score) {
@@ -40,7 +50,7 @@ export function createCueTracker() {
           else if (view.score[other] > previous.score[other]) cues.push('pointLost');
         }
       }
-      previous = { flash: view.flash ?? 0, text, phase: view.phase, score: view.score && { ...view.score } };
+      previous = { flash: view.flash ?? 0, text, ring: view.bumper?.ring ?? 0, fresh, pressAge: view.trampoline?.press?.age, phase: view.phase, score: view.score && { ...view.score } };
       return cues;
     }
   };
