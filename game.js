@@ -341,12 +341,19 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
   let bumperCooldown = 0;
   let trampolineHold;
   let press;
+  // True from a bounce off the post or the swollen floor until the next hit: the shuttle is a fresh chance for
+  // whoever it comes to, even the side that hit it last (the CPU may then hit it twice in a row).
+  let afterBounce = false;
+  let cpuPlan;
+  let cpuPlanWait = 0;
 
   const opponent = (side) => side === 'left' ? 'right' : 'left';
 
   function serve() {
     settledSize = undefined;
     trampolineHold = undefined;
+    afterBounce = false;
+    cpuPlan = undefined;
     cpuFollowUps = 0;
     cpuOutFeint = undefined;
     flight++;
@@ -479,6 +486,8 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
         break;
       case 'shock':
         flight++;
+        // The jolt throws the flight off: whoever it falls to may play it, even the side that hit it last.
+        afterBounce = true;
         shuttle.vx = 0;
         shuttle.vy = Math.max(0, shuttle.vy) + 135;
         break;
@@ -570,6 +579,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
       shuttle.y += ny * 1.5;
     }
     shuttle.spin = shuttle.vx / 92 + 1.4;
+    afterBounce = true;
     bumperFlash = bumperRingSeconds;
     bumperCooldown = 0.1;
     flight++;
@@ -662,14 +672,92 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     return flightScale(high, airDrag);
   }
 
-  function velocityToLandAt(targetX, vy) {
-    const landingY = floor - Math.max(...outlinePoints.map(point => point.y));
-    return (targetX - shuttle.x) / landingScale(shuttle.y, vy, landingY);
+  // Where the shuttle goes from `from`, flown forward the way the game will fly it: with the push of a running
+  // GUST or BALLOON, held still by FREEZE, thrown back by the TRAMPOLINE floor and the BUMPER post. The CPU uses this
+  // to see where a shuttle that has been pushed off its path is really going.
+  function flyForward(from, seconds = 3.5, watchPost = false) {
+    const dt = 1 / 60;
+    const bottom = Math.max(...outlinePoints.map(point => point.y));
+    const reach = Math.max(...outlinePoints.map(point => Math.hypot(point.x, point.y)));
+    const body = { x: from.x, y: from.y, vx: from.vx, vy: from.vy };
+    const { gravity, airDrag } = shuttle;
+    const force = currentForce();
+    const frozenFor = activeEffect?.id === 'freeze' ? activeEffect.remaining : 0;
+    const clock = activeEffect ? activeEffect.total - activeEffect.remaining : 0;
+    const left = activeEffect ? activeEffect.remaining : 0;
+    let floorUsed = activeEffect?.id !== 'trampoline' || Boolean(activeEffect.used);
+    let postWait = 0;
+    let hitPost = false;
+    const path = [];
+    for (let t = 0; t < seconds; t += dt) {
+      if (t < frozenFor) { path.push({ t, x: body.x, y: body.y, vy: 0 }); continue; }
+      const push = forceAt(force, t);
+      advanceFlight(body, dt, flightScale(dt, airDrag), Math.exp(-airDrag * dt), gravity * push.gravity / airDrag + push.y, push.x);
+      postWait -= dt;
+      if (activeEffect?.id === 'bumper' && left - t > 0 && postWait <= 0) {
+        const size = smooth(Math.min((clock + t) / bumperGrow, (left - t) / bumperGrow));
+        const dx = body.x - bumperSpot.x;
+        const dy = body.y - bumperSpot.y;
+        const distance = Math.hypot(dx, dy);
+        if (size > 0.6 && distance < bumperSpot.r * size + reach * 0.8 && distance > 1e-6) {
+          const along = body.vx * dx / distance + body.vy * dy / distance;
+          // Planning a shot: just note that it would meet the post. Otherwise bounce off it like the shuttle will.
+          if (watchPost) hitPost = true;
+          else if (along < 0) { body.vx -= 2 * along * dx / distance; body.vy -= 2 * along * dy / distance; }
+          postWait = 0.1;
+        }
+      }
+      if (!floorUsed && left - t > 0) {
+        const swell = smooth(Math.min((clock + t) / trampolineGrow, (left - t) / trampolineGrow));
+        const lift = trampolineLift(body.x, swell);
+        if (lift > 1 && body.y + bottom >= floor - lift) {
+          body.vy = -clamp(Math.abs(body.vy) * 0.9 + 160, 560, 1000);
+          body.vx *= 0.85;
+          floorUsed = true;
+          t += trampolineHoldSeconds;
+        }
+      }
+      if (body.y + bottom >= floor) return { path, landing: { t, x: body.x, y: body.y }, hitPost };
+      path.push({ t, x: body.x, y: body.y, vy: body.vy });
+    }
+    return { path, landing: undefined, hitPost };
+  }
+
+  const pushed = () => Boolean(currentForce()) || ['freeze', 'trampoline', 'bumper'].includes(activeEffect?.id);
+
+  function velocityToLandAt(targetX, vy, watchPost = false) {
+    if (!pushed()) {
+      const landingY = floor - Math.max(...outlinePoints.map(point => point.y));
+      return (targetX - shuttle.x) / landingScale(shuttle.y, vy, landingY);
+    }
+    // With something pushing the shuttle, find by trial the sideways speed that makes it come down at targetX.
+    let low = -1800;
+    let high = 1800;
+    for (let i = 0; i < 14; i++) {
+      const vx = (low + high) / 2;
+      const { path, landing } = flyForward({ x: shuttle.x, y: shuttle.y, vx, vy }, 3.5, watchPost);
+      const x = landing ? landing.x : path.at(-1)?.x ?? shuttle.x;
+      if (x < targetX) low = vx; else high = vx;
+    }
+    return (low + high) / 2;
+  }
+
+  // The CPU's ordinary return: aimed at targetX, and while the BUMPER post is up, with an arc that goes round it.
+  function returnShot(targetX, vy) {
+    if (activeEffect?.id !== 'bumper') return { vx: velocityToLandAt(targetX, vy), vy };
+    let first;
+    for (const option of [vy, -620, -380, -760, -300]) {
+      const vx = velocityToLandAt(targetX, option, true);
+      first ??= { vx, vy: option };
+      if (!flyForward({ x: shuttle.x, y: shuttle.y, vx, vy: option }, 3.5, true).hitPost) return { vx, vy: option };
+    }
+    return first;
   }
 
   function launch(vx, vy, hitter) {
     support = undefined;
     strike = undefined;
+    afterBounce = false;
     flight++;
     pendingLanding = undefined;
     shuttle.vx = vx;
@@ -825,22 +913,40 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
   function moveCpu(dt, canHit = true) {
     cpuThaw = Math.max(0, cpuThaw - dt);
     const tracked = cpuPrediction ?? shuttle;
-    const defending = tracked.x >= center && tracked.vy > 0;
+    // A rising shuttle can be hit too when something threw it up (the floor, the post) or is holding it up.
+    const lifted = afterBounce || ['wind', 'balloon'].includes(activeEffect?.id);
+    const defending = tracked.x >= center && (tracked.vy > 0 || lifted);
+    // Fly the shuttle forward (with whatever is pushing it) to see where it is really going to come to.
+    cpuPlanWait -= dt;
+    if (!cpuPrediction && shuttle && (lastHitter === 'left' || afterBounce)) {
+      if (!cpuPlan || cpuPlanWait <= 0 || cpuPlan.flight !== flight) {
+        const flown = flyForward(shuttle);
+        const meets = flown.path.find(point => point.x >= center + racketRadius && point.x <= rightLine && point.vy > 0 && point.y >= 250) ??
+          (flown.landing && flown.landing.x >= center && flown.landing.x <= rightLine ? flown.landing : undefined);
+        cpuPlan = { flight, landing: flown.landing, meets };
+        cpuPlanWait = 0.05;
+      }
+    } else {
+      cpuPlan = undefined;
+    }
+    const aim = cpuLevel >= 3 && cpuPlan?.meets ? cpuPlan.meets : undefined;
     const anticipates = cpuLevel === 5 && lastHitter === 'left' && tracked.vy > 0;
     const lead = anticipates ? clamp((floor - tracked.y) / tracked.vy, 0, 0.14) : 0;
     const projectedX = tracked.x + tracked.vx * flightScale(lead, shuttle.airDrag);
     const preparing = anticipates && tracked.vx > 0 && projectedX >= center;
     const { speed, spikeChance, outChance, outMargin, liftChance, doubleLiftChance = 0 } = cpuLevels[cpuLevel - 1];
     let leavingOut = false;
-    if (outMargin !== undefined && lastHitter === 'left' && tracked.vx > 0 && tracked.vy > 0) {
+    if (outMargin !== undefined && lastHitter === 'left' && cpuPlan?.landing && pushed()) {
+      leavingOut = cpuPlan.landing.x > rightLine + outMargin;
+    } else if (outMargin !== undefined && lastHitter === 'left' && tracked.vx > 0 && tracked.vy > 0) {
       // Even the earliest possible floor contact must land past the line.
       const radius = Math.max(...outlinePoints.map(point => Math.hypot(point.x, point.y)));
       const landingX = tracked.x + tracked.vx * landingScale(tracked.y, tracked.vy, floor - radius);
       leavingOut = landingX > rightLine + outMargin;
     }
-    const tracking = defending || preparing;
-    const chaseX = clamp(defending ? tracked.x : projectedX, center + racketRadius, rightLine - 24);
-    const chaseY = clamp(tracked.y + 24, 205, floor - 14);
+    const tracking = defending || preparing || Boolean(aim);
+    const chaseX = clamp(aim ? aim.x : defending ? tracked.x : projectedX, center + racketRadius, rightLine - 24);
+    const chaseY = clamp((aim ? aim.y : tracked.y) + 24, 205, floor - 14);
     let targetX = tracking && !leavingOut ? chaseX : 660;
     let targetY = tracking && !leavingOut ? chaseY : 300;
     if (leavingOut && tracking && !cpuOutFeint) {
@@ -863,7 +969,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     cpu.y += clamp(targetY - cpu.y, -340 * travel, 340 * travel);
     const inReach = defending && tracked.x <= rightLine && shuttle.x <= rightLine;
     if (canHit && cpuThaw <= 0 && (inReach || leavingOut) && shuttle.x >= center &&
-        (lastHitter !== 'right' || cpuFollowUps > 0) && hitCooldown <= 0 &&
+        (lastHitter !== 'right' || cpuFollowUps > 0 || afterBounce) && hitCooldown <= 0 &&
         racketContact(cpu, cpu)) {
       if (leavingOut) {
         // The CPU tried to leave it, but the racket was still in the way.
@@ -902,7 +1008,8 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
       const target = outChance && Math.random() < outChance
         ? leftLine - 16 - Math.random() * 20
         : 160 + Math.random() * 165;
-      launch(velocityToLandAt(target, vy), vy, 'right');
+      const shot = returnShot(target, vy);
+      launch(shot.vx, shot.vy, 'right');
     }
   }
 
@@ -1034,6 +1141,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
         shuttle.vy = -clamp(Math.abs(vy) * 0.9 + 160, 560, 1000);
         shuttle.spin = shuttle.vx / 92 + 1.4;
         trampolineHold = undefined;
+        afterBounce = true;
         flash = 0.22;
         flight++;
         strike = undefined;
