@@ -163,7 +163,14 @@ const noMood = { effect: undefined, effectAge: 0, wind: 0, standing: 0, surprise
 // A little stronger than before (was 2.2 / 6 / 22 ms; tuned up again after a first bump was too faint to see); reduced motion turns the jolt off in client.js.
 export const joltPower = { shake: 7, drop: 15, period: 14 };
 
-export function drawStands(ctx, stands, { gaze, palette, cheer, now = 0, jolt = 0, mood = noMood }) {
+// DECOY: which of the shuttles this person is looking at right now. Everyone flicks between them on their own
+// beat, so the crowd looks muddled.
+export function gazeTarget(person, now, count) {
+  const slot = Math.floor(now / 330 + person.x * 0.071 + (person.row ?? 0) * 1.37);
+  return Math.abs(Math.imul(slot + Math.round(person.x), 2654435761) >>> 0) % count;
+}
+
+export function drawStands(ctx, stands, { gaze, gazes, palette, cheer, now = 0, jolt = 0, mood = noMood }) {
   let tones = toneCache.get(palette);
   if (!tones) toneCache.set(palette, tones = tonesFor(palette));
   const { effect, effectAge, wind, standing, surprise, clock } = mood;
@@ -193,7 +200,7 @@ export function drawStands(ctx, stands, { gaze, palette, cheer, now = 0, jolt = 
         tilt = wind * (0.11 * blend + Math.sin(clock / 80 + p.x) * 0.025);
         dx += wind * 3 * s * blend;
       }
-      let look = gaze;
+      let look = gazes?.length > 1 ? gazes[gazeTarget(p, now, gazes.length)] : gaze;
       let lean = 0;
       if (effect === 'balloon') look = { x: p.x, y: -400 };
       if (effect === 'invisible' && gaze) lean = Math.max(-0.32, Math.min(0.32, (gaze.x - p.x) / 500 * 0.5));

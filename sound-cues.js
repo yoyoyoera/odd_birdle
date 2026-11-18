@@ -1,9 +1,9 @@
 import { effectLabels, trialEffectLabels, faultReactions } from './game.js';
 
 const effectSounds = {
-  SHOCK: 'shock', INVISIBLE: 'invisible', GUST: 'gust', BALLOON: 'doong',
+  SHOCK: 'shock', INVISIBLE: 'invisible', GUST: 'gust', BALLOON: 'balloon',
   FREEZE: 'freeze', 'HIGH NET': 'netUp', 'LOW NET': 'netDown',
-  BUMPER: 'bumperIn', DECOY: 'decoyIn', TRAMPOLINE: 'doong'
+  BUMPER: 'bumperIn', DECOY: 'decoyIn', TRAMPOLINE: 'balloon'
 };
 const effectNames = [...effectLabels, ...trialEffectLabels];
 const taunts = new Set([...faultReactions, 'Sleepy?']);
@@ -28,7 +28,8 @@ export function createCueTracker() {
         const trampolineThrow = view.trampoline?.press && view.trampoline.press.age < 0.3;
         if ((view.flash ?? 0) > (previous.flash ?? 0) + 0.05 && now - lastHit > sameHitMs && !trampolineThrow) {
           lastHit = now;
-          cues.push('hit');
+          // While BALLOON is on, a racket hit is a deep "doong" (the shuttle is a balloon).
+          cues.push(view.effect === 'balloon' ? 'doong' : 'hit');
         }
         if (text && text !== previous.text) {
           const effect = effectNames.find(label => text.startsWith(label));

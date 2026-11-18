@@ -557,7 +557,7 @@ function drawCourt(view) {
   ctx.fillStyle = palette.floor;
   ctx.fillRect(0, floor, width, height - floor);
   drawStands(ctx, standsFor(view), {
-    gaze: view.gaze, palette, cheer: crowdNow.cheer, now: performance.now(), mood: crowdNow.mood,
+    gaze: view.gaze, gazes: view.gazes, palette, cheer: crowdNow.cheer, now: performance.now(), mood: crowdNow.mood,
     jolt: reduceMotion.matches ? 0 : shockJolt(view.shake)
   });
   startConfetti(view);

@@ -70,3 +70,14 @@ test('the SHOCK flinch is clearly stronger than before, within bounds', () => {
   assert.ok(joltPower.drop > 6 && joltPower.drop <= 6 * 3);
   assert.ok(joltPower.period < 22 && joltPower.period >= 22 / 2);
 });
+
+import { gazeTarget } from '../stands.js';
+test('DECOY: the crowd looks at different shuttles, each person on their own beat', () => {
+  const people = Array.from({ length: 40 }, (_, i) => ({ x: 70 + i * 20, row: i % 4 }));
+  const at = now => people.map(person => gazeTarget(person, now, 3));
+  const first = at(1000);
+  assert.ok(first.every(index => index >= 0 && index < 3));
+  assert.ok(new Set(first).size === 3, 'all three shuttles get looked at');
+  assert.notDeepEqual(at(1400), first, 'eyes move on');
+  assert.deepEqual(at(1000), first, 'but a moment gives the same answer');
+});

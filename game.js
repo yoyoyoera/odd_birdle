@@ -1083,6 +1083,9 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
       // Where the crowd is looking: the shuttle's place, sent all through a rally so it is still there when
       // INVISIBLE hides the shuttle itself.
       gaze: shuttle && phase === 'live' ? { x: shuttle.x, y: shuttle.y } : undefined,
+      // DECOY: every shuttle the crowd could be looking at (the real one first), while any fake is still up.
+      gazes: decoys.length && shuttle && phase === 'live'
+        ? [{ x: shuttle.x, y: shuttle.y }, ...decoys.map(decoy => ({ x: decoy.x, y: decoy.y }))] : undefined,
       effect: activeEffect?.id,
       // How strongly the hidden shuttle shows right now (a soft ghost after a hit), for INVISIBLE only.
       shuttleAlpha: invisible ? revealPeak * Math.min(1, revealAge / 0.05) * (reveal / revealSeconds) ** 1.5 : undefined,

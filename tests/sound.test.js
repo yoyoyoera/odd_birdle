@@ -47,8 +47,13 @@ test('the new effects have their own sounds', () => {
   const tracker = createCueTracker();
   const live = { phase: 'live', flash: 0, eventText: '' };
   tracker.cues(live, 0);
-  assert.deepEqual(tracker.cues({ ...live, eventText: 'BALLOON' }, 100), ['doong']);
-  assert.deepEqual(tracker.cues({ ...live, eventText: 'TRAMPOLINE' }, 200), ['doong']);
+  // Both start with the inflating sound; the deep doong is for hitting the balloon.
+  assert.deepEqual(tracker.cues({ ...live, eventText: 'BALLOON' }, 100), ['balloon']);
+  assert.deepEqual(tracker.cues({ ...live, eventText: 'TRAMPOLINE' }, 200), ['balloon']);
+  assert.deepEqual(tracker.cues({ ...live, effect: 'balloon', flash: 0.22 }, 250), ['doong']);
+  assert.deepEqual(tracker.cues({ ...live, effect: 'balloon', flash: 0 }, 270), []);
+  assert.deepEqual(tracker.cues({ ...live, flash: 0.22 }, 450), ['hit']);
+  tracker.cues({ ...live, flash: 0 }, 455);
   assert.deepEqual(tracker.cues({ ...live, eventText: 'BUMPER' }, 300), ['bumperIn']);
   assert.deepEqual(tracker.cues({ ...live, eventText: 'DECOY' }, 400), ['decoyIn']);
   // The post rings at each bounce, once.
