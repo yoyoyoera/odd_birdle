@@ -73,6 +73,7 @@ const everyEffect = [...effects, ...trialEffects];
 const retiredEffects = ['freeze', 'invisible'];
 const livePool = everyEffect.filter(effect => !retiredEffects.includes(effect.id));
 export const retiredEffectIds = [...retiredEffects];
+export const randomEffectIds = livePool.map(effect => effect.id);
 
 // BUMPER: a round, fixed post above the middle of the court that the shuttle bounces off.
 export const bumperSpot = { x: width / 2, y: 150, r: 34 };

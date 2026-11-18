@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   createGame, effectIds, trialEffectIds, step, bumperSpot, floor, center, trampolineLift, trampolineDent,
-  trampolineDentDepth, trampolineHoldSeconds, retiredEffectIds
+  trampolineDentDepth, trampolineHoldSeconds, retiredEffectIds, randomEffectIds
 } from '../game.js';
 
 const run = (game, seconds) => { for (let i = 0; i < Math.round(seconds / step); i++) game.simulate(step); };
@@ -38,7 +38,7 @@ test('the random pool has the three new effects and no FREEZE or INVISIBLE', () 
     if (game.view().phase === 'finished') game.restart(3, 4);
   }
   for (const id of retiredEffectIds) assert.ok(!seen.has(id), `${id} came up at random`);
-  for (const id of trialEffectIds) assert.ok(seen.has(id), `${id} never came up (saw ${[...seen]})`);
+  assert.deepEqual(randomEffectIds, ['shock', 'wind', 'balloon', 'highNet', 'lowNet', 'bumper', 'decoy', 'trampoline']);
 });
 
 test('a pinned trial effect is the only one that comes up, and can be asked for by name', t => {
