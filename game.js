@@ -60,6 +60,31 @@ const effects = [
   { id: 'highNet', label: 'HIGH NET', duration: netEffectSeconds, netScale: 2 },
   { id: 'lowNet', label: 'LOW NET', duration: netEffectSeconds, netScale: 0.3 }
 ];
+// Trial effects: built to be voted on, so they are NOT in the random pool above. They only appear when asked
+// for (triggerEffect / setOnlyEffect), which the test pages do. Moving one into `effects` makes it live.
+const trialEffects = [
+  { id: 'bumper', label: 'BUMPER', duration: [4, 5] },
+  { id: 'decoy', label: 'DECOY', duration: 3 },
+  { id: 'trampoline', label: 'TRAMPOLINE', duration: [5, 6] }
+];
+export const trialEffectIds = trialEffects.map(effect => effect.id);
+export const trialEffectLabels = trialEffects.map(effect => effect.label);
+const everyEffect = [...effects, ...trialEffects];
+
+// BUMPER: a round, fixed post above the middle of the court that the shuttle bounces off.
+export const bumperSpot = { x: width / 2, y: 150, r: 34 };
+const bumperGrow = 0.3;
+const bumperRingSeconds = 0.22;
+const bumperMinSpeed = 420;
+// DECOY: the shuttle splits into the real one and two fakes that veer off up and down.
+const decoyTilt = 0.52;
+const decoyPopSeconds = 0.45;
+// TRAMPOLINE: both halves of the floor swell into domes; the first landing is thrown back up.
+export const trampolineRise = 16;
+export const trampolineDentDepth = 15;
+export const trampolineHoldSeconds = 0.09;
+const trampolineGrow = 0.4;
+
 // How far the net rises or sinks, as a multiple of its height. The test page can change these.
 export const defaultNetScales = { highNet: 2, lowNet: 0.3 };
 
@@ -109,6 +134,22 @@ export function forceAt(force, after = 0) {
 
 
 export const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+const smooth = t => { const x = clamp(t, 0, 1); return x * x * (3 - 2 * x); };
+
+// How high the swollen floor stands at x (0 off the court and at the net). `swell` runs 0..1.
+export function trampolineLift(x, swell) {
+  const [from, to] = x < center ? [leftLine, center - 8] : [center + 8, rightLine];
+  if (x <= from || x >= to) return 0;
+  return trampolineRise * swell * Math.sin(Math.PI * (x - from) / (to - from)) ** 0.7;
+}
+
+// How far the floor is pressed down (negative: sprung back above rest) `age` seconds after the shuttle lands.
+export function trampolineDent(age) {
+  if (age < 0) return 0;
+  if (age < trampolineHoldSeconds) return trampolineDentDepth * smooth(age / trampolineHoldSeconds);
+  const t = age - trampolineHoldSeconds;
+  return trampolineDentDepth * Math.exp(-9 * t) * Math.cos(26 * t);
+}
 
 export function netEffectTop(baseTop, elapsed, scale) {
   const progress = clamp(Math.min(elapsed / netMoveSeconds, (netEffectSeconds - elapsed) / netMoveSeconds), 0, 1);
@@ -289,11 +330,19 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
   let support;
   let pendingLanding;
   let settledSize;
+  // Trial effects.
+  let decoys = [];
+  let pops = [];
+  let bumperFlash = 0;
+  let bumperCooldown = 0;
+  let trampolineHold;
+  let press;
 
   const opponent = (side) => side === 'left' ? 'right' : 'left';
 
   function serve() {
     settledSize = undefined;
+    trampolineHold = undefined;
     cpuFollowUps = 0;
     cpuOutFeint = undefined;
     flight++;
@@ -332,6 +381,8 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
       ? selectedCpuLevel : 1 + Math.floor(Math.random() * cpuLevels.length);
     rackets.left = rackets.right = undefined;
     server = 'left';
+    pops = [];
+    press = undefined;
     clearEffect();
     scheduleEvent();
     serve();
@@ -390,6 +441,9 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
   }
 
   function clearEffect() {
+    for (const decoy of decoys) popDecoy(decoy);
+    decoys = [];
+    bumperFlash = 0;
     if (['freeze', 'balloon', 'wind'].includes(activeEffect?.id)) flight++;
     if (activeEffect?.id === 'freeze') cpuThaw = 0.25;
     activeEffect = undefined;
@@ -401,7 +455,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
   }
 
   function startEffect(chosen) {
-    const pool = onlyEffect ? effects.filter(candidate => candidate.id === onlyEffect) : effects;
+    const pool = onlyEffect ? everyEffect.filter(candidate => candidate.id === onlyEffect) : effects;
     const effect = chosen ?? pool[Math.floor(Math.random() * pool.length)];
     const length = effectSeconds[effect.id] ?? (Array.isArray(effect.duration)
       ? effect.duration[0] + Math.random() * (effect.duration[1] - effect.duration[0]) : effect.duration);
@@ -430,6 +484,15 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
         cpuPrediction = { x: shuttle.x, y: shuttle.y + cpuSightBias, vx: shuttle.vx, vy: shuttle.vy };
         reveal = 0;
         flash = 0;
+        break;
+      case 'bumper':
+        bumperFlash = 0;
+        bumperCooldown = 0;
+        break;
+      case 'decoy':
+        splitDecoys();
+        break;
+      case 'trampoline':
         break;
       case 'wind': {
         flight++;
@@ -468,6 +531,117 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
       countdown = 3;
     }
     showEvent(String(Math.ceil(countdown - 1e-9)));
+  }
+
+  // --- BUMPER ---
+  function bumperSize() {
+    if (activeEffect?.id !== 'bumper') return 0;
+    const age = activeEffect.total - activeEffect.remaining;
+    return smooth(Math.min(age / bumperGrow, activeEffect.remaining / bumperGrow));
+  }
+
+  function bumperBounce() {
+    const size = bumperSize();
+    if (size < 0.6 || bumperCooldown > 0 || support) return;
+    const radius = bumperSpot.r * size;
+    if (!outlineContact(bumperSpot, bumperSpot, radius, shuttle.x, shuttle.y, outline)) return;
+    let nx = shuttle.x - bumperSpot.x;
+    let ny = shuttle.y - bumperSpot.y;
+    const length = Math.hypot(nx, ny);
+    if (length < 1e-6) { nx = 0; ny = -1; } else { nx /= length; ny /= length; }
+    const along = shuttle.vx * nx + shuttle.vy * ny;
+    if (along < 0) {
+      shuttle.vx -= 2 * along * nx;
+      shuttle.vy -= 2 * along * ny;
+    }
+    const speed = Math.hypot(shuttle.vx, shuttle.vy);
+    if (speed < bumperMinSpeed) {
+      const k = bumperMinSpeed / Math.max(speed, 1e-6);
+      shuttle.vx = speed < 1e-6 ? nx * bumperMinSpeed : shuttle.vx * k;
+      shuttle.vy = speed < 1e-6 ? ny * bumperMinSpeed : shuttle.vy * k;
+    }
+    // Slide out along the normal until the outline no longer overlaps the post.
+    for (let i = 0; i < 60 && outlineContact(bumperSpot, bumperSpot, radius, shuttle.x, shuttle.y, outline); i++) {
+      shuttle.x += nx * 1.5;
+      shuttle.y += ny * 1.5;
+    }
+    shuttle.spin = shuttle.vx / 92 + 1.4;
+    bumperFlash = bumperRingSeconds;
+    bumperCooldown = 0.1;
+    flight++;
+    strike = undefined;
+    updateOutline();
+  }
+
+  // --- DECOY ---
+  function rotate(vx, vy, angle) {
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    return { vx: vx * cos - vy * sin, vy: vx * sin + vy * cos };
+  }
+
+  function splitDecoys() {
+    let { vx, vy } = shuttle;
+    let speed = Math.hypot(vx, vy);
+    if (speed < 60) {
+      vx = shuttle.x < center ? 1 : -1;
+      vy = 0;
+      speed = 1;
+    }
+    const fakeSpeed = Math.max(speed, 300);
+    const base = { vx: vx / speed * fakeSpeed, vy: vy / speed * fakeSpeed };
+    const a = rotate(base.vx, base.vy, decoyTilt);
+    const b = rotate(base.vx, base.vy, -decoyTilt);
+    // One flies higher than the real shuttle, one lower.
+    const [higher, lower] = a.vy <= b.vy ? [a, b] : [b, a];
+    decoys = [higher, lower].map(velocity => ({
+      x: shuttle.x, y: shuttle.y, ...velocity, angle: shuttle.angle, spin: shuttle.spin,
+      size: shuttlePose().size, gravity: shuttle.gravity, airDrag: shuttle.airDrag
+    }));
+  }
+
+  function decoyPose(decoy) {
+    return { x: decoy.x, y: decoy.y, shape, angle: decoy.angle, size: decoy.size };
+  }
+
+  function popDecoy(decoy) {
+    pops.push({ x: decoy.x, y: decoy.y, shape, angle: decoy.angle, size: decoy.size, age: 0 });
+    decoy.gone = true;
+  }
+
+  function advanceDecoys(dt) {
+    for (const decoy of decoys) {
+      if (decoy.gone) continue;
+      const previousX = decoy.x;
+      const previousY = decoy.y;
+      advanceFlight(decoy, dt, flightScale(dt, decoy.airDrag), Math.exp(-decoy.airDrag * dt), decoy.gravity / decoy.airDrag);
+      decoy.angle += decoy.spin * dt;
+      const rings = shuttleOutline(decoyPose(decoy));
+      const bottom = Math.max(...rings.flat().map(point => point.y));
+      const crossesCenter = (previousX - center) * (decoy.x - center) < 0;
+      const hitsNet = (crossesCenter && outlineContact(netStart, netEnd, 2, center,
+        previousY + (decoy.y - previousY) * (center - previousX) / (decoy.x - previousX), rings)) ||
+        outlineContact(netStart, netEnd, 2, decoy.x, decoy.y, rings);
+      if (decoy.y + bottom >= floor || decoy.x < -40 || decoy.x > width + 40 || hitsNet) popDecoy(decoy);
+    }
+    decoys = decoys.filter(decoy => !decoy.gone);
+  }
+
+  // A racket that touches a fake bursts it.
+  function racketPopsDecoys(from, to) {
+    for (const decoy of decoys) {
+      if (!decoy.gone && outlineContact(from, to, racketRadius, decoy.x, decoy.y, shuttleOutline(decoyPose(decoy)))) {
+        popDecoy(decoy);
+      }
+    }
+    decoys = decoys.filter(decoy => !decoy.gone);
+  }
+
+  // --- TRAMPOLINE ---
+  function trampolineSwell() {
+    if (activeEffect?.id !== 'trampoline') return 0;
+    const age = activeEffect.total - activeEffect.remaining;
+    return smooth(Math.min(age / trampolineGrow, activeEffect.remaining / trampolineGrow));
   }
 
   function landingScale(y, vy, landingY) {
@@ -539,7 +713,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
   function checkContact(side, from, to, swingX, swingY) {
     const onCourt = onSide(side);
     const overlap = onCourt && racketContact(to, to);
-    if (phase === 'live' && onCourt && hitCooldown <= 0 &&
+    if (phase === 'live' && !trampolineHold && onCourt && hitCooldown <= 0 &&
         (!touching[side] || (support === side && isSwing({ vx: swingX, vy: swingY }))) && racketContact(from, to)) {
       playerHit(side, swingX, swingY);
       touching[side] = overlap;
@@ -549,12 +723,12 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
   }
 
   function contactFrame() {
-    if (phase !== 'live' || pendingLanding || activeEffect?.id === 'freeze') return undefined;
+    if (phase !== 'live' || pendingLanding || trampolineHold || activeEffect?.id === 'freeze') return undefined;
     return { ...shuttlePose(), flight, canHit: hitCooldown <= 0 };
   }
 
   function onlineContact(side, from, to, frame, hold = false) {
-    if (phase !== 'live' || activeEffect?.id === 'freeze' || !frame || frame.flight !== flight) return;
+    if (phase !== 'live' || trampolineHold || activeEffect?.id === 'freeze' || !frame || frame.flight !== flight) return;
     if ((frame.x < center ? 'left' : 'right') !== side) {
       touching[side] = false;
       return;
@@ -601,7 +775,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
   }
 
   function supportShuttle(side, from, to) {
-    if (phase !== 'live' || pendingLanding || !onSide(side)) return false;
+    if (phase !== 'live' || pendingLanding || trampolineHold || !onSide(side)) return false;
     const y = supportedShuttleY(shuttlePose(), from, to);
     if (y === undefined) return false;
     shuttle.y = y;
@@ -635,6 +809,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     };
     const previous = rackets[side] ?? next;
     rackets[side] = next;
+    if (decoys.length) racketPopsDecoys(previous, next);
     if (activeEffect?.id === 'freeze') return;
     Object.assign(next, swingMotion(previous, next));
     if (next.vy < 0 && !isSwing(next) && supportShuttle(side, previous, next)) return;
@@ -746,6 +921,9 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     }
     shuttle.angle += shuttle.spin * dt;
     updateOutline();
+    bumperCooldown = Math.max(0, bumperCooldown - dt);
+    bumperFlash = Math.max(0, bumperFlash - dt);
+    if (activeEffect?.id === 'bumper') bumperBounce();
     const left = Math.min(...outlinePoints.map(point => point.x));
     const right = Math.max(...outlinePoints.map(point => point.x));
     const bottom = Math.max(...outlinePoints.map(point => point.y));
@@ -763,6 +941,20 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
       return;
     }
 
+    const lift = activeEffect?.id === 'trampoline' && !activeEffect.used ? trampolineLift(shuttle.x, trampolineSwell()) : 0;
+    if (lift > 1 && shuttle.y + bottom >= floor - lift) {
+      // The swollen floor catches it: sink in for a moment, then throw it back up (not a point).
+      shuttle.y = floor - lift - bottom;
+      trampolineHold = { age: 0, x: shuttle.x, restY: shuttle.y, vx: shuttle.vx, vy: shuttle.vy };
+      press = { x: shuttle.x, age: 0 };
+      shuttle.vx = 0;
+      shuttle.vy = 0;
+      activeEffect.used = true;
+      activeEffect.remaining = Math.min(activeEffect.remaining, trampolineGrow);
+      flight++;
+      strike = undefined;
+      return;
+    }
     if (shuttle.y + bottom >= floor) {
       shuttle.y = floor - bottom;
       const out = shuttle.x < leftLine || shuttle.x > rightLine;
@@ -791,6 +983,12 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
         netStart.y = matchNetTop;
         netReturn = undefined;
       }
+    }
+    for (const pop of pops) pop.age += dt;
+    pops = pops.filter(pop => pop.age < decoyPopSeconds);
+    if (press) {
+      press.age += dt;
+      if (press.age > 0.7) press = undefined;
     }
     if (phase === 'ready' || phase === 'finished') return;
     if (phase === 'starting') {
@@ -822,12 +1020,31 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     reveal = Math.max(0, reveal - dt);
     revealAge += dt;
     updateEvent(dt);
+    if (trampolineHold) {
+      trampolineHold.age += dt;
+      shuttle.y = trampolineHold.restY + trampolineDent(trampolineHold.age) * 0.7;
+      if (trampolineHold.age >= trampolineHoldSeconds - 1e-9) {
+        const { vx, vy } = trampolineHold;
+        shuttle.y = trampolineHold.restY;
+        shuttle.vx = vx * 0.85;
+        shuttle.vy = -clamp(Math.abs(vy) * 0.9 + 160, 560, 1000);
+        shuttle.spin = shuttle.vx / 92 + 1.4;
+        trampolineHold = undefined;
+        flash = 0.22;
+        flight++;
+        strike = undefined;
+      }
+      updateOutline();
+      if (withCpu) moveCpu(dt, false);
+      return;
+    }
     if (activeEffect?.id === 'freeze') {
       // Only the shuttle is frozen: players keep moving, but nothing can be hit until it thaws.
       if (withCpu) moveCpu(dt, false);
       return;
     }
     advanceShuttle(dt);
+    if (decoys.length) advanceDecoys(dt);
     if (support) {
       const racket = rackets[support];
       if (!racket || !supportShuttle(support, racket, { ...racket, vy: 0 })) {
@@ -846,6 +1063,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
         checkContact(side, racket, racket, motion.vx, motion.vy);
       }
       moveCpu(dt);
+      if (decoys.length && cpu) racketPopsDecoys(cpu, cpu);
     }
   }
 
@@ -865,6 +1083,12 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
       // How strongly the hidden shuttle shows right now (a soft ghost after a hit), for INVISIBLE only.
       shuttleAlpha: invisible ? revealPeak * Math.min(1, revealAge / 0.05) * (reveal / revealSeconds) ** 1.5 : undefined,
       shake: activeEffect?.id === 'shock' ? activeEffect.remaining : 0,
+      bumper: activeEffect?.id === 'bumper'
+        ? { x: bumperSpot.x, y: bumperSpot.y, r: bumperSpot.r, size: bumperSize(), ring: bumperFlash / bumperRingSeconds } : undefined,
+      decoys: decoys.length ? decoys.map(decoy => ({ ...decoyPose(decoy) })) : undefined,
+      pops: pops.length ? pops.map(pop => ({ ...pop, progress: pop.age / decoyPopSeconds })) : undefined,
+      trampoline: activeEffect?.id === 'trampoline' || press
+        ? { swell: trampolineSwell(), press: press ? { x: press.x, age: press.age } : undefined } : undefined,
       shuttle: visible ? { ...shuttlePose(), flight, baseSize: shuttle.size, canHit: hitCooldown <= 0 && !pendingLanding && !frozen } : undefined,
       left: position(rackets.left),
       right: position(cpu ?? rackets.right)
@@ -873,7 +1097,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
 
   // For trying effects out (?test=effects): start one right now if a rally is live.
   function triggerEffect(id) {
-    const effect = effects.find(candidate => candidate.id === id);
+    const effect = everyEffect.find(candidate => candidate.id === id);
     if (!effect || phase !== 'live' || activeEffect || !shuttle || pendingLanding) return false;
     countdown = 0;
     startEffect(effect);
@@ -892,14 +1116,14 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
 
   // Test page only: make an effect last this many seconds (nothing or nonsense restores its usual time).
   function setEffectSeconds(id, seconds) {
-    if (!effects.some(effect => effect.id === id)) return;
+    if (!everyEffect.some(effect => effect.id === id)) return;
     if (Number.isFinite(seconds) && seconds > 0 && seconds <= 10) effectSeconds[id] = seconds;
     else delete effectSeconds[id];
   }
 
   // Test page only: random effects are always this one (undefined or an unknown id = any effect).
   function setOnlyEffect(id) {
-    onlyEffect = effectIds.includes(id) ? id : undefined;
+    onlyEffect = effectIds.includes(id) || trialEffectIds.includes(id) ? id : undefined;
   }
 
   // Test page only: pick the next HIGH NET / LOW NET size.
