@@ -80,8 +80,8 @@ const bumperMinSpeed = 420;
 const decoyTilt = 0.52;
 const decoyPopSeconds = 0.45;
 // TRAMPOLINE: both halves of the floor swell into domes; the first landing is thrown back up.
-export const trampolineRise = 16;
-export const trampolineDentDepth = 15;
+export const trampolineRise = 24;
+export const trampolineDentDepth = 18;
 export const trampolineHoldSeconds = 0.09;
 const trampolineGrow = 0.4;
 

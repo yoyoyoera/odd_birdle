@@ -1,4 +1,4 @@
-import { center, clamp, createGame, floor, height, leftLine, netTop, racketRadius, rightLine, shuttleOutline, step, width, contactMotion, isSwing, projectStrike, forceAt, effectIds, shapeCount, shuttleSizeOptions, racketTouches, supportedShuttleY, swingMotion } from './game.js';
+import { center, clamp, createGame, floor, height, leftLine, netTop, racketRadius, rightLine, shuttleOutline, step, width, contactMotion, isSwing, projectStrike, forceAt, effectIds, shapeCount, shuttleSizeOptions, racketTouches, supportedShuttleY, swingMotion, trialEffectIds, trialEffectLabels, trampolineLift, trampolineDent } from './game.js';
 import { makeStands, drawStands } from './stands.js';
 import { createCrowd } from './crowd.js';
 import { createLinkQuality } from './link-quality.js';
@@ -84,7 +84,8 @@ const testParams = new URLSearchParams(closedPortal ? '' : location.search);
 const testEffects = testParams.get('test') === 'effects';
 const testShapes = testParams.get('test') === 'shapes';
 // ?test=freeze / balloon / shock: a CPU Lv.4 match where the random effect is always that one (for recording).
-const onlyEffectTest = ['freeze', 'balloon', 'shock'].includes(testParams.get('test')) ? testParams.get('test') : undefined;
+// The trial effects (bumper, decoy, trampoline) can only be seen this way or from the ?test=effects buttons.
+const onlyEffectTest = ['freeze', 'balloon', 'shock', ...trialEffectIds].includes(testParams.get('test')) ? testParams.get('test') : undefined;
 const debugNet = testParams.get('debug') === 'net';
 // ?net=old: the earlier playback and unbundled touch input, to compare on the same phones.
 const oldNet = testParams.get('net') === 'old';
@@ -562,12 +563,86 @@ function drawCourt(view) {
   startConfetti(view);
   ctx.fillStyle = palette.line;
   ctx.fillRect(leftLine, floor, rightLine - leftLine, 8);
+  if (view.trampoline) drawTrampoline(view.trampoline);
 
   ctx.fillStyle = palette.net;
   ctx.fillRect(center - 2, top, 4, floor - top);
   ctx.fillRect(center - 9, top, 18, 4);
   ctx.fillStyle = '#f7f6e9';
   for (const x of [leftLine, center, rightLine]) ctx.fillRect(x - 2, floor, 4, 8);
+}
+
+// TRAMPOLINE: each half of the floor swells into a dome; where the shuttle landed it dents in, then springs back.
+function drawTrampoline({ swell, press }) {
+  const dent = press ? trampolineDent(press.age) : 0;
+  const surface = x => floor - trampolineLift(x, swell) +
+    (press ? dent * Math.exp(-(((x - press.x) / 55) ** 2)) : 0);
+  ctx.fillStyle = palette.line;
+  for (const [from, to] of [[leftLine, center - 8], [center + 8, rightLine]]) {
+    ctx.beginPath();
+    ctx.moveTo(from, floor + 8);
+    for (let x = from; x <= to; x += 5) ctx.lineTo(x, surface(x));
+    ctx.lineTo(to, surface(to));
+    ctx.lineTo(to, floor + 8);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+// BUMPER: a fixed round post that grows in, with a ring (like the one at a racket hit) when the shuttle bounces off.
+function drawBumper({ x, y, r, size, ring }) {
+  const radius = r * size;
+  if (radius <= 0) return;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.fillStyle = palette.ink;
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x, y, radius * 0.6, 0, Math.PI * 2);
+  ctx.strokeStyle = palette.court;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  if (ring > 0) {
+    ctx.beginPath();
+    ctx.arc(x, y, radius + 4 + (1 - ring) * 36, 0, Math.PI * 2);
+    ctx.globalAlpha = ring;
+    ctx.strokeStyle = palette.ink;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// DECOY: the fakes look exactly like the real shuttle; a burst is a thin ring and a few shards.
+function drawDecoys(view, alpha = 1) {
+  for (const decoy of view.decoys ?? []) {
+    ctx.save();
+    drawShuttle({ flash: 0, phase: 'live', shuttle: decoy, frozen: false }, alpha);
+    ctx.restore();
+  }
+}
+
+function drawPops(pops) {
+  ctx.save();
+  ctx.strokeStyle = palette.ink;
+  ctx.lineCap = 'round';
+  for (const pop of pops) {
+    const t = pop.progress;
+    ctx.globalAlpha = 1 - t;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(pop.x, pop.y, 10 + t * 44, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    for (let k = 0; k < 8; k++) {
+      const angle = pop.angle + k * Math.PI / 4;
+      ctx.moveTo(pop.x + Math.cos(angle) * (8 + t * 26), pop.y + Math.sin(angle) * (8 + t * 26));
+      ctx.lineTo(pop.x + Math.cos(angle) * (16 + t * 40), pop.y + Math.sin(angle) * (16 + t * 40));
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 function draw(view, scenery = false) {
@@ -587,8 +662,11 @@ function draw(view, scenery = false) {
     // has a connection open while waiting) draws the game's own racket.
     const ownRacket = mode === 'online' && !scenery ? localRacket : view[localSide];
     if (ownRacket && view.phase !== 'finished') drawRacket(ownRacket, '#a9d67877', palette.ink, scenery ? undefined : localSide);
+    if (view.bumper) drawBumper(view.bumper);
     if (view.shuttle) drawShuttle(view, (scenery ? demoAlpha.bird : 1) * (view.shuttleAlpha ?? 1));
     ctx.globalAlpha = 1;
+    drawDecoys(view);
+    if (view.pops) drawPops(view.pops);
     if (!scenery) {
       drawDust();
       drawConfetti();
@@ -940,10 +1018,15 @@ function startCpu() {
 }
 document.querySelector('#cpu').addEventListener('click', () => afterMatchBreak(startCpu));
 
+// Declared before the test pages below, which start a CPU game (and so read it) while the file is still loading.
+const quick = { on: false, queued: false, found: undefined, finished: false };
+
 if (testEffects) {
   // A CPU Lv.4 match straight away, with a button (or number key 1-7) per effect.
   selectedCpuLevel = 4;
   showCpuLevel();
+  // For scripted checks (screenshots, swings) of this test page only.
+  window.oddBirdleTest = { solo };
   const panel = document.createElement('div');
   panel.id = 'effect-test';
   panel.style.cssText = 'position:fixed;left:8px;bottom:8px;display:flex;flex-wrap:wrap;gap:4px;max-width:70vw;' +
@@ -955,6 +1038,20 @@ if (testEffects) {
     const started = mode === 'solo' && solo.triggerEffect(effectIds[index]);
     note.textContent = started ? labels[index] : 'wait for a live rally';
   };
+  // The three trial effects (keys 8, 9, 0): not in the live random pool.
+  const triggerTrial = index => {
+    const started = mode === 'solo' && solo.triggerEffect(trialEffectIds[index]);
+    note.textContent = started ? trialEffectLabels[index] : 'wait for a live rally';
+  };
+  trialEffectIds.forEach((id, index) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = `${index === 2 ? 0 : index + 8} ${trialEffectLabels[index]}`;
+    button.dataset.trial = id;
+    button.style.cssText = 'padding:6px 8px;border:0;background:var(--court);color:var(--ink);cursor:pointer;font:inherit;outline:2px dashed var(--ink)';
+    button.addEventListener('click', () => triggerTrial(index));
+    panel.append(button);
+  });
   effectIds.forEach((id, index) => {
     const button = document.createElement('button');
     button.type = 'button';
@@ -1036,6 +1133,7 @@ if (testEffects) {
   document.addEventListener('keydown', event => {
     const index = Number(event.key) - 1;
     if (index >= 0 && index < effectIds.length) trigger(index);
+    if (event.key === '8' || event.key === '9' || event.key === '0') triggerTrial(event.key === '0' ? 2 : Number(event.key) - 8);
   });
   startCpu();
 }
@@ -1213,7 +1311,6 @@ if (testJuice) {
 // QUICK MATCH: play the CPU right away and wait for another player in the background.
 // Only players who are actually here (tab visible, recent input) wait, so a match
 // can start straight away with no accept step.
-const quick = { on: false, queued: false, found: undefined, finished: false };
 const idleMs = 30000;
 let lastInput = performance.now();
 for (const type of ['pointermove', 'pointerdown', 'keydown']) {

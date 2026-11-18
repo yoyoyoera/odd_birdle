@@ -2,7 +2,7 @@
 // hits the rally has had (a long one gets people up out of their seats), which effect is running, and which
 // crowd sounds to play. Pure (no drawing, no audio), so it can be tested.
 
-const surprising = ['shock', 'highNet', 'lowNet', 'balloon'];
+const surprising = ['shock', 'highNet', 'lowNet', 'balloon', 'bumper', 'decoy', 'trampoline'];
 const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
 
 export function createCrowd() {
