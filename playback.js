@@ -322,6 +322,11 @@ export function createPlayback(tuning = {}) {
       netTop: Number.isFinite(a.netTop) && Number.isFinite(b.netTop)
         ? mix(a.netTop, b.netTop, fraction) : a.netTop,
       // The crowd's gaze slides smoothly between snapshots like the shuttle would.
+      // Fakes (DECOY) glide too, matched up by position in the list while none has burst between the two snapshots.
+      decoys: a.decoys && b.decoys && a.decoys.length === b.decoys.length
+        ? a.decoys.map((decoy, i) => ({ ...decoy, x: mix(decoy.x, b.decoys[i].x, fraction),
+          y: mix(decoy.y, b.decoys[i].y, fraction), angle: mix(decoy.angle, b.decoys[i].angle, fraction) }))
+        : a.decoys,
       gaze: a.gaze && b.gaze
         ? { x: mix(a.gaze.x, b.gaze.x, fraction), y: mix(a.gaze.y, b.gaze.y, fraction) } : a.gaze,
       shuttle

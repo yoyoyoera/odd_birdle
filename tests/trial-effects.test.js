@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   createGame, effectIds, trialEffectIds, step, bumperSpot, floor, center, trampolineLift, trampolineDent,
-  trampolineDentDepth, trampolineHoldSeconds
+  trampolineDentDepth, trampolineHoldSeconds, retiredEffectIds
 } from '../game.js';
 
 const run = (game, seconds) => { for (let i = 0; i < Math.round(seconds / step); i++) game.simulate(step); };
@@ -24,20 +24,21 @@ function hit(game, { dx = -40, dy = 0 } = {}) {
   return game.view().shuttle;
 }
 
-test('trial effects are not part of the live random pool', () => {
+test('the random pool has the three new effects and no FREEZE or INVISIBLE', () => {
   assert.deepEqual(trialEffectIds, ['bumper', 'decoy', 'trampoline']);
-  for (const id of trialEffectIds) assert.ok(!effectIds.includes(id));
+  assert.deepEqual(retiredEffectIds, ['freeze', 'invisible']);
   const game = createGame({ withCpu: true, quickEvents: true });
   game.restart(3, 4);
   const seen = new Set();
-  for (let i = 0; i < 120 * 300; i++) {
+  for (let i = 0; i < 120 * 900; i++) {
     game.moveRacket('left', { x: 300 + Math.sin(i / 90) * 120, y: 380, time: i * 8 });
     game.simulate(step);
     const effect = game.view().effect;
     if (effect) seen.add(effect);
     if (game.view().phase === 'finished') game.restart(3, 4);
   }
-  for (const id of trialEffectIds) assert.ok(!seen.has(id), `${id} showed up at random`);
+  for (const id of retiredEffectIds) assert.ok(!seen.has(id), `${id} came up at random`);
+  for (const id of trialEffectIds) assert.ok(seen.has(id), `${id} never came up (saw ${[...seen]})`);
 });
 
 test('a pinned trial effect is the only one that comes up, and can be asked for by name', t => {
@@ -169,4 +170,17 @@ test('the dent presses in, springs back past rest, and settles', () => {
   const springs = Array.from({ length: 40 }, (_, i) => trampolineDent(trampolineHoldSeconds + i * 0.01));
   assert.ok(Math.min(...springs) < 0, 'it overshoots upward');
   assert.ok(Math.abs(trampolineDent(1)) < 0.2, 'then settles');
+});
+
+test('what the server sends for the new effects survives JSON (online rooms send the whole view)', t => {
+  for (const id of trialEffectIds) {
+    const game = serve(t);
+    game.triggerEffect(id);
+    run(game, 0.5);
+    const sent = JSON.parse(JSON.stringify(game.view()));
+    assert.equal(sent.effect, id);
+    if (id === 'bumper') assert.equal(sent.bumper.size, 1);
+    if (id === 'decoy') assert.equal(sent.decoys.length, 2);
+    if (id === 'trampoline') assert.equal(sent.trampoline.swell, 1);
+  }
 });

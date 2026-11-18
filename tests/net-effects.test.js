@@ -15,7 +15,7 @@ test('net effects ease in for 0.7s, hold for 4s and restore each match baseline'
 });
 
 test('real rallies select both effects and restore height after expiry or restart', t => {
-  for (const [roll, label] of [[0.8, 'HIGH NET'], [0.95, 'LOW NET']]) {
+  for (const [roll, label] of [[0.45, 'HIGH NET'], [0.55, 'LOW NET']]) {
     t.mock.method(Math, 'random', () => roll);
     const game = createGame();
     game.restart();
@@ -51,7 +51,7 @@ test('online playback blends the visible moving net between server samples', () 
 });
 
 test('ending a rally or match eases the net back over 0.7 seconds', t => {
-  for (const [roll, label] of [[0.8, 'HIGH NET'], [0.95, 'LOW NET']]) {
+  for (const [roll, label] of [[0.45, 'HIGH NET'], [0.55, 'LOW NET']]) {
     for (const finalPoint of [false, true]) {
       t.mock.method(Math, 'random', () => roll);
       const game = createGame();

@@ -60,8 +60,7 @@ const effects = [
   { id: 'highNet', label: 'HIGH NET', duration: netEffectSeconds, netScale: 2 },
   { id: 'lowNet', label: 'LOW NET', duration: netEffectSeconds, netScale: 0.3 }
 ];
-// Trial effects: built to be voted on, so they are NOT in the random pool above. They only appear when asked
-// for (triggerEffect / setOnlyEffect), which the test pages do. Moving one into `effects` makes it live.
+// The newer effects. They are in the random pool (see livePool below) like the older ones.
 const trialEffects = [
   { id: 'bumper', label: 'BUMPER', duration: [4, 5] },
   { id: 'decoy', label: 'DECOY', duration: 3 },
@@ -70,6 +69,10 @@ const trialEffects = [
 export const trialEffectIds = trialEffects.map(effect => effect.id);
 export const trialEffectLabels = trialEffects.map(effect => effect.label);
 const everyEffect = [...effects, ...trialEffects];
+// FREEZE and INVISIBLE are retired from play: still here for the test pages (asked for by name), never drawn at random.
+const retiredEffects = ['freeze', 'invisible'];
+const livePool = everyEffect.filter(effect => !retiredEffects.includes(effect.id));
+export const retiredEffectIds = [...retiredEffects];
 
 // BUMPER: a round, fixed post above the middle of the court that the shuttle bounces off.
 export const bumperSpot = { x: width / 2, y: 150, r: 34 };
@@ -455,7 +458,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
   }
 
   function startEffect(chosen) {
-    const pool = onlyEffect ? everyEffect.filter(candidate => candidate.id === onlyEffect) : effects;
+    const pool = onlyEffect ? everyEffect.filter(candidate => candidate.id === onlyEffect) : livePool;
     const effect = chosen ?? pool[Math.floor(Math.random() * pool.length)];
     const length = effectSeconds[effect.id] ?? (Array.isArray(effect.duration)
       ? effect.duration[0] + Math.random() * (effect.duration[1] - effect.duration[0]) : effect.duration);
