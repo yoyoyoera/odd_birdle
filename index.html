@@ -72,9 +72,15 @@
     [data-portal="reddit"] #join-form, [data-portal="reddit"] .link { display: none !important; }
     /* Reddit's expanded post is a small, nearly square frame: the court takes the full width and the buttons sit
        in a row under it, unless the frame is really wide and short (a phone on its side). */
+    /* The only button left, sound, sits on the court's floor corner, so the page is just the court, centred. */
+    [data-portal="reddit"] main { display: grid; grid-template-columns: minmax(0, 1fr); column-gap: 0; padding-block: 0; width: min(940px, 100% - 8px, (100svh - 4px) * 1.8); }
+    [data-portal="reddit"] #stage, [data-portal="reddit"] #studio-links { grid-area: 1 / 1; }
+    [data-portal="reddit"] #studio-links { align-self: end; justify-self: end; margin: 0 4px 4px 0; z-index: 2; }
+    [data-portal="reddit"] #sound-toggle { color: var(--ink); opacity: .55; }
+    [data-portal="reddit"] #sound-toggle:hover { opacity: 1; background: transparent; }
     @media (max-aspect-ratio: 8 / 5) {
-      [data-portal="reddit"] main { display: block; width: calc(100% - 8px); padding-block: 4px; }
-      [data-portal="reddit"] #studio-links { flex-direction: row; margin-top: 4px; }
+      [data-portal="reddit"] main { display: grid; width: calc(100% - 8px); padding-block: 4px; }
+      [data-portal="reddit"] #studio-links { flex-direction: row; margin-top: 0; }
       [data-portal="reddit"] #studio-links .link { flex-direction: row; height: 44px; min-height: 0; gap: 6px; padding: 0 4px; }
       [data-portal="reddit"] #studio-links .link b { position: absolute; transform: translateX(-50%); width: auto;
         white-space: nowrap; font-size: .75rem; line-height: normal; letter-spacing: 0; }
