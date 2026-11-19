@@ -2,6 +2,7 @@
 // Crowd, a crowned (when won) racket, the score plate, a few facts and one line. Everything is seeded, so the same
 // match always draws the same card; a different seed gives different confetti and a different crowd.
 import { makeStands, drawStands } from './stands.js';
+import { shuttleOutline } from './game.js';
 
 export const cardWidth = 1080, cardHeight = 1350;
 
@@ -22,17 +23,21 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-// The rackets are what the game draws: a plain circle, green and see-through for the player, brown for the CPU.
-const racketLook = { you: { fill: '#a9d67877', stroke: null }, cpu: { fill: '#cf936b99', stroke: '#774935' } };
-
-function racket(ctx, x, y, r, palette, { who = 'you', crown = false }) {
-  const look = racketLook[who];
-  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
-  ctx.fillStyle = look.fill; ctx.fill();
-  ctx.lineWidth = Math.max(3, r * 0.03); ctx.strokeStyle = look.stroke ?? palette.ink; ctx.stroke();
+// The star of the card is the match's own odd shuttle, drawn the way the game draws it: a flat silhouette in the ink
+// colour. The winner's wears a crown; the loser's lies tipped over on the floor.
+function heroShuttle(ctx, palette, { shape, size, x, y, angle, crown }) {
+  const rings = shuttleOutline({ shape, size, angle });
+  ctx.beginPath();
+  for (const ring of rings) {
+    ring.forEach((point, index) => index ? ctx.lineTo(x + point.x, y + point.y) : ctx.moveTo(x + point.x, y + point.y));
+    ctx.closePath();
+  }
+  ctx.fillStyle = palette.ink;
+  ctx.fill('evenodd');
   if (crown) {
-    const w = r * 0.9, base = y - r * 0.98, h = r * 0.5;
-    ctx.fillStyle = '#e9c25a'; ctx.strokeStyle = palette.ink; ctx.lineWidth = Math.max(3, r * 0.035);
+    const top = y + Math.min(...rings.flat().map(point => point.y));
+    const w = size * 0.8, h = size * 0.42, base = top + 4;
+    ctx.fillStyle = '#e9c25a'; ctx.strokeStyle = palette.ink; ctx.lineWidth = 6;
     ctx.beginPath();
     ctx.moveTo(x - w / 2, base); ctx.lineTo(x - w / 2, base - h * 0.6); ctx.lineTo(x - w / 4, base - h * 0.25);
     ctx.lineTo(x, base - h); ctx.lineTo(x + w / 4, base - h * 0.25); ctx.lineTo(x + w / 2, base - h * 0.6);
@@ -75,7 +80,7 @@ function wrap(ctx, text, maxWidth) {
 
 // match: { won, mine, theirs, cpuLevel, stage, rally, effects: [['SHOCK', 3], ...], line, name, seed, palette }
 export function drawCard(ctx, match) {
-  const { palette, won, mine, theirs, cpuLevel, stage, rally, effects = [], line, name, seed = 1 } = match;
+  const { palette, won, mine, theirs, cpuLevel, stage, rally, effects = [], line, name, seed = 1, shape = 0 } = match;
   const random = randomFrom(seed);
   const W = cardWidth, H = cardHeight;
   ctx.fillStyle = palette.page;
@@ -90,7 +95,7 @@ export function drawCard(ctx, match) {
   const scale = 2.3;
   ctx.translate(W / 2 - 450 * scale, 0);
   ctx.scale(scale, scale);
-  drawStands(ctx, makeStands(seed, 1), { palette, now: 4000, cheer: { side: won ? 'left' : 'right', since: 0, finale: true }, mood: { effect: undefined, effectAge: 0, wind: 0, standing: won ? 1 : 0, surprise: 0, clock: seed * 1000 } });
+  drawStands(ctx, makeStands(seed), { palette, now: 4000, cheer: { side: won ? 'left' : 'right', since: 0, finale: true }, mood: { effect: undefined, effectAge: 0, wind: 0, standing: won ? 1 : 0, surprise: 0, clock: seed * 1000 } });
   ctx.restore();
   ctx.fillStyle = palette.floor;
   ctx.fillRect(0, 640, W, sceneBottom - 640);
@@ -98,9 +103,9 @@ export function drawCard(ctx, match) {
   ctx.fillRect(0, 640, W, 10);
   if (won) confetti(ctx, palette, random, 90, W, 380, sceneBottom);
   else drizzle(ctx, palette, random, W, 0, sceneBottom);
-  racket(ctx, W / 2, 610, 150, palette, { who: 'you', crown: won });
+  heroShuttle(ctx, palette, { shape, size: won ? 125 : 105, x: W / 2, y: won ? 600 : 690, angle: won ? -0.15 : 0.9, crown: won });
   ctx.fillStyle = palette.ink + '33';
-  ctx.beginPath(); ctx.ellipse(W / 2, 770, 150, 22, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(W / 2, won ? 770 : 780, won ? 130 : 150, 20, 0, 0, Math.PI * 2); ctx.fill();
 
   // Score plate.
   const plateY = 880, plateH = 190, plateX = 70, plateW = W - 140;
@@ -114,14 +119,10 @@ export function drawCard(ctx, match) {
   ctx.fillStyle = palette.court; ctx.font = font(30); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText('FULL-TIME', W / 2, plateY - 2);
   ctx.fillStyle = palette.ink; ctx.font = font(124, 650);
-  ctx.fillText(`${mine} - ${theirs}`, W / 2, plateY + 104);
-  for (const [cx, label, level, crowned] of [[plateX + 105, 'YOU', null, won], [plateX + plateW - 105, 'CPU', cpuLevel, false]]) {
-    ctx.fillStyle = palette.page + '14';
-    ctx.beginPath(); ctx.arc(cx, plateY + 90, 62, 0, Math.PI * 2); ctx.fill();
-    racket(ctx, cx, plateY + 90, 50, palette, { who: label === 'YOU' ? 'you' : 'cpu', crown: crowned });
-    ctx.fillStyle = palette.ink; ctx.font = font(26); ctx.textAlign = 'center';
-    ctx.fillText(level ? `${label} LV.${level}` : label, cx, plateY + 168);
-  }
+  ctx.fillText(`${mine}:${theirs}`, W / 2, plateY + 104);
+  ctx.fillStyle = palette.ink; ctx.textAlign = 'center';
+  ctx.font = font(44); ctx.fillText('YOU', plateX + 120, plateY + 108);
+  ctx.font = font(36); ctx.fillText(`CPU LV.${cpuLevel}`, plateX + plateW - 140, plateY + 108);
 
   // Facts.
   const facts = [];
