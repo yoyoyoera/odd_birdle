@@ -1,0 +1,9 @@
+<!doctype html><meta charset="utf-8"><title>Y8 lab host</title>
+<style>body{background:#eee;font:14px sans-serif;margin:10px} iframe{border:0;width:740px;height:390px;display:block;background:#000} #bar{margin:8px 0}</style>
+<div id="bar">Y8-like host. <a id="ext" href="#">outside link</a> <input id="box" placeholder="outside input"></div>
+<iframe id="game" allow="autoplay; fullscreen"></iframe>
+<script>
+const v = new URLSearchParams(location.search).get('v') || 'ready';
+const q = new URLSearchParams(location.search); const g = document.getElementById('game'); if (q.get('w')) { g.style.width = q.get('w') + 'px'; g.style.height = q.get('h') + 'px'; }
+document.getElementById('game').src = 'http://127.0.0.1:8771/' + v + '/index.html';
+</script>

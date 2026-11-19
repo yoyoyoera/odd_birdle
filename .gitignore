@@ -4,3 +4,5 @@ dist/
 portal/
 tools/site-manager/output/
 tools/site-manager/.env
+tools/y8-lab/games/
+tools/y8-lab/out/

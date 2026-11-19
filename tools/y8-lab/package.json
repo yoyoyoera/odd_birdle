@@ -1,0 +1,7 @@
+{
+  "name": "oddbirdle-y8-lab",
+  "private": true,
+  "type": "module",
+  "description": "Plays the Y8 build in a cross-origin iframe with Y8's real SDK, in headless Chrome",
+  "dependencies": { "puppeteer-core": "23.11.1", "ws": "8.21.0" }
+}
