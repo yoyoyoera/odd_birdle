@@ -78,7 +78,7 @@ export function createSound() {
   // and is made of loops of different lengths, so it never sounds like it repeats.
   const beds = { wind: windAmbience };
   const running = new Map();
-  const bedLevel = 0.3;
+  const bedLevel = 0.16;
   function startBed(name) {
     if (running.has(name) || !context || context.state !== 'running') return;
     const layers = beds[name]();

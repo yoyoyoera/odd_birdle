@@ -227,22 +227,28 @@ export function renderEffects() {
 }
 
 // --- Wind ambience (stage "Windy Day") ---
-// A bed of wind that must not sound like a loop. Two layers of different lengths (13.1 s and 19.3 s) play together, each
-// looping on its own, so the two only line up again after minutes; each starts at a random point; and each layer is
-// itself seamless: its end is crossfaded into its start, and its slow swells (gusts) are built from whole numbers of
-// cycles per loop, so volume and tone meet exactly where the loop wraps.
-function windLayer(seconds, seed, { cutoff, breath, swells, hiss }) {
+// Wind as it is outdoors: a deep, soft rumble with a gentle, wide "whoosh" on top that swells and fades with the gusts,
+// and nothing sharp or hissy. No hiss means no white-noise top end: the noise is passed through several low-pass stages.
+// It must also not sound like a loop. Two layers of different lengths (13.1 s and 19.3 s) play together, each looping on
+// its own, so they only line up again after minutes; each starts at a random point; and each layer is itself seamless:
+// its end is crossfaded into its start, and its swells are built from whole numbers of cycles per loop, so volume and
+// tone meet exactly where the loop wraps.
+const onePole = hertz => 1 - Math.exp(-TAU * hertz / sampleRate);
+
+function windLayer(seconds, seed, { lows, subtract, swells, floor }) {
   const noise = seeded(seed);
   const loopLength = length(seconds);
   const fadeLength = length(0.8);
   const raw = new Float32Array(loopLength + fadeLength);
-  let slow = 0, fast = 0;
+  const poles = lows.map(onePole), states = lows.map(() => 0);
+  const subtractPole = subtract ? onePole(subtract) : 0;
+  let subtractState = 0;
   for (let i = 0; i < raw.length; i++) {
     const white = noise();
-    slow += cutoff * (white - slow);
-    fast += cutoff * 4 * (white - fast);
-    // Mostly low rumble with a little breath on top.
-    raw[i] = slow * 1.6 + (fast - slow) * breath;
+    let value = white;
+    for (let p = 0; p < poles.length; p++) { states[p] += poles[p] * (value - states[p]); value = states[p]; }
+    if (subtract) { subtractState += subtractPole * (white - subtractState); value -= subtractState * 0.9; }
+    raw[i] = value;
   }
   // Equal-power crossfade: the sample after the last one is the one that follows it in the original stream.
   const layer = new Float32Array(loopLength);
@@ -256,9 +262,9 @@ function windLayer(seconds, seed, { cutoff, breath, swells, hiss }) {
   let peak = 0;
   for (let i = 0; i < loopLength; i++) {
     const t = i / loopLength;
-    let swell = 0.55;
+    let swell = 0.5;
     for (const [cycles, depth, phase] of swells) swell += depth * Math.sin(TAU * (cycles * t + phase));
-    layer[i] *= Math.max(0.12, swell) + hiss * 0;
+    layer[i] *= Math.max(floor, swell);
     peak = Math.max(peak, Math.abs(layer[i]));
   }
   for (let i = 0; i < loopLength; i++) layer[i] /= peak || 1;
@@ -267,9 +273,9 @@ function windLayer(seconds, seed, { cutoff, breath, swells, hiss }) {
 
 export function windAmbience() {
   return [
-    { samples: windLayer(13.1, 4242, { cutoff: 0.035, breath: 0.35, hiss: 0,
-      swells: [[3, 0.22, 0.1], [7, 0.12, 0.6], [11, 0.06, 0.3]] }), gain: 0.55 },
-    { samples: windLayer(19.3, 9091, { cutoff: 0.06, breath: 0.6, hiss: 0,
-      swells: [[5, 0.2, 0.45], [9, 0.1, 0.05], [17, 0.05, 0.8]] }), gain: 0.4 }
+    // The rumble: low and round, with long, deep swells.
+    { samples: windLayer(13.1, 4242, { lows: [150, 150, 150], swells: [[2, 0.3, 0.1], [5, 0.12, 0.6], [9, 0.05, 0.3]], floor: 0.12 }), gain: 0.8 },
+    // The whoosh: a soft band in the low mids that comes and goes with its own gusts.
+    { samples: windLayer(19.3, 9091, { lows: [480, 480, 480], subtract: 160, swells: [[3, 0.34, 0.45], [7, 0.1, 0.05], [13, 0.04, 0.8]], floor: 0.04 }), gain: 0.3 }
   ];
 }
