@@ -626,8 +626,9 @@ function drawRacket(position, fill, stroke, side) {
   const squash = squashes[side];
   const amount = squash && juice.squash && !reduceMotion.matches ? squashAmount(performance.now() - squash.start) : 0;
   // Squash: a little flatter along the way the shuttle was sent, a little wider across it.
-  if (amount) ctx.ellipse(position.x, position.y, racketRadius * (1 - amount), racketRadius * (1 + amount * 0.6), squash.angle, 0, Math.PI * 2);
-  else ctx.arc(position.x, position.y, racketRadius, 0, Math.PI * 2);
+  const radius = position.radius ?? racketRadius; // a boss's racket is bigger
+  if (amount) ctx.ellipse(position.x, position.y, radius * (1 - amount), radius * (1 + amount * 0.6), squash.angle, 0, Math.PI * 2);
+  else ctx.arc(position.x, position.y, radius, 0, Math.PI * 2);
   ctx.fillStyle = fill;
   ctx.fill();
   ctx.lineWidth = 2;

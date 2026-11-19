@@ -914,9 +914,12 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     outlinePoints = outline.flat();
   }
 
-  function racketContact(from, to) {
-    return outlineContact(from, to, racketRadius, shuttle.x, shuttle.y, outline);
+  function racketContact(from, to, radius = racketRadius) {
+    return outlineContact(from, to, radius, shuttle.x, shuttle.y, outline);
   }
+
+  // A boss stage can give the CPU a bigger racket (rules.cpuRacketScale, 1 to 3): it is drawn bigger and reaches as far as it looks.
+  const cpuRadius = () => racketRadius * (Number.isFinite(rules?.cpuRacketScale) ? clamp(rules.cpuRacketScale, 1, 3) : 1);
 
   function wrongPartner(key, from, to) {
     const team = teamOf(key);
@@ -1133,7 +1136,7 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     const inReach = defending && tracked.x <= rightLine && birdX <= rightLine;
     if (canHit && cpuThaw <= 0 && (inReach || leavingOut) && birdX >= center &&
         (doubles || lastHitter !== team || cpuFollowUps > 0 || afterBounce) && hitCooldown <= 0 &&
-        racketContact(bot, bot)) {
+        racketContact(bot, bot, doubles ? racketRadius : cpuRadius())) {
       if (leavingOut) {
         // The CPU tried to leave it, but the racket was still in the way.
         const vy = -485;
@@ -1422,7 +1425,7 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
         ? { swell: trampolineSwell(), press: press ? { x: press.x, age: press.age } : undefined } : undefined,
       shuttle: visible ? { ...shuttlePose(), flight, baseSize: shuttle.size, canHit: hitCooldown <= 0 && !pendingLanding && !frozen } : undefined,
       left: position(rackets.left),
-      right: position(doubles ? bots.right : cpu ?? rackets.right),
+      right: (racket => racket && (!doubles && cpu && cpuRadius() !== racketRadius ? { ...racket, radius: cpuRadius() } : racket))(position(doubles ? bots.right : cpu ?? rackets.right)),
       ...(doubles ? {
         leftB: position(bots.leftB), rightB: position(bots.rightB),
         turn: turn && { ...turn }, lastPlayer, fault, doubles: {

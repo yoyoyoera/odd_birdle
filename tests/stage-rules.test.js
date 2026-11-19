@@ -248,3 +248,14 @@ test('Smash Fest keeps the CPU playing with its smash chance raised by the stage
     if (shuttle) assert.ok(['x', 'y', 'size'].every(key => Number.isFinite(shuttle[key])));
   }
 });
+
+test('a boss racket is bigger: the view says so, and plain matches keep the normal size', () => {
+  const big = createGame({ withCpu: true, rules: { ...plainRules, cpuRacketScale: 1.5 } });
+  big.restart();
+  for (let tick = 0; tick < 240; tick++) lobTick(big);
+  assert.equal(big.view().right.radius, 33);
+  const plain = createGame({ withCpu: true, rules: plainRules });
+  plain.restart();
+  for (let tick = 0; tick < 240; tick++) lobTick(plain);
+  assert.equal(plain.view().right.radius, undefined);
+});
