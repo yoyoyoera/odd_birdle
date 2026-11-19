@@ -845,9 +845,12 @@ let stands;
 let standsScore = -1;
 let confetti;
 // A new crowd for every match: the score going back down means a new one began.
+// The deeper into the stages, the fuller the stands: nearly empty for stage 1, packed from the bosses on. (Practice
+// matches keep their random crowd.)
+const stageCrowd = id => Math.min(1, 0.12 + 0.88 * (id - 1) / 19);
 function standsFor(view) {
   const total = view.score ? view.score.left + view.score.right : 0;
-  if (!stands || total < standsScore) stands = makeStands();
+  if (!stands || total < standsScore) stands = makeStands(undefined, selectedStage ? stageCrowd(selectedStage.id) : undefined);
   standsScore = total;
   return stands;
 }
@@ -1148,6 +1151,7 @@ function flagYou() {
 
 // Each CPU match puts the player on a random side (the ?test= pages keep the left).
 function restartCpu() {
+  stands = undefined; // a new crowd for the new match, sized for the stage
   cpuMirrored = !testParams.has('test') && Math.random() < 0.5;
   solo.restart(3, selectedStage?.rules.cpuLevel ?? selectedCpuLevel, selectedStage?.rules ?? null);
 }
