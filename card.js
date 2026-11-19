@@ -2,6 +2,8 @@
 // The score is the star. Behind it the whole crowd cheers (or sags), and when you won, fireworks show above it.
 // Everything is seeded, so the same match always draws the same card; another seed gives another crowd.
 import { makeStands, drawStands } from './stands.js';
+import { motifs } from './card-motifs/index.js';
+import { drawRankFlourish, rankAccent } from './card-rank.js';
 
 export const cardWidth = 1080, cardHeight = 1350;
 
@@ -68,6 +70,8 @@ function drizzle(ctx, palette, random, top, bottom) {
   }
 }
 
+const formatTime = seconds => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
+
 function wrap(ctx, text, maxWidth) {
   const rows = [];
   let row = '';
@@ -84,6 +88,7 @@ export function drawCard(ctx, match) {
   const { palette, won, mine, theirs, cpuLevel, stage, stageName, rally, effects = [], line, name, seed = 1 } = match;
   // The card is shared by many players, so the player's own name stands where YOU would.
   const playerLabel = name || 'YOU';
+  const { daily } = match;
   const random = randomFrom(seed);
   const W = cardWidth, H = cardHeight;
   ctx.fillStyle = palette.page;
@@ -101,6 +106,11 @@ export function drawCard(ctx, match) {
   } else {
     drizzle(ctx, palette, random, 0, 800);
   }
+  if (daily && motifs[daily.key]) {
+    ctx.save();
+    motifs[daily.key](ctx, { palette, width: W, height: H, seed, area: { x: 0, y: 0, w: W, h: 560 }, won });
+    ctx.restore();
+  }
 
   // The score panel: flat ink, sharp corners, nothing else competes with the numbers.
   // The panel grows with the line (one, two or three rows) so the words always sit inside it; a taller panel rises.
@@ -113,10 +123,10 @@ export function drawCard(ctx, match) {
   ctx.fillRect(panelX, panelY, panelW, panelH);
   const inner = panelX + pad, innerRight = panelX + panelW - pad;
   ctx.textBaseline = 'alphabetic';
-  ctx.fillStyle = won ? gold : palette.line;
+  ctx.fillStyle = daily?.rank <= 3 ? rankAccent(daily.rank) : won ? gold : palette.line;
   ctx.fillRect(inner, panelY + 52, 44, 8);
   ctx.fillStyle = palette.court; ctx.font = font(34); ctx.textAlign = 'left';
-  ctx.fillText('FULL-TIME', inner + 62, panelY + 66);
+  ctx.fillText(daily ? `DAILY #${daily.number}` : 'FULL-TIME', inner + 62, panelY + 66);
   ctx.textAlign = 'right'; ctx.globalAlpha = 0.6;
   ctx.fillText('ODD BIRDLE', innerRight, panelY + 66);
   ctx.globalAlpha = 1;
@@ -144,11 +154,17 @@ export function drawCard(ctx, match) {
 
   // Facts, then the line.
   const facts = [];
+  if (daily) {
+    facts.push(daily.title.toUpperCase());
+    if (Number.isFinite(daily.seconds)) facts.push(`CLEARED IN ${formatTime(daily.seconds)}`);
+    if (daily.attempts > 1) facts.push(`TRY ${daily.attempt}/${daily.attempts}`);
+  }
   if (stage) facts.push(`STAGE ${stage}`);
-  if (rally) facts.push(`LONGEST RALLY ${rally}`);
+  if (rally && !daily) facts.push(`LONGEST RALLY ${rally}`);
   // However many kinds of effect fired, the card names only the busiest and counts the rest.
   const byCount = [...effects].sort((a, b) => b[1] - a[1]);
-  if (byCount.length <= 2) for (const [effect, times] of byCount) facts.push(`${effect} ×${times}`);
+  if (daily) { /* the challenge line above says what mattered */ }
+  else if (byCount.length <= 2) for (const [effect, times] of byCount) facts.push(`${effect} ×${times}`);
   else facts.push(`${byCount.length} EFFECTS`, `MOST: ${byCount[0][0]} ×${byCount[0][1]}`);
   ctx.fillStyle = palette.court; ctx.globalAlpha = 0.65; ctx.font = font(27); ctx.textAlign = 'center';
   const factLine = facts.join('  ·  ');
@@ -158,5 +174,8 @@ export function drawCard(ctx, match) {
   ctx.globalAlpha = 1;
   ctx.fillStyle = palette.court; ctx.font = font(50);
   rows.forEach((row, index) => ctx.fillText(row, W / 2, panelY + 640 + index * 58));
+  if (daily?.rank >= 1 && daily.rank <= 3) {
+    drawRankFlourish(ctx, { rank: daily.rank, palette, panel: { x: panelX, y: panelY, w: panelW, h: panelH }, width: W, height: H, daily });
+  }
 
 }

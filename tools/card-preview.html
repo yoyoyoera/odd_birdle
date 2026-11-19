@@ -1,0 +1,37 @@
+<!doctype html>
+<meta charset="utf-8">
+<style>
+  @font-face { font-family: 'Space Grotesk'; font-weight: 650; src: url(/fonts/space-grotesk-650-latin.woff2) format('woff2'); }
+  body { margin: 0; background: #111; }
+</style>
+<canvas id="c" width="1080" height="1350"></canvas>
+<script type="module">
+import { drawCard } from '/card.js';
+import { verdictFor } from '/card-lines.js';
+import { challengeByKey } from '/daily.js';
+await document.fonts.load('650 40px "Space Grotesk"');
+const q = new URLSearchParams(location.search);
+const palettes = [
+  { page: '#182223', court: '#e8ebd6', ink: '#274d3b', floor: '#c0cbb4', line: '#6d8e72', net: '#476755' },
+  { page: '#202831', court: '#e1e8ea', ink: '#304a5c', floor: '#b9c9d1', line: '#718c9e', net: '#506b7d' },
+  { page: '#2c2630', court: '#ece4ec', ink: '#5a3f5b', floor: '#cfbecd', line: '#967a94', net: '#765874' },
+  { page: '#2b2722', court: '#efe6d6', ink: '#554839', floor: '#d4c3aa', line: '#9b8262', net: '#76634e' }
+];
+const num = (name, fallback) => q.has(name) ? Number(q.get(name)) : fallback;
+const won = q.get('won') !== '0';
+const mine = num('mine', won ? 5 : 2), theirs = num('theirs', won ? 2 : 5);
+const seed = num('seed', 7);
+const key = q.get('twist');
+const challenge = key ? challengeByKey(key) : undefined;
+const rank = num('rank', 0);
+const daily = challenge ? {
+  number: num('number', 12), key, title: challenge.name, seconds: num('time', 47.3), attempt: num('attempt', 2),
+  attempts: challenge.attempts, ...(rank ? { rank, players: num('players', 18) } : {})
+} : undefined;
+const line = q.get('line') || verdictFor({ won, mine, theirs }, seed);
+drawCard(document.getElementById('c').getContext('2d'), {
+  palette: palettes[num('palette', 0)], won, mine, theirs, cpuLevel: num('level', 3), rally: 14, effects: [],
+  line, name: q.get('name') || 'u/Special_Gain_9580', seed, daily
+});
+document.title = 'done';
+</script>
