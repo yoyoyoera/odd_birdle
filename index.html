@@ -89,28 +89,40 @@
     [data-portal="reddit"] #stage-panel { position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column;
       padding: 8px; background: var(--court); color: var(--ink); cursor: default; }
     [data-portal="reddit"] #stage-panel header { flex: 0 0 auto; min-height: 44px; padding: 0 12px 0 48px;
-      display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+      display: flex; align-items: center; gap: 10px; }
     /* How many of the twenty are cleared: a notch smaller than the title, with a thin bar under the row. */
-    [data-portal="reddit"] #stage-score { text-align: right; line-height: 1; }
+    [data-portal="reddit"] #stage-score { text-align: right; line-height: 1; min-width: 44px; }
     [data-portal="reddit"] #stage-count { display: block; font-size: clamp(15px, 3.2vw, 20px); font-weight: 650;
       font-variant-numeric: tabular-nums; }
     [data-portal="reddit"] #stage-bar { flex: 0 0 auto; height: 3px; margin: 0 12px 4px 48px; background: color-mix(in srgb, var(--ink) 15%, transparent); }
     [data-portal="reddit"] #stage-bar i { display: block; height: 100%; width: 0; background: var(--ink); transition: width .4s ease; }
     [data-portal="reddit"] #stage-panel h2 { margin: 0; font-size: clamp(16px, 3.5vw, 24px); line-height: 1.15; }
     [data-portal="reddit"] #stage-progress { display: block; margin: 3px 0 0; font-size: 9px; letter-spacing: .08em; opacity: .65; text-transform: uppercase; }
-    [data-portal="reddit"] #stage-list { min-height: 0; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y;
-      display: grid; gap: 4px; padding: 0 2px 4px; scrollbar-width: thin; }
-    [data-portal="reddit"] #stage-list button { display: flex; gap: 9px; align-items: center; width: 100%; min-height: 49px;
-      padding: 6px 8px; text-align: left; border: 0; color: var(--ink); font: inherit;
-      background: color-mix(in srgb, var(--court-hover) 55%, var(--court)); cursor: pointer; flex: 0 0 auto; }
+    /* The stages are cards in two rows that slide sideways (swipe, drag the bar, wheel or the arrow buttons). */
+    [data-portal="reddit"] #stage-panel { overflow: hidden; }
+    [data-portal="reddit"] #stage-list { flex: 1 1 auto; min-height: 0; display: grid; grid-auto-flow: column;
+      grid-template-rows: repeat(2, minmax(0, 1fr)); grid-auto-columns: clamp(132px, 31%, 200px); gap: 6px;
+      overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; touch-action: pan-x; scroll-snap-type: x proximity;
+      scrollbar-width: thin; padding: 2px 2px 6px; }
+    [data-portal="reddit"] #stage-list button { display: flex; flex-direction: column; align-items: stretch; gap: 2px; min-height: 0; overflow: hidden;
+      padding: 6px 9px 7px; text-align: left; border: 0; color: var(--ink); font: inherit; scroll-snap-align: start;
+      background: color-mix(in srgb, var(--court-hover) 55%, var(--court)); cursor: pointer; }
     [data-portal="reddit"] #stage-list button:hover { background: var(--court-hover); }
     [data-portal="reddit"] #stage-list button:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
-    [data-portal="reddit"] .stage-number { min-width: 23px; font-size: 17px; opacity: .65; }
-    [data-portal="reddit"] .stage-copy { flex: 1; min-width: 0; }
-    [data-portal="reddit"] .stage-copy strong { display: block; font-size: 13px; line-height: 1.25; }
-    [data-portal="reddit"] .stage-copy > span { display: block; font-size: 11px; line-height: 1.3; opacity: .75; }
-    [data-portal="reddit"] .stage-copy > .stage-goal { font-weight: 650; letter-spacing: .08em; opacity: .9; }
-    [data-portal="reddit"] .stage-check { min-width: 14px; font-size: 18px; }
+    [data-portal="reddit"] #stage-list button[data-cleared] { background: color-mix(in srgb, var(--ink) 14%, var(--court)); }
+    [data-portal="reddit"] .stage-top { display: flex; justify-content: space-between; align-items: baseline; }
+    [data-portal="reddit"] .stage-number { font-size: 19px; font-weight: 650; line-height: 1; opacity: .55; font-variant-numeric: tabular-nums; }
+    [data-portal="reddit"] .stage-check { font-size: 20px; line-height: 1; min-width: 14px; text-align: right; }
+    [data-portal="reddit"] .stage-copy { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 3px; }
+    [data-portal="reddit"] .stage-copy strong { display: block; font-size: 13px; line-height: 1.2; }
+    [data-portal="reddit"] .stage-copy > span { display: block; font-size: 10.5px; line-height: 1.3; opacity: .75; }
+    [data-portal="reddit"] .stage-copy > span:nth-child(2) { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; flex: 0 1 auto; min-height: 0; max-height: 2.6em; }
+    [data-portal="reddit"] .stage-copy > .stage-goal { margin-top: auto; flex: 0 0 auto; font-weight: 650; font-size: 9.5px; letter-spacing: .06em; opacity: .9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    [data-portal="reddit"] #stage-pager { display: flex; gap: 4px; margin-left: auto; }
+    [data-portal="reddit"] #stage-prev, [data-portal="reddit"] #stage-next { width: 34px; height: 34px; display: grid; place-items: center;
+      border: 0; color: var(--ink); cursor: pointer; background: color-mix(in srgb, var(--court-hover) 55%, var(--court)); }
+    [data-portal="reddit"] #stage-prev:hover:not(:disabled), [data-portal="reddit"] #stage-next:hover:not(:disabled) { background: var(--court-hover); }
+    [data-portal="reddit"] #stage-prev:disabled, [data-portal="reddit"] #stage-next:disabled { opacity: .3; cursor: default; }
     [data-portal="reddit"] #back { z-index: 4; }
     [data-portal="reddit"] #menu > #stages-button, [data-portal="reddit"] #menu #cpu { background: color-mix(in srgb, var(--court-hover) 55%, var(--court)); }
     [data-portal="reddit"] #menu > #stages-button:hover, [data-portal="reddit"] #menu #cpu:hover { background: var(--court-hover); }
@@ -272,6 +284,7 @@
     <section id="stage-panel" aria-label="Choose a stage" hidden>
       <header>
         <h2>STAGES</h2>
+        <div id="stage-pager"><button id="stage-prev" type="button" aria-label="Earlier stages" title="Earlier stages"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button id="stage-next" type="button" aria-label="Later stages" title="Later stages"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
         <div id="stage-score" role="status"><strong id="stage-count">0/20</strong><span id="stage-progress"></span></div>
       </header>
       <div id="stage-bar" aria-hidden="true"><i></i></div>

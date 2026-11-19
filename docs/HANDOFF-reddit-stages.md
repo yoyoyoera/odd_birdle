@@ -84,8 +84,8 @@ npx devvit install oddbirdle   # r/oddbirdle 에 새 버전 설치
 | 1 | Warm-up | Plain match, no tricks. | Lv.1 | 3점, 효과 없음 |
 | 2 | First Surprise | Random effects join in. | Lv.1 | 3점, 랜덤 효과 |
 | 3 | Steady | Nothing but rallies. | Lv.2 | 5점, 효과 없음 |
-| 4 | The Post | A bumper stays up all match. | Lv.2 | 5점, 범퍼 상시(다른 효과 없음) |
-| 5 | Windy Day | Gusts blow all the time. | Lv.2 | 5점, GUST 만 자주 |
+| 4 | Hot Air | A balloon floats the shuttle all match. | Lv.2 | 3점, 풍선 상시(`permanent: 'balloon'`) |
+| 5 | Windy Day | A steady wind blows one way, left or right. | Lv.2 | 5점, 바람 상시(`permanent: 'wind'`, 보통 돌풍의 1/2 세기, 방향은 판마다 왼쪽/오른쪽 랜덤) |
 | 6 | Sudden Death | One point. That's all. | Lv.3 | 1점, 효과 없음 |
 | 7 | Tiny Bird | A small shuttle and random effects. | Lv.3 | 5점, 작은 셔틀콕(크기 0) + 랜덤 효과 |
 | 8 | Doubles I | You and a CPU partner vs two. Take turns hitting. | 2v2 | 5점, 파트너 Lv.3·상대 2명 Lv.2 (6.4 참고) |
@@ -94,13 +94,13 @@ npx devvit install oddbirdle   # r/oddbirdle 에 새 버전 설치
 | 11 | Sharp | No tricks, a faster CPU. | Lv.4 | 5점, 효과 없음 |
 | 12 | Five in a Row | You start 0:4 down. Win five straight. | Lv.4 | 시작 0:4, 상대는 5점에서 끝나므로 5연승 필요 |
 | 13 | Doubles II | Doubles with random effects. | 2v2 | 5점, 파트너·상대 Lv.3, 랜덤 효과 |
-| 14 | Moon Day | Low gravity. Everything floats. | Lv.4 | 7점, 낮은 중력(예: 0.6배), 효과 없음 |
-| 15 | Comeback | You start 0:3 down. First to 8. | Lv.4 | 시작 0:3, 8점 선취 |
+| 14 | The Post | A bumper stays up all match. | Lv.2(서툴게 0.7) | 5점, 범퍼 상시 |
+| 15 | Moon Day | Low gravity. Everything floats. | Lv.4 | 7점, 중력 0.6배 |
 | 16 | Boss: Storm | Effects twice as often, longer match. | Lv.4 | 9점, 랜덤 효과 2배 |
 | 17 | Pure Skill | No tricks against the best. | Lv.5 | 5점, 효과 없음 |
 | 18 | Doubles III | Stronger partner, stronger rivals, more effects. | 2v2 | 7점, 파트너·상대 Lv.4, 효과 2배 |
-| 19 | Effect Storm | An effect every second or two. | Lv.5 | 5점, 효과 1~2초마다(`quickEvents` 활용) |
-| 20 | Final Boss | Double effects and a bumper that never leaves. | Lv.5 | 11점, 효과 2배 + 상시 범퍼 |
+| 19 | No Warning | Effects come a bit faster, with no countdown. | Lv.5 | 5점, 효과 빈도 1.4배 + 카운트다운 없이 바로(`noCountdown`) |
+| 20 | Final Boss | More effects. A bumper that stays. | Lv.5(서툴게 0.35) | 9점, 상시 범퍼 + 효과 1.5배 |
 | 21 | Doubles IV | Hidden. Unlocks after the Final Boss. | 2v2 | 11점, 상대 2명 Lv.5, 효과 2배 (1~20 전부 클리어 후 표시) |
 - INVISIBLE·FREEZE 효과는 랜덤에서 뺀 상태이고 스테이지에도 쓰지 않는다(사용자가 별로라고 판단).
 - 설명 문구는 다듬어도 되지만 짧게(한 줄) 유지. 난이도 곡선(점수·레벨·효과)은 구현 후 CPU 승률을 재서 조정한다(7절 D).
@@ -144,3 +144,10 @@ npx devvit install oddbirdle   # r/oddbirdle 에 새 버전 설치
 - 사용자가 r/oddbirdle 에서 직접 스테이지 선택 → 시작 안내 → 플레이 → 클리어 ✓ → 카드에 STAGE N 까지 확인.
 - 2v2 는 시제품 가능 여부와 대체안을 사용자에게 보고.
 - 끝나면 `docs/HANDOFF-reddit-hackathon.md` 의 "나중에 할 일"에서 스테이지 항목을 정리하고 커밋·push(`reddit` 브랜치).
+
+## 변경 이력 (사용자 피드백 반영, 2026-11-19)
+- 효과 경고 카운트다운은 항상 3·2·1(효과 빈도 배수가 카운트다운을 줄이지 않음).
+- 스테이지 선택은 두 줄 카드 가로 슬라이드. 스테이지 안에서 뒤로 가기(←)는 카드 목록으로, MENU 는 홈으로.
+- 스테이지가 올라갈수록 관중이 늘어남(`stageCrowd`).
+- 연습 대전은 목표 점수를 표시하지 않음(긴장감), 스테이지만 `FIRST TO N` 표시.
+- 스테이지 번호의 의미가 바뀌었으므로 예전 클리어 기록은 번호 기준이라 어긋날 수 있음(현재 사용자 기록은 1·2번뿐).

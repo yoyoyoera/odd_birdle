@@ -302,6 +302,19 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
   let permanentAge = 0;
   const hasPermanentBumper = () => rules?.permanent === 'bumper';
   const hasBumper = () => hasPermanentBumper() || activeEffect?.id === 'bumper';
+  // A wind or a balloon that never lets up: it is an effect that does not run out and is put back after every point.
+  // The wind blows one way for the whole match (left or right, chosen when the match starts) at a fraction of a gust.
+  let permanentWindX = 1;
+  const permanentForceKind = () => rules?.permanent === 'wind' || rules?.permanent === 'balloon' ? rules.permanent : undefined;
+  function applyPermanentForce() {
+    const kind = permanentForceKind();
+    if (!kind || activeEffect) return;
+    const length = 1e9;
+    const force = kind === 'wind'
+      ? { type: 'wind', x: permanentWindX * 560 * (Number.isFinite(rules.windScale) ? rules.windScale : 0.5), y: 0, duration: length }
+      : { type: 'balloon', duration: length };
+    activeEffect = { id: kind, remaining: length, total: length, force };
+  }
   const gravityScale = () => Number.isFinite(rules?.gravityScale) && rules.gravityScale > 0 ? rules.gravityScale : 1;
   const effectRate = () => Number.isFinite(rules?.effectRate) && rules.effectRate > 0 ? rules.effectRate : 1;
   const stageQuickEvents = () => Boolean(rules?.quickEvents);
@@ -410,6 +423,7 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     // Passing a third argument (including undefined/null) explicitly returns practice to its defaults.
     if (arguments.length >= 3) rules = nextRules ? { ...nextRules } : undefined;
     permanentAge = 0;
+    if (rules?.permanent === 'wind') permanentWindX = Math.random() < 0.5 ? -1 : 1;
     bumperCooldown = 0;
     bumperFlash = 0;
     netReturn = undefined;
@@ -505,6 +519,7 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     netStart.y = matchNetTop;
     cpuPrediction = undefined;
     showEvent('');
+    applyPermanentForce();
   }
 
   function startEffect(chosen) {
@@ -594,7 +609,9 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     } else {
       eventWait -= dt;
       if (eventWait > 0) return;
-      countdown = 3 / effectRate();
+      // The warning is always 3, 2, 1; a stage can drop it so the effect simply happens.
+      if (rules?.noCountdown) { startEffect(); return; }
+      countdown = 3;
     }
     showEvent(String(Math.ceil(countdown - 1e-9)));
   }

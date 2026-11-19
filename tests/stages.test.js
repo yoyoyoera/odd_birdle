@@ -22,12 +22,16 @@ test('stage variants preserve prescribed handicaps and truthful doubles fallback
   const stage = id => stages.find(entry => entry.id === id);
   assert.deepEqual(stage(12).rules.startScore, { left: 0, right: 4 });
   assert.equal(stage(12).rules.points, 5);
-  assert.deepEqual(stage(15).rules.startScore, { left: 0, right: 3 });
+  assert.equal(stage(4).rules.permanent, 'balloon');
+  assert.equal(stage(4).rules.points, 3);
+  assert.equal(stage(5).rules.permanent, 'wind');
+  assert.equal(stage(14).rules.permanent, 'bumper');
+  assert.equal(stage(19).rules.noCountdown, true);
   assert.equal(stage(9).rules.shuttleShape, shapeCount - 1);
   assert.equal(stage(7).rules.shuttleSize, 0);
-  assert.equal(stage(14).rules.gravityScale, 0.6);
+  assert.equal(stage(15).rules.gravityScale, 0.6);
   assert.equal(stage(20).rules.permanent, 'bumper');
-  assert.equal(stage(20).rules.effectRate, 2);
+  assert.equal(stage(20).rules.effectRate, 1.5);
   for (const id of [8, 13, 18, 21]) {
     assert.equal(stage(id).mode, 'doubles');
     assert.match(stage(id).description, /singles/i);

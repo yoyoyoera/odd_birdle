@@ -91,20 +91,23 @@ test('none and an empty/retired-only stage pool never create effects', t => {
   }
 });
 
-test('an allowed stage pool controls random effects and effectRate halves the time until an effect', t => {
+test('an allowed stage pool controls random effects and effectRate halves the wait before the warning, which stays 3, 2, 1', t => {
   t.mock.method(Math, 'random', () => 0.5);
   const started = [];
   for (const effectRate of [1, 2]) {
     const game = createGame({ rules: { ...plainRules, effects: ['highNet'], effectRate } });
     game.restart();
     assert.equal(game.triggerEffect('wind'), false);
+    const warnings = new Set();
     for (let tick = 0; tick < 1600; tick++) {
       lobTick(game);
+      if (/^[123]$/.test(game.view().eventText)) warnings.add(game.view().eventText);
       if (game.view().effect) { started.push(tick * step); break; }
     }
     assert.equal(game.view().effect, 'highNet');
+    assert.deepEqual([...warnings].sort(), ['1', '2', '3'], `the warning counts 3, 2, 1 at rate ${effectRate}`);
   }
-  assert.ok(started[0] - started[1] > 3.9 && started[0] - started[1] < 4.1, `start seconds: ${started}`);
+  assert.ok(started[0] - started[1] > 2.4 && started[0] - started[1] < 2.6, `start seconds: ${started}`);
 });
 
 test('Effect Storm changes effects every 1–2 live seconds, without a three-second warning', t => {
@@ -175,4 +178,36 @@ test('low gravity affects serve flight and uses the same gravity for strike repl
   const replay = projectStrike(strike.pose, strike.motion, 0.5, strike.force);
   const live = moon.view().shuttle;
   assert.ok(Math.hypot(live.x - replay.x, live.y - replay.y) < 1e-6);
+});
+
+test('noCountdown starts an effect the moment its wait ends, with no 3, 2, 1', t => {
+  t.mock.method(Math, 'random', () => 0.5);
+  const game = createGame({ rules: { ...plainRules, effects: ['highNet'], effectRate: 1.4, noCountdown: true } });
+  game.restart();
+  for (let tick = 0; tick < 1600 && !game.view().effect; tick++) {
+    lobTick(game);
+    assert.doesNotMatch(game.view().eventText, /^[123]$/);
+  }
+  assert.equal(game.view().effect, 'highNet');
+});
+
+test('a permanent wind blows one way at half a gust and comes back after every point; a permanent balloon never ends', t => {
+  const results = [];
+  for (const roll of [0.2, 0.8]) {
+    t.mock.method(Math, 'random', () => roll);
+    const game = createGame({ rules: { ...plainRules, permanent: 'wind' } });
+    game.restart();
+    for (let tick = 0; tick < 400; tick++) lobTick(game);
+    const force = game.view().force;
+    assert.equal(game.view().effect, 'wind');
+    assert.equal(Math.abs(force.x), 280);
+    results.push(Math.sign(force.x));
+    t.mock.restoreAll();
+  }
+  assert.deepEqual(results, [-1, 1], 'the direction is chosen per match');
+  const balloon = createGame({ rules: { ...plainRules, permanent: 'balloon' } });
+  balloon.restart();
+  for (let tick = 0; tick < 120 * 30; tick++) lobTick(balloon);
+  assert.equal(balloon.view().effect, 'balloon', 'still floating after thirty seconds');
+  assert.equal(balloon.view().force.type, 'balloon');
 });

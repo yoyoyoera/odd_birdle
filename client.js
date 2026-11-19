@@ -68,6 +68,7 @@ const stagePanel = document.querySelector('#stage-panel');
 const stageList = document.querySelector('#stage-list');
 const stageProgressLabel = document.querySelector('#stage-progress');
 const stageCount = document.querySelector('#stage-count');
+const stageScore = document.querySelector('#stage-score');
 const stageBar = document.querySelector('#stage-bar i');
 const stageIntro = document.querySelector('#stage-intro');
 const stageIntroNumber = document.querySelector('#stage-intro-number');
@@ -1185,22 +1186,26 @@ function renderStages(cleared, online) {
   const done = cleared.filter(id => id <= 20).length;
   stageCount.textContent = `${done}/20`;
   stageBar.style.width = `${done * 5}%`;
-  stageProgressLabel.textContent = `cleared · ${online ? 'saved to Reddit' : 'device backup'}`;
+  stageProgressLabel.textContent = 'cleared';
+  stageScore.title = online ? 'Saved to Reddit' : 'Saved on this device only';
   const buttons = visibleStages(cleared).map(challenge => {
     const button = document.createElement('button');
     button.type = 'button';
     button.dataset.stageId = challenge.id;
+    const top = document.createElement('span'); top.className = 'stage-top';
     const number = document.createElement('span');
     number.className = 'stage-number'; number.textContent = String(challenge.id).padStart(2, '0');
+    const check = document.createElement('span'); check.className = 'stage-check';
+    check.textContent = cleared.includes(challenge.id) ? '✓' : '';
+    top.append(number, check);
+    if (cleared.includes(challenge.id)) button.dataset.cleared = '';
     const copy = document.createElement('span'); copy.className = 'stage-copy';
     const name = document.createElement('strong'); name.textContent = challenge.name;
     const description = document.createElement('span'); description.textContent = challenge.description;
-    const goal = document.createElement('span'); goal.className = 'stage-goal'; goal.textContent = goalText(challenge);
+    const goal = document.createElement('span'); goal.className = 'stage-goal'; goal.textContent = goalText(challenge).replace('YOU START', 'START');
     copy.append(name, description, goal);
-    const check = document.createElement('span'); check.className = 'stage-check';
-    check.textContent = cleared.includes(challenge.id) ? '✓' : '';
     button.setAttribute('aria-label', `Stage ${challenge.id}: ${challenge.name}. ${challenge.description} ${goalText(challenge).toLowerCase()}.${cleared.includes(challenge.id) ? ' Cleared.' : ''}`);
-    button.append(number, copy, check);
+    button.append(top, copy);
     button.addEventListener('click', () => afterMatchBreak(() => {
       selectedStage = challenge;
       startCpu();
@@ -1212,6 +1217,7 @@ function renderStages(cleared, online) {
   stageList.replaceChildren(...buttons);
   stageList.scrollTop = scroll;
   if (focused) stageList.querySelector(`[data-stage-id="${focused}"]`)?.focus({ preventScroll: true });
+  requestAnimationFrame(updateStageArrows);
 }
 // The stage that follows `challenge` among those the player can see (the hidden one appears once every other is cleared).
 function nextStageAfter(challenge) {
@@ -1236,7 +1242,22 @@ function openStages() {
   leave();
   setMode('stages');
   stageList.querySelector('button')?.focus({ preventScroll: true });
+  requestAnimationFrame(updateStageArrows);
 }
+// The cards slide sideways: arrow buttons (shown only where there is more to see), and the mouse wheel for desktop.
+const stagePrev = document.querySelector('#stage-prev');
+const stageNext = document.querySelector('#stage-next');
+function updateStageArrows() {
+  const max = stageList.scrollWidth - stageList.clientWidth;
+  stagePrev.disabled = stageList.scrollLeft < 4;
+  stageNext.disabled = stageList.scrollLeft > max - 4;
+}
+stageList.addEventListener('scroll', updateStageArrows, { passive: true });
+stagePrev.addEventListener('click', () => stageList.scrollBy({ left: -stageList.clientWidth * 0.85, behavior: 'smooth' }));
+stageNext.addEventListener('click', () => stageList.scrollBy({ left: stageList.clientWidth * 0.85, behavior: 'smooth' }));
+stageList.addEventListener('wheel', event => {
+  if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) { stageList.scrollLeft += event.deltaY; event.preventDefault(); }
+}, { passive: false });
 if (portal === 'reddit') {
   stagesButton.hidden = false;
   document.querySelector('#cpu').textContent = 'PRACTICE';
@@ -1597,7 +1618,8 @@ joinForm.addEventListener('submit', event => {
 codeInput.addEventListener('input', () => {
   if (mode === 'join' && !socket) setMode('join');
 });
-back.addEventListener('click', () => leave());
+// Inside a stage, back returns to the stage cards, not the main menu.
+back.addEventListener('click', () => { if (portal === 'reddit' && mode === 'solo' && selectedStage) openStages(); else leave(); });
 
 // GamePix has no links out of the game, so there the room code itself is what gets copied.
 const copyLabel = closedPortal ? 'COPY CODE' : 'COPY LINK';
