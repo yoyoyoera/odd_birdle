@@ -6,6 +6,7 @@ import { createServer, getServerPort } from '@devvit/web/server';
 import { menu } from './routes/menu';
 import { triggers } from './routes/triggers';
 import { card } from './routes/card';
+import { daily } from './routes/daily';
 import { stages } from './routes/stages';
 import { appRouter } from './trpc';
 import { createContext } from './context';
@@ -23,6 +24,7 @@ api.use(
 );
 
 api.route('/card', card);
+api.route('/daily', daily);
 api.route('/stages', stages);
 
 const internal = new Hono();

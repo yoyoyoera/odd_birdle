@@ -1,37 +1,68 @@
 import { Hono } from 'hono';
 import { context, media, reddit } from '@devvit/web/server';
 import { RichTextBuilder } from '@devvit/shared-types/richtext/RichTextBuilder.js';
+import { getToday } from '../core/daily';
+import { challengeNames } from '../../shared/daily-plan';
 
 // POST /api/card: the player's full-time card, posted as a comment on this post under their own name.
 // Tries a picture first; if Reddit will not take the picture (or the comment with it), the same card goes up as text.
+// A DAILY card ({ daily: true }) is only posted for a clear the server has on record, and its words (day, challenge, time,
+// place in the order) are written here from that record, never taken from the browser; the app then answers the comment
+// with a "Verified" line, so a made-up card without it is easy to tell.
 export const card = new Hono();
 
-type CardBody = { image?: string; text?: string };
+type CardBody = { image?: string; text?: string; daily?: boolean };
+const maxImageLength = 4_000_000;
 
 card.post('/', async (c) => {
-  const { image, text } = await c.req.json<CardBody>();
+  const body = await c.req.json<CardBody>();
   const postId = context.postId;
-  if (!postId || !text) return c.json({ ok: false, error: 'missing post or text' }, 400);
+  const userId = context.userId;
+  if (!postId) return c.json({ ok: false, error: 'missing post' }, 400);
+  if (body.image && (typeof body.image !== 'string' || body.image.length > maxImageLength)) return c.json({ ok: false, error: 'bad image' }, 400);
+
+  let text = typeof body.text === 'string' ? body.text.slice(0, 500) : '';
+  let verified = '';
+  if (body.daily) {
+    if (!userId) return c.json({ ok: false, error: 'sign in' }, 401);
+    const { cleared, plan } = await getToday(userId);
+    if (!cleared) return c.json({ ok: false, error: 'No daily clear on record.' }, 403);
+    const name = challengeNames[plan.key] ?? plan.key;
+    text = `Odd Birdle · Daily #${plan.number} (${plan.date}) · ${name} · cleared #${cleared.rank} of the day in ${cleared.seconds}s`;
+    verified = `✓ Verified by Odd Birdle: Daily #${plan.number}, ${plan.date}. Clear #${cleared.rank} of the day, ${cleared.seconds}s.`;
+  }
+  if (!text) return c.json({ ok: false, error: 'missing text' }, 400);
 
   let imageError = '';
-  if (image) {
+  let comment;
+  let mode = 'text';
+  if (body.image) {
     try {
-      const asset = await media.upload({ url: image, type: 'image' });
+      const asset = await media.upload({ url: body.image, type: 'image' });
       const richtext = new RichTextBuilder()
         .image({ mediaUrl: asset.mediaUrl })
         .paragraph((p) => { p.text({ text }); });
-      const comment = await reddit.submitComment({ id: postId, richtext, runAs: 'USER' });
-      return c.json({ ok: true, mode: 'image', url: comment.permalink });
+      comment = await reddit.submitComment({ id: postId, richtext, runAs: 'USER' });
+      mode = 'image';
     } catch (error) {
       imageError = String(error);
       console.error('card image comment failed:', imageError);
     }
   }
-  try {
-    const comment = await reddit.submitComment({ id: postId, text, runAs: 'USER' });
-    return c.json({ ok: true, mode: 'text', url: comment.permalink, imageError });
-  } catch (error) {
-    console.error('card text comment failed:', String(error));
-    return c.json({ ok: false, error: String(error), imageError }, 500);
+  if (!comment) {
+    try {
+      comment = await reddit.submitComment({ id: postId, text, runAs: 'USER' });
+    } catch (error) {
+      console.error('card text comment failed:', String(error));
+      return c.json({ ok: false, error: String(error), imageError }, 500);
+    }
   }
+  if (verified) {
+    try {
+      await reddit.submitComment({ id: comment.id, text: verified, runAs: 'APP' });
+    } catch (error) {
+      console.error('verification reply failed:', String(error));
+    }
+  }
+  return c.json({ ok: true, mode, url: comment.permalink, ...(imageError ? { imageError } : {}) });
 });

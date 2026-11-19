@@ -1,10 +1,11 @@
 // The daily challenges: each day one of these twists is the challenge (picked from the date), the same for everyone.
 // Every twist is one of the stage rules, so nothing new has to be designed by hand each day.
 import { stages } from './stages.js';
+import { maxAttempts } from './daily-plan.js';
 
 const stageRules = id => stages.find(stage => stage.id === id).rules;
 
-export const dailyAttempts = 5;
+export const dailyAttempts = maxAttempts('windy');
 
 export const dailyChallenges = [
   { key: 'windy', name: 'Windy Day', description: 'A steady wind blows one way, left or right.', from: 5, attempts: dailyAttempts },
@@ -19,3 +20,9 @@ export const dailyChallenges = [
 
 export const dailyKeys = dailyChallenges.map(challenge => challenge.key);
 export const challengeByKey = key => dailyChallenges.find(challenge => challenge.key === key);
+
+// The challenge of a plan from daily-plan.js (what the server said for today), with the CPU level of that day.
+export function playableDaily(plan) {
+  const challenge = challengeByKey(plan.key);
+  return { ...challenge, number: plan.number, date: plan.date, attempts: plan.attempts, rules: { ...challenge.rules, cpuLevel: plan.cpuLevel } };
+}

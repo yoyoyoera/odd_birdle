@@ -6,6 +6,9 @@ import { visibleStages } from './stages.js';
 import { createStageProgress } from './stage-progress.js';
 import { verdictFor } from './card-lines.js';
 import { createMatchStats } from './match-stats.js';
+import { createDailyClient, monthDays } from './daily-client.js';
+import { playableDaily } from './daily.js';
+import { dayLabel } from './card-rank.js';
 import { createLinkQuality } from './link-quality.js';
 import { createFrameMeter } from './frame-meter.js';
 import { launchConfetti, confettiAt } from './confetti.js';
@@ -65,6 +68,8 @@ const menu = document.querySelector('#menu');
 const cpuLevelButton = document.querySelector('#cpu-level');
 const stagesButton = document.querySelector('#stages-button');
 const stagePanel = document.querySelector('#stage-panel');
+const dailyPanel = document.querySelector('#daily-panel');
+const dailyButton = document.querySelector('#daily-button');
 const stageList = document.querySelector('#stage-list');
 const stageProgressLabel = document.querySelector('#stage-progress');
 const stageCount = document.querySelector('#stage-count');
@@ -231,6 +236,7 @@ function setMode(next, message = '') {
   mode = next;
   menu.hidden = next !== 'menu';
   stagePanel.hidden = next !== 'stages';
+  dailyPanel.hidden = next !== 'daily';
   roomDisplay.hidden = next !== 'waiting';
   joinForm.hidden = next !== 'join';
   back.hidden = next === 'menu';
@@ -431,16 +437,17 @@ function updateHud(view) {
   gameControl.hidden = mode !== 'solo' || finished || stageIntroRemaining > 0;
   resultStagesButton.hidden = portal !== 'reddit' || !finished;
   resultActions.hidden = !finished;
-  playAgainButton.hidden = mode === 'online' && rematchReady;
+  playAgainButton.hidden = (mode === 'online' && rematchReady) || (mode === 'solo' && finished && !!selectedStage?.daily && !dailyCanRetry());
   setText(playAgainLabel, mode === 'online' ? 'REMATCH' : 'PLAY AGAIN');
   const againName = mode === 'online' ? 'Rematch' : 'Play again';
   playAgainButton.setAttribute('aria-label', againName);
   playAgainButton.title = againName;
   // After winning a stage, a button goes straight to the next one that is open.
-  const following = portal === 'reddit' && mode === 'solo' && finished && selectedStage && view.winner === 'left' ? nextStageAfter(selectedStage) : undefined;
+  const following = portal === 'reddit' && mode === 'solo' && finished && selectedStage && !selectedStage.daily && view.winner === 'left' ? nextStageAfter(selectedStage) : undefined;
   nextStageButton.hidden = !following;
   // A card is for random matches, and for beating a boss; every ordinary stage would only flood the comments.
-  const cardVisible = canPostCard && mode === 'solo' && finished && !!view.winner && (!selectedStage || cardStageIds.has(selectedStage.id));
+  const cardVisible = canPostCard && mode === 'solo' && finished && !!view.winner &&
+    (selectedStage?.daily ? !!dailyResult : !selectedStage || cardStageIds.has(selectedStage.id));
   if (cardButton.hidden === cardVisible) { cardButton.hidden = !cardVisible; if (cardVisible) setCardState('ready'); }
 }
 
@@ -451,7 +458,8 @@ function noteFinish(view) {
   if (mode === 'online') reportNet();
   const result = view.winner === (mode === 'solo' ? 'left' : localSide) ? 'win' : 'lose';
   noteRecord(view, result);
-  if (mode === 'solo' && selectedStage && result === 'win') {
+  if (mode === 'solo' && selectedStage?.daily) reportDailyTry(view, result === 'win');
+  else if (mode === 'solo' && selectedStage && result === 'win') {
     recordText = 'STAGE ' + selectedStage.id + ' CLEARED ✓';
     stageProgress?.record(selectedStage.id);
   }
@@ -851,7 +859,7 @@ let confetti;
 const stageCrowd = id => Math.min(1, 0.12 + 0.88 * (id - 1) / 19);
 function standsFor(view) {
   const total = view.score ? view.score.left + view.score.right : 0;
-  if (!stands || total < standsScore) stands = makeStands(undefined, selectedStage ? stageCrowd(selectedStage.id) : undefined);
+  if (!stands || total < standsScore) stands = makeStands(undefined, selectedStage ? (selectedStage.daily ? 0.85 : stageCrowd(selectedStage.id)) : undefined);
   standsScore = total;
   return stands;
 }
@@ -1125,11 +1133,18 @@ cardButton.addEventListener('click', async () => {
     const canvas = document.createElement('canvas');
     canvas.width = cardWidth; canvas.height = cardHeight;
     try { await document.fonts.load('650 40px "Space Grotesk"'); } catch { /* the card falls back to the system font */ }
-    drawCard(canvas.getContext('2d'), { ...summary, palette, stage: cardStage?.id, stageName: cardStage?.name, line, seed, name: user ? 'u/' + user : '' });
-    const text = `FULL-TIME ${summary.mine}:${summary.theirs} vs CPU Lv.${summary.cpuLevel}. ${cardStage ? `STAGE ${cardStage.id}: ${cardStage.name}. ` : ''}${line}`;
+    const dailyCard = cardStage?.daily && dailyResult ? {
+      number: cardStage.number, key: cardStage.key, title: cardStage.name, seconds: dailyResult.seconds, attempt: dailyResult.attempt,
+      attempts: cardStage.attempts, rank: dailyResult.rank, date: dailyResult.date
+    } : undefined;
+    drawCard(canvas.getContext('2d'), { ...summary, palette, stage: cardStage?.daily ? undefined : cardStage?.id,
+      stageName: cardStage?.daily ? undefined : cardStage?.name, daily: dailyCard, line, seed, name: user ? 'u/' + user : '' });
+    const text = dailyCard
+      ? `DAILY #${dailyCard.number} ${dailyCard.date}: ${dailyCard.title}. CLEARED in ${dailyCard.seconds}s, #${dailyCard.rank} to clear today. ${line}`
+      : `FULL-TIME ${summary.mine}:${summary.theirs} vs CPU Lv.${summary.cpuLevel}. ${cardStage ? `STAGE ${cardStage.id}: ${cardStage.name}. ` : ''}${line}`;
     const response = await fetch('/api/card', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ image: canvas.toDataURL('image/jpeg', 0.9), text })
+      body: JSON.stringify({ image: canvas.toDataURL('image/jpeg', 0.9), ...(dailyCard ? { daily: true } : { text }) })
     });
     const result = await response.json();
     setCardState(result.ok ? 'posted' : 'failed');
@@ -1233,7 +1248,7 @@ nextStageButton.addEventListener('click', () => {
 function showStageIntro() {
   soundCues.reset();
   stageIntroRemaining = 1.8;
-  stageIntroNumber.textContent = 'STAGE ' + selectedStage.id;
+  stageIntroNumber.textContent = selectedStage.daily ? `DAILY #${selectedStage.number} · TRY ${selectedStage.tryNumber}/${selectedStage.attempts}` : 'STAGE ' + selectedStage.id;
   stageIntroName.textContent = selectedStage.name;
   stageIntroDescription.textContent = selectedStage.description;
   stageIntroGoal.textContent = goalText(selectedStage);
@@ -1269,13 +1284,163 @@ stageList.addEventListener('wheel', event => {
   const column = stageList.querySelector('button')?.getBoundingClientRect().width ?? 150;
   stageList.scrollBy({ left: Math.sign(delta) * (column + 6) * (Math.abs(delta) > 200 ? 2 : 1), behavior: 'smooth' });
 }, { passive: false });
+// ---- Daily challenge (Reddit): the server says what today's challenge is and keeps the tries and the clear. ----
+const dailyClient = createDailyClient();
+const dailyEl = id => document.querySelector('#' + id);
+let dailyState;       // the server's answer for today: { plan, attemptsUsed, cleared?, calendar }
+let dailyToken;       // the try in progress
+let dailyResult;      // the clear this try earned (from the server)
+let dailyPending = false;
+let dailyMessage = '';
+
+const dailyTriesLeft = () => dailyState ? Math.max(0, dailyState.plan.attempts - dailyState.attemptsUsed) : 0;
+function dailyCanRetry() {
+  return !dailyPending && !dailyResult && !dailyState?.cleared && dailyTriesLeft() > 0;
+}
+
+function renderDaily() {
+  const state = dailyState;
+  dailyEl('daily-number').textContent = state ? '#' + state.plan.number : '';
+  dailyEl('daily-date').textContent = state ? dayLabel(state.plan.date) : '';
+  const start = dailyEl('daily-start'), card = dailyEl('daily-card'), status = dailyEl('daily-status');
+  if (!state) {
+    dailyEl('daily-name').textContent = dailyMessage || 'Loading…';
+    dailyEl('daily-desc').textContent = '';
+    dailyEl('daily-goal').textContent = '';
+    status.textContent = '';
+    start.disabled = true; card.hidden = true;
+    dailyEl('daily-calendar').replaceChildren();
+    return;
+  }
+  const challenge = playableDaily(state.plan);
+  dailyEl('daily-name').textContent = challenge.name;
+  dailyEl('daily-desc').textContent = challenge.description;
+  dailyEl('daily-goal').textContent = goalText(challenge) + ` · CPU LV.${state.plan.cpuLevel}`;
+  const left = dailyTriesLeft();
+  if (state.cleared) {
+    status.textContent = `CLEARED ✓ · #${state.cleared.rank} TO CLEAR · ${state.cleared.seconds}s`;
+    start.hidden = true; card.hidden = false; card.disabled = false;
+  } else {
+    status.textContent = dailyMessage || (left > 0 ? `${left} ${left === 1 ? 'TRY' : 'TRIES'} LEFT` : 'NO TRIES LEFT · BACK TOMORROW');
+    start.hidden = false; start.disabled = left === 0 || dailyPending;
+    start.textContent = state.attemptsUsed > 0 ? 'TRY AGAIN' : 'START';
+    card.hidden = true;
+  }
+  // The month's calendar: the days cleared are filled, today is outlined.
+  const { offset, days } = monthDays(state.plan.date, state.calendar ?? []);
+  dailyEl('daily-month-name').textContent = new Date(state.plan.date + 'T00:00:00Z').toLocaleString('en', { month: 'long', year: 'numeric', timeZone: 'UTC' }).toUpperCase();
+  const todayNumber = Number(state.plan.date.slice(8));
+  const cells = [...Array.from({ length: offset }, () => { const li = document.createElement('li'); li.dataset.blank = ''; return li; }),
+    ...days.map(entry => {
+      const li = document.createElement('li');
+      li.textContent = entry.cleared ? '✓' : String(entry.day);
+      if (entry.cleared) li.dataset.cleared = '';
+      if (entry.day === todayNumber) li.dataset.today = '';
+      return li;
+    })];
+  dailyEl('daily-calendar').replaceChildren(...cells);
+}
+
+async function refreshDaily() {
+  dailyState = await dailyClient.today();
+  if (!dailyState) dailyMessage = 'Daily challenge unavailable';
+  else if (dailyMessage === 'Daily challenge unavailable') dailyMessage = '';
+  renderDaily();
+}
+
+function openDaily() {
+  leave();
+  setMode('daily');
+  dailyMessage = '';
+  renderDaily();
+  refreshDaily();
+}
+
+async function startDaily() {
+  if (dailyPending) return;
+  dailyPending = true;
+  dailyEl('daily-start').disabled = true;
+  const result = await dailyClient.start();
+  dailyPending = false;
+  if (!result.ok) {
+    dailyMessage = result.reason === 'offline' ? 'Could not reach Reddit. Try again.' : '';
+    if (mode !== 'daily') openDaily(); else await refreshDaily();
+    return;
+  }
+  dailyToken = result.token;
+  dailyResult = undefined;
+  dailyMessage = '';
+  const challenge = playableDaily(result.plan);
+  afterMatchBreak(() => {
+    selectedStage = { ...challenge, id: 'daily', daily: true, tryNumber: result.attempt };
+    startCpu();
+  });
+}
+
+// Tells the server how a daily try ended; the server decides (and times) a clear and gives it its place in the order.
+async function reportDailyTry(view, won) {
+  const token = dailyToken;
+  dailyToken = undefined;
+  dailyPending = true;
+  recordText = 'SAVING…';
+  const answer = token ? await dailyClient.finish(token, { won, mine: view.score.left, theirs: view.score.right }) : { ok: false, reason: 'offline' };
+  dailyPending = false;
+  if (answer.ok && answer.cleared) {
+    dailyResult = answer.record;
+    recordText = `DAILY CLEARED · #${answer.record.rank} TO CLEAR`;
+    refreshDaily();
+  } else if (answer.ok) {
+    dailyState = answer.state;
+    const left = dailyTriesLeft();
+    recordText = left > 0 ? `${left} ${left === 1 ? 'TRY' : 'TRIES'} LEFT` : 'NO TRIES LEFT TODAY';
+    renderDaily();
+  } else {
+    recordText = answer.reason === 'too-fast' ? 'RESULT NOT COUNTED' : 'COULD NOT SAVE THE RESULT';
+    refreshDaily();
+  }
+}
+
+// The card of a clear, posted from the daily panel (a later visit, no live match behind it).
+async function postDailyPanelCard() {
+  const record = dailyState?.cleared;
+  const button = dailyEl('daily-card');
+  if (!record || button.disabled) return;
+  button.disabled = true;
+  try {
+    const challenge = playableDaily(dailyState.plan);
+    const seed = Math.floor(Date.now() / 1000);
+    const summary = { won: true, mine: record.mine, theirs: record.theirs, cpuLevel: dailyState.plan.cpuLevel, rally: 0, effects: [] };
+    const line = verdictFor(summary, seed);
+    const user = redditName();
+    const canvas = document.createElement('canvas');
+    canvas.width = cardWidth; canvas.height = cardHeight;
+    try { await document.fonts.load('650 40px "Space Grotesk"'); } catch { /* system font */ }
+    const daily = { number: challenge.number, key: challenge.key, title: challenge.name, seconds: record.seconds, attempt: record.attempt,
+      attempts: challenge.attempts, rank: record.rank, date: record.date };
+    drawCard(canvas.getContext('2d'), { ...summary, palette, daily, line, seed, name: user ? 'u/' + user : '' });
+    const text = `DAILY #${daily.number} ${daily.date}: ${daily.title}. CLEARED in ${daily.seconds}s, #${daily.rank} to clear today. ${line}`;
+    const response = await fetch('/api/card', { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ image: canvas.toDataURL('image/jpeg', 0.9), daily: true }) });
+    const result = await response.json();
+    button.title = result.ok ? 'Posted' : 'Could not post, try again';
+    button.disabled = !!result.ok;
+  } catch {
+    button.title = 'Could not post, try again';
+    button.disabled = false;
+  }
+}
+
 if (portal === 'reddit') {
+  dailyButton.hidden = false;
+  dailyButton.addEventListener('click', openDaily);
+  dailyEl('daily-start').addEventListener('click', startDaily);
+  dailyEl('daily-card').addEventListener('click', postDailyPanelCard);
   stagesButton.hidden = false;
   document.querySelector('#cpu').textContent = 'PRACTICE';
   stageProgress = createStageProgress({ storage, identity: redditIdentity(), onChange: renderStages });
   renderStages([], false);
   stagesButton.addEventListener('click', openStages);
-  resultStagesButton.addEventListener('click', openStages);
+  resultStagesButton.addEventListener('click', () => { if (selectedStage?.daily) openDaily(); else openStages(); });
 }
 
 
@@ -1630,7 +1795,11 @@ codeInput.addEventListener('input', () => {
   if (mode === 'join' && !socket) setMode('join');
 });
 // Inside a stage, back returns to the stage cards, not the main menu.
-back.addEventListener('click', () => { if (portal === 'reddit' && mode === 'solo' && selectedStage) openStages(); else leave(); });
+back.addEventListener('click', () => {
+  if (portal === 'reddit' && mode === 'solo' && selectedStage?.daily) openDaily();
+  else if (portal === 'reddit' && mode === 'solo' && selectedStage) openStages();
+  else leave();
+});
 
 // GamePix has no links out of the game, so there the room code itself is what gets copied.
 const copyLabel = closedPortal ? 'COPY CODE' : 'COPY LINK';
@@ -1745,6 +1914,8 @@ soundToggle.addEventListener('click', () => {
 showSoundState();
 function playAgain() {
   if (gamePaused || breakPending || rematchReady) return;
+  // A daily try is a new try on the server (it counts), not a plain restart.
+  if (mode === 'solo' && selectedStage?.daily) { startDaily(); return; }
   const rematch = currentView().phase === 'finished' || onlineView?.phase === 'finished';
   const restart = () => {
     if (currentView().phase === 'finished' || onlineView?.phase === 'finished') {
