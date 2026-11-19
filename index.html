@@ -88,9 +88,16 @@
     /* A flat, scrollable stage sheet fits even Reddit's smallest inline court. */
     [data-portal="reddit"] #stage-panel { position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column;
       padding: 8px; background: var(--court); color: var(--ink); cursor: default; }
-    [data-portal="reddit"] #stage-panel header { flex: 0 0 auto; min-height: 44px; padding: 0 4px 6px 48px; }
+    [data-portal="reddit"] #stage-panel header { flex: 0 0 auto; min-height: 44px; padding: 0 12px 4px 48px;
+      display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
+    /* How many of the twenty are cleared, large, with a bar under it. */
+    [data-portal="reddit"] #stage-score { text-align: right; line-height: 1; }
+    [data-portal="reddit"] #stage-count { display: block; font-size: clamp(26px, 6.5vw, 40px); font-weight: 650; letter-spacing: -.02em;
+      font-variant-numeric: tabular-nums; }
+    [data-portal="reddit"] #stage-bar { flex: 0 0 auto; height: 4px; margin: 0 12px 4px 48px; background: color-mix(in srgb, var(--ink) 15%, transparent); }
+    [data-portal="reddit"] #stage-bar i { display: block; height: 100%; width: 0; background: var(--ink); transition: width .4s ease; }
     [data-portal="reddit"] #stage-panel h2 { margin: 0; font-size: clamp(16px, 3.5vw, 24px); line-height: 1.15; }
-    [data-portal="reddit"] #stage-progress { margin: 3px 0 0; font-size: 10px; opacity: .7; }
+    [data-portal="reddit"] #stage-progress { display: block; margin: 3px 0 0; font-size: 9px; letter-spacing: .08em; opacity: .65; text-transform: uppercase; }
     [data-portal="reddit"] #stage-list { min-height: 0; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y;
       display: grid; gap: 4px; padding: 0 2px 4px; scrollbar-width: thin; }
     [data-portal="reddit"] #stage-list button { display: flex; gap: 9px; align-items: center; width: 100%; min-height: 49px;
@@ -263,7 +270,11 @@
       </span>
     </nav>
     <section id="stage-panel" aria-label="Choose a stage" hidden>
-      <header><h2>STAGES</h2><p id="stage-progress" role="status"></p></header>
+      <header>
+        <h2>STAGES</h2>
+        <div id="stage-score" role="status"><strong id="stage-count">0/20</strong><span id="stage-progress"></span></div>
+      </header>
+      <div id="stage-bar" aria-hidden="true"><i></i></div>
       <div id="stage-list" aria-label="Available stages"></div>
     </section>
     <section id="stage-intro" role="status" aria-live="polite" hidden>

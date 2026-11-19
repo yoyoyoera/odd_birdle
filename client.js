@@ -67,6 +67,8 @@ const stagesButton = document.querySelector('#stages-button');
 const stagePanel = document.querySelector('#stage-panel');
 const stageList = document.querySelector('#stage-list');
 const stageProgressLabel = document.querySelector('#stage-progress');
+const stageCount = document.querySelector('#stage-count');
+const stageBar = document.querySelector('#stage-bar i');
 const stageIntro = document.querySelector('#stage-intro');
 const stageIntroNumber = document.querySelector('#stage-intro-number');
 const stageIntroName = document.querySelector('#stage-intro-name');
@@ -1176,7 +1178,10 @@ const goalText = challenge => {
 let stageProgress;
 function renderStages(cleared, online) {
   if (portal !== 'reddit') return;
-  stageProgressLabel.textContent = `${cleared.filter(id => id <= 20).length}/20 cleared · ${online ? 'Saved to Reddit' : 'Device backup'}`;
+  const done = cleared.filter(id => id <= 20).length;
+  stageCount.textContent = `${done}/20`;
+  stageBar.style.width = `${done * 5}%`;
+  stageProgressLabel.textContent = `cleared · ${online ? 'saved to Reddit' : 'device backup'}`;
   const buttons = visibleStages(cleared).map(challenge => {
     const button = document.createElement('button');
     button.type = 'button';

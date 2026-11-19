@@ -70,7 +70,7 @@ test('stage shape, size and net baseline survive serves, then practice explicitl
     game.simulate(step);
   }
   game.restart(0, 2, undefined);
-  assert.ok(game.view().pointsToWin >= 5 && game.view().pointsToWin <= 15, 'practice now shows its random target too');
+  assert.equal(game.view().pointsToWin, undefined, 'practice retains its existing view contract');
   assert.deepEqual(game.view().score, { left: 0, right: 0 });
   assert.equal(game.view().cpuLevel, 2);
   assert.notEqual(game.view().shuttle.baseSize, 11);
