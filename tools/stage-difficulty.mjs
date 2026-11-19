@@ -12,7 +12,7 @@ const seeded = initial => {
 
 // Perception updates at 10 Hz and arrives 100 ms late. A touch stroke takes 160 ms;
 // the finger is lifted between strokes. No collision oracle or future-flight solver is used.
-function makePlayer(random, rules) {
+export function makePlayer(random, rules) {
   let sampleAt = 0, decideAt = 0, previous, sight, stroke;
   const samples = [];
   return (game, time) => {

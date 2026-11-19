@@ -839,9 +839,10 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     shuttle.vx = vx;
     shuttle.vy = vy;
     if (Number.isFinite(rules?.shrink) && rules.shrink > 0 && rules.shrink < 1) {
-      // Shrinking Bird: every hit makes the shuttle a little smaller, down to 40% of its serving size.
+      // Shrinking Bird: every hit makes the shuttle a little smaller, down to `shrinkTo` (or 40% of its serving size).
       shrinkFrom ??= shuttle.size;
-      shuttle.size = Math.max(shrinkFrom * 0.4, shuttle.size * rules.shrink);
+      const floorSize = Number.isFinite(rules.shrinkTo) ? rules.shrinkTo : shrinkFrom * 0.4;
+      shuttle.size = Math.max(floorSize, shuttle.size * rules.shrink);
       Object.assign(shuttle, flightProfile(shapes[shape], shuttle.size, gravityScale()));
       updateOutline();
     }
@@ -1019,7 +1020,11 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     const projectedX = tracked.x + tracked.vx * flightScale(lead, shuttle.airDrag);
     const preparing = anticipates && tracked.vx > 0 && projectedX >= center;
     const levelProfile = cpuLevels[cpuLevel - 1];
-    const { outMargin, liftChance, doubleLiftChance = 0 } = levelProfile;
+    const { outMargin } = levelProfile;
+    // Smash Fest: the CPU sets the shuttle up high, waits under it and smashes (stage rule cpuLift = how often it sets up).
+    const settingUp = Number.isFinite(rules?.cpuLift);
+    const liftChance = settingUp ? clamp(rules.cpuLift, 0, 1) : levelProfile.liftChance;
+    const doubleLiftChance = settingUp ? 0.25 : levelProfile.doubleLiftChance ?? 0;
     // A stage can make its CPU smash far more than its level would (Smash Fest).
     const spikeChance = Number.isFinite(rules?.cpuSpike) ? clamp(rules.cpuSpike, 0, 1) : levelProfile.spikeChance;
     const speed = levelProfile.speed * (1 - 0.4 * cpuEase);
@@ -1038,6 +1043,11 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     const chaseY = clamp((aim ? aim.y : tracked.y) + 24, 205, floor - 14);
     let targetX = tracking && !leavingOut ? chaseX : 660;
     let targetY = tracking && !leavingOut ? chaseY : 300;
+    // After setting the shuttle up, wait for it above the net's height: that is where a smash has to start.
+    if (settingUp && cpuFollowUps > 0 && lastHitter === 'right') {
+      targetX = clamp(shuttle.x, center + 40, rightLine - 40);
+      targetY = Math.min(shuttle.y + 20, matchNetTop - 80);
+    }
     if (leavingOut && tracking && !cpuOutFeint) {
       // Commit to a small first step, then hesitate before backing off.
       cpuOutFeint = {
@@ -1076,7 +1086,7 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
       if (cpuFollowUps > 0) {
         // Keep the setup on our side and chase it for the next real contact.
         const target = clamp(shuttle.x, center + 78, rightLine - 75);
-        launch(clamp((target - shuttle.x) * 2, -130, 130), -380, 'right');
+        launch(clamp((target - shuttle.x) * 2, -130, 130), settingUp ? -560 : -380, 'right');
         return;
       }
       if ((lastHitter === 'left' || followUp) && shuttle.y <= matchNetTop - 65 &&
@@ -1219,10 +1229,10 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
 
     permanentAge += dt;
     if (rules?.netSway) {
-      // Moving Net: the net slides between 0.6x and 1.4x of its height, over and over (base moves with it, so a
+      // Moving Net: the net slides between a low and a high multiple of its height, over and over (base moves with it, so a
       // point ending never starts the "ease back" of a net effect).
       swayAge += dt;
-      const scale = 1 + 0.4 * Math.sin(swayAge * 2 * Math.PI / 9);
+      const scale = (rules.swayMid ?? 1) + (rules.swayAmp ?? 0.4) * Math.sin(swayAge * 2 * Math.PI / (rules.swayPeriod ?? 9));
       matchNetTop = Math.round(floor - (floor - netTop) * scale);
       baseNetTop = matchNetTop;
       netStart.y = matchNetTop;
