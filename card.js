@@ -103,10 +103,15 @@ export function drawCard(ctx, match) {
   }
 
   // The score panel: flat ink, sharp corners, nothing else competes with the numbers.
-  const panelX = 56, panelY = 560, panelW = W - 112, panelH = 700;
+  // The panel grows with the line (one, two or three rows) so the words always sit inside it; a taller panel rises.
+  const panelX = 56, panelW = W - 112, pad = 56;
+  ctx.font = font(50);
+  const rows = wrap(ctx, line, panelW - 2 * pad);
+  const panelH = 640 + (rows.length - 1) * 58 + 56;
+  const panelY = Math.min(560, H - 40 - panelH);
   ctx.fillStyle = palette.ink;
   ctx.fillRect(panelX, panelY, panelW, panelH);
-  const pad = 56, inner = panelX + pad, innerRight = panelX + panelW - pad;
+  const inner = panelX + pad, innerRight = panelX + panelW - pad;
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = won ? gold : palette.line;
   ctx.fillRect(inner, panelY + 52, 44, 8);
@@ -145,7 +150,6 @@ export function drawCard(ctx, match) {
   ctx.fillText(facts.join('  ·  '), W / 2, panelY + 568);
   ctx.globalAlpha = 1;
   ctx.fillStyle = palette.court; ctx.font = font(50);
-  const rows = wrap(ctx, line, panelW - 2 * pad);
   rows.forEach((row, index) => ctx.fillText(row, W / 2, panelY + 640 + index * 58));
 
 }
