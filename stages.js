@@ -6,7 +6,7 @@ export const stages = [
   { id: 1, name: 'Warm-up', description: 'Plain match, no tricks.', rules: { cpuLevel: 1, cpuEase: 1, points: 3, effects: 'none' } },
   { id: 2, name: 'First Surprise', description: 'Random effects join in.', rules: { cpuLevel: 1, cpuEase: 0.7, points: 3 } },
   { id: 3, name: 'Steady', description: 'Nothing but rallies.', rules: { cpuLevel: 2, points: 5, effects: 'none' } },
-  { id: 4, name: 'The Post', description: 'A bumper stays up all match.', rules: { cpuLevel: 2, points: 5, permanent: 'bumper', effects: 'none' } },
+  { id: 4, name: 'The Post', description: 'A bumper stays up all match.', rules: { cpuLevel: 2, cpuEase: 0.7, points: 5, permanent: 'bumper', effects: 'none' } },
   { id: 5, name: 'Windy Day', description: 'Frequent gusts. Keep your aim.', rules: { cpuLevel: 2, points: 5, effects: ['wind'], effectRate: 2 } },
   { id: 6, name: 'Sudden Death', description: "One point. That's all.", rules: { cpuLevel: 3, points: 1, effects: 'none' } },
   { id: 7, name: 'Tiny Bird', description: 'A small shuttle and random effects.', rules: { cpuLevel: 3, points: 5, shuttleSize: 0 } },

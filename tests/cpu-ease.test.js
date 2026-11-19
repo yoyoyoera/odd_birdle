@@ -17,6 +17,6 @@ test('a stage can make its CPU clumsier than its level: it scores less against t
 });
 
 test('the first stages use the eased CPU, later levels do not', () => {
-  assert.ok(stages[0].rules.cpuEase > 0 && stages[1].rules.cpuEase > 0);
-  assert.ok(stages.slice(2).every(stage => !stage.rules.cpuEase));
+  assert.ok(stages[0].rules.cpuEase > 0 && stages[1].rules.cpuEase > 0 && stages[3].rules.cpuEase > 0);
+  assert.ok(stages.slice(2).filter(stage => stage.id !== 4).every(stage => !stage.rules.cpuEase));
 });
