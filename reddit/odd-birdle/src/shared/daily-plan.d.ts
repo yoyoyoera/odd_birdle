@@ -2,7 +2,6 @@ export const epochDate: string;
 export const challengeKeys: string[];
 export const challengeNames: Record<string, string>;
 export const maxAttempts: (key: string) => number;
-export const targetPoints: Record<string, number>;
 export const utcDate: (now?: number) => string;
 export const isDate: (value: unknown) => value is string;
 export const dayIndex: (date: string) => number;

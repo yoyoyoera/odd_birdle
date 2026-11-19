@@ -5,9 +5,10 @@ export const epochDate = '2026-11-19'; // daily #1
 export const challengeKeys = ['windy', 'sudden', 'smash', 'five', 'post', 'net', 'shrink', 'nowarning'];
 export const challengeNames = { windy: 'Windy Day', sudden: 'Sudden Death', smash: 'Smash Fest', five: 'Five in a Row', post: 'The Post', net: 'Moving Net', shrink: 'Shrinking Bird', nowarning: 'No Warning' };
 export const maxAttempts = key => key === 'sudden' ? 1 : 5;
-// Points the player must reach (the stage rule behind each key; Five in a Row starts 0:4 down and needs five straight).
-export const targetPoints = { windy: 5, sudden: 1, smash: 5, five: 5, post: 5, net: 7, shrink: 5, nowarning: 5 };
-const cpuLevels = [2, 3, 4];
+// Sudden Death is one point and Five in a Row (0:4 down) is five straight; every other challenge is played to a target
+// that changes with the day, from 5 to 10 (5 to 7 against the strongest CPU, which is hard enough). The CPU is level 3 to 5.
+const cpuLevels = [3, 4, 5];
+const fixedPoints = { sudden: 1, five: 5 };
 
 const dayMs = 24 * 60 * 60 * 1000;
 export const utcDate = (now = Date.now()) => new Date(now).toISOString().slice(0, 10);
@@ -38,9 +39,11 @@ export function dailyFor(date) {
   const cycle = Math.floor(index / challengeKeys.length);
   const slot = ((index % challengeKeys.length) + challengeKeys.length) % challengeKeys.length;
   const key = keyForCycle(cycle, slot);
-  // The CPU's level changes with the day too, so the same twist is not the same difficulty twice in a row.
+  // The CPU's level and the target change with the day too, so the same twist is not the same match twice.
   const cpuLevel = cpuLevels[(Math.imul(index + 31, 2246822519) >>> 0) % cpuLevels.length];
-  return { date, number: index + 1, key, cpuLevel, attempts: maxAttempts(key), points: targetPoints[key] };
+  const roll = (Math.imul(index + 97, 3266489917) >>> 0) % 6; // 0..5
+  const points = fixedPoints[key] ?? (cpuLevel === 5 ? 5 + (roll % 3) : 5 + roll);
+  return { date, number: index + 1, key, cpuLevel, attempts: maxAttempts(key), points };
 }
 
 // Shortest time a real win of this challenge can take: the 3-2-1 and a serve, then a few seconds for every point.

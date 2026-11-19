@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { context, media, reddit } from '@devvit/web/server';
 import { RichTextBuilder } from '@devvit/shared-types/richtext/RichTextBuilder.js';
-import { getToday } from '../core/daily';
+import { claimCard, getToday, releaseCard } from '../core/daily';
 import { challengeNames } from '../../shared/daily-plan';
 
 // POST /api/card: the player's full-time card, posted as a comment on this post under their own name.
@@ -23,10 +23,14 @@ card.post('/', async (c) => {
 
   let text = typeof body.text === 'string' ? body.text.slice(0, 500) : '';
   let verified = '';
+  let claimed: { userId: string; date: string } | undefined;
   if (body.daily) {
     if (!userId) return c.json({ ok: false, error: 'sign in' }, 401);
     const { cleared, plan } = await getToday(userId);
     if (!cleared) return c.json({ ok: false, error: 'No daily clear on record.' }, 403);
+    // A clear has one card: asking twice (a second tap, another tab, a later visit) does not post it again.
+    if (!(await claimCard(userId, plan.date))) return c.json({ ok: false, posted: true, error: 'This clear already has its card.' }, 409);
+    claimed = { userId, date: plan.date };
     const name = challengeNames[plan.key] ?? plan.key;
     text = `Odd Birdle · Daily #${plan.number} (${plan.date}) · ${name} · cleared #${cleared.rank} of the day in ${cleared.seconds}s`;
     verified = `✓ Verified by Odd Birdle: Daily #${plan.number}, ${plan.date}. Clear #${cleared.rank} of the day, ${cleared.seconds}s.`;
@@ -54,6 +58,7 @@ card.post('/', async (c) => {
       comment = await reddit.submitComment({ id: postId, text, runAs: 'USER' });
     } catch (error) {
       console.error('card text comment failed:', String(error));
+      if (claimed) await releaseCard(claimed.userId, claimed.date).catch(() => {});
       return c.json({ ok: false, error: String(error), imageError }, 500);
     }
   }

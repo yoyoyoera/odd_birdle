@@ -19,6 +19,7 @@ const fixture = vi.hoisted(() => {
       expire: vi.fn(async (key: string, seconds: number) => { ttl.set(key, seconds); }),
       incrBy: vi.fn(async (key: string, by: number) => { counters.set(key, (counters.get(key) ?? 0) + by); return counters.get(key) as number; }),
       hGetAll: vi.fn(async (key: string) => Object.fromEntries(hashes.get(key) ?? [])),
+      hSetNX: vi.fn(async (key: string, field: string, value: string) => { if (hash(key).has(field)) return 0; hash(key).set(field, value); return 1; }),
       hSet: vi.fn(async (key: string, fields: Record<string, string>) => { for (const [f, v] of Object.entries(fields)) hash(key).set(f, v); return 1; }),
       hDel: vi.fn(async (key: string, fields: string[]) => { let n = 0; for (const f of fields) if (hashes.get(key)?.delete(f)) n++; return n; })
     }
@@ -28,7 +29,7 @@ const fixture = vi.hoisted(() => {
 vi.mock('@devvit/web/server', () => ({ redis: fixture.redis }));
 
 import { dailyFor } from '../../shared/daily-plan';
-import { deleteDailyProgress, finishAttempt, getBoard, getCalendar, getToday, retentionSeconds, startAttempt } from './daily';
+import { claimCard, releaseCard, deleteDailyProgress, finishAttempt, getBoard, getCalendar, getToday, retentionSeconds, startAttempt } from './daily';
 
 const day = Date.parse('2026-12-02T10:00:00Z');
 const plan = dailyFor('2026-12-02');
@@ -127,5 +128,15 @@ describe('the daily challenge on the server', () => {
     expect(board[0]).toMatchObject({ name: 'name1', seconds: 60 });
     await deleteDailyProgress('t2_2');
     expect((await getBoard('2026-12-02')).map((entry) => entry.name)).toEqual(['name1', 'name3', 'name4', 'name5']);
+  });
+
+  it('gives a clear one card only, and gives the place back when posting failed', async () => {
+    expect((await getToday('t2_a', day)).cardPosted).toBe(false);
+    expect(await claimCard('t2_a', '2026-12-02')).toBe(true);
+    expect(await claimCard('t2_a', '2026-12-02')).toBe(false); // a second tap, another tab
+    expect((await getToday('t2_a', day)).cardPosted).toBe(true);
+    expect(await claimCard('t2_a', '2026-12-03')).toBe(true); // another day has its own card
+    await releaseCard('t2_a', '2026-12-02');
+    expect(await claimCard('t2_a', '2026-12-02')).toBe(true); // the failed one can be tried again
   });
 });

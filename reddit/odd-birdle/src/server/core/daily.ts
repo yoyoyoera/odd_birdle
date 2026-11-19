@@ -22,6 +22,7 @@ export interface TodayState {
   plan: DailyPlan;
   attemptsUsed: number;
   cleared?: ClearRecord;
+  cardPosted: boolean;
 }
 
 const parseClear = (text: string | undefined): ClearRecord | undefined => {
@@ -38,7 +39,8 @@ export async function getToday(userId: string, now = Date.now()): Promise<TodayS
   return {
     plan,
     attemptsUsed: Number(record[`att:${plan.date}`] ?? 0) || 0,
-    cleared: parseClear(record[`clear:${plan.date}`])
+    cleared: parseClear(record[`clear:${plan.date}`]),
+    cardPosted: record[`card:${plan.date}`] === '1'
   };
 }
 
@@ -116,6 +118,19 @@ export async function getBoard(date: string): Promise<BoardEntry[]> {
     } catch { /* skip a damaged entry */ }
   }
   return entries.sort((a, b) => a.rank - b.rank);
+}
+
+// One card per clear: the first request to post the card of a day's clear takes the place (atomically, so two quick taps or two
+// tabs cannot both get through); a card that failed to post gives the place back so it can be tried again.
+export async function claimCard(userId: string, date: string): Promise<boolean> {
+  const key = userKey(userId);
+  const claimed = await redis.hSetNX(key, `card:${date}`, '1');
+  if (claimed) await redis.expire(key, retentionSeconds);
+  return Boolean(claimed);
+}
+
+export async function releaseCard(userId: string, date: string): Promise<void> {
+  await redis.hDel(userKey(userId), [`card:${date}`]);
 }
 
 export async function deleteDailyProgress(userId: string): Promise<void> {

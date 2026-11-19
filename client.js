@@ -1146,8 +1146,9 @@ cardButton.addEventListener('click', async () => {
       body: JSON.stringify({ image: canvas.toDataURL('image/jpeg', 0.9), ...(dailyCard ? { daily: true } : { text }) })
     });
     const result = await response.json();
-    setCardState(result.ok ? 'posted' : 'failed');
-    cardButton.disabled = !!result.ok;
+    setCardState(result.ok || result.posted ? 'posted' : 'failed');
+    cardButton.disabled = !!(result.ok || result.posted);
+    if ((result.ok || result.posted) && dailyCard && dailyState) { dailyState.cardPosted = true; renderTeaser(); }
   } catch {
     setCardState('failed');
     cardButton.disabled = false;
@@ -1306,6 +1307,7 @@ function renderTeaser() {
   const button = dailyButton;
   dailyEl('teaser-day').textContent = state ? `DAILY #${state.plan.number} · ${dayLabel(state.plan.date)}` : 'DAILY';
   dailyEl('teaser-name').textContent = state ? playableDaily(state.plan).name : (dailyMessage || '…');
+  dailyEl('teaser-rule').textContent = state ? `${goalText(playableDaily(state.plan))} · CPU LV.${state.plan.cpuLevel}` : '';
   const left = dailyTriesLeft();
   dailyEl('teaser-tries').textContent = !state ? '' : state.cleared ? 'CLEARED ✓' : left === 0 ? 'NO TRIES LEFT' : `${left} ${left === 1 ? 'TRY' : 'TRIES'} LEFT`;
   const board = state?.board ?? [];
@@ -1325,8 +1327,9 @@ function renderTeaser() {
   else if (state.cleared) {
     // Today is cleared: the button posts the card of that clear.
     icon.hidden = false;
-    label.textContent = dailyCardPosted ? 'POSTED ✓' : dailyCardPosting ? 'POSTING…' : 'POST CARD';
-    button.disabled = dailyCardPosted || dailyCardPosting;
+    const posted = dailyCardPosted || state.cardPosted;
+    label.textContent = posted ? 'POSTED ✓' : dailyCardPosting ? 'POSTING…' : 'POST CARD';
+    button.disabled = posted || dailyCardPosting;
   } else if (left === 0) { label.textContent = 'NO TRIES LEFT'; button.disabled = true; }
   else { label.textContent = 'CHALLENGE'; button.disabled = dailyPending; }
 }
@@ -1394,7 +1397,7 @@ async function reportDailyTry(view, won) {
 // The card of a clear, posted from the daily panel (a later visit, no live match behind it).
 async function postDailyPanelCard() {
   const record = dailyState?.cleared;
-  if (!record || dailyCardPosting || dailyCardPosted) return;
+  if (!record || dailyCardPosting || dailyCardPosted || dailyState.cardPosted) return;
   dailyCardPosting = true;
   renderTeaser();
   try {
@@ -1412,7 +1415,8 @@ async function postDailyPanelCard() {
     const response = await fetch('/api/card', { method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ image: canvas.toDataURL('image/jpeg', 0.9), daily: true }) });
     const result = await response.json();
-    dailyCardPosted = !!result.ok;
+    // 'posted' (409): the server already has a card for this clear, so it is done either way.
+    dailyCardPosted = !!result.ok || !!result.posted;
   } catch {
     dailyCardPosted = false;
   }

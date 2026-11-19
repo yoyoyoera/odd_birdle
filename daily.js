@@ -24,5 +24,5 @@ export const challengeByKey = key => dailyChallenges.find(challenge => challenge
 // The challenge of a plan from daily-plan.js (what the server said for today), with the CPU level of that day.
 export function playableDaily(plan) {
   const challenge = challengeByKey(plan.key);
-  return { ...challenge, number: plan.number, date: plan.date, attempts: plan.attempts, rules: { ...challenge.rules, cpuLevel: plan.cpuLevel } };
+  return { ...challenge, number: plan.number, date: plan.date, attempts: plan.attempts, rules: { ...challenge.rules, cpuLevel: plan.cpuLevel, points: plan.points } };
 }
