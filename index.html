@@ -130,7 +130,7 @@
        five to clear it and a button. Sizes follow the court's width (cqw), so it scales with the frame. */
     #menu-modes { display: contents; }
     [data-portal="reddit"] #stage { container-type: inline-size; }
-    [data-portal="reddit"] #menu { top: 67%; width: 62%; display: grid; grid-template-columns: 20cqw minmax(0, 1fr); gap: 3cqw; align-items: stretch; white-space: normal; }
+    [data-portal="reddit"] #menu { top: 61%; width: 62%; display: grid; grid-template-columns: 20cqw minmax(0, 1fr); gap: 3cqw; align-items: stretch; white-space: normal; }
     [data-portal="reddit"] #menu[hidden] { display: none; }
     [data-portal="reddit"] #menu-modes { display: flex; flex-direction: column; justify-content: center; gap: 1.6cqw; }
     [data-portal="reddit"] #menu-modes > button, [data-portal="reddit"] #menu-modes #cpu { width: 100%; min-height: 0; height: 6cqw; padding: 0; font-size: max(9px, 2.2cqw); letter-spacing: .08em;
@@ -139,7 +139,8 @@
     [data-portal="reddit"] #menu-modes #cpu-level { position: static; transform: none; display: block; width: 100%; min-height: 0; margin-top: .8cqw; font-size: max(8px, 1.7cqw); opacity: .7; }
     [data-portal="reddit"] #menu-modes > button:hover, [data-portal="reddit"] #menu-modes #cpu:hover { background: var(--court-hover); }
     [data-portal="reddit"] #daily-teaser { display: flex; flex-direction: column; min-width: 0; padding: 1.3cqw 1.8cqw 1.5cqw; text-align: left; color: var(--ink);
-      background: color-mix(in srgb, var(--court-hover) 55%, var(--court)); }
+      /* See-through: the court (and the demo shuttle) shows faintly behind the card. */
+      background: color-mix(in srgb, var(--court-hover) 62%, transparent); backdrop-filter: blur(1.5px); }
     [data-portal="reddit"] #daily-teaser[hidden] { display: none; }
     [data-portal="reddit"] #teaser-head { display: flex; justify-content: space-between; gap: 1cqw; margin: 0; font-size: max(8px, 1.5cqw); font-weight: 650; letter-spacing: .08em; }
     [data-portal="reddit"] #teaser-day { opacity: .7; }
