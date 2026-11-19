@@ -1,4 +1,4 @@
-import { center, clamp, createGame, floor, height, leftLine, netTop, racketRadius, rightLine, shuttleOutline, step, width, contactMotion, isSwing, projectStrike, forceAt, effectIds, shapeCount, shuttleSizeOptions, racketTouches, supportedShuttleY, swingMotion, trialEffectIds, trialEffectLabels, trampolineLift, trampolineDent } from './game.js';
+import { center, clamp, createGame, floor, height, leftLine, netTop, racketRadius, rightLine, setMirroredShapes, shuttleOutline, step, width, contactMotion, isSwing, projectStrike, forceAt, effectIds, shapeCount, shuttleSizeOptions, racketTouches, supportedShuttleY, swingMotion, trialEffectIds, trialEffectLabels, trampolineLift, trampolineDent } from './game.js';
 import { makeStands, drawStands } from './stands.js';
 import { createCrowd } from './crowd.js';
 import { drawCard, cardWidth, cardHeight } from './card.js';
@@ -677,16 +677,12 @@ function drawPops(pops) {
   ctx.restore();
 }
 
-// True while a mirrored court is being drawn, so shapes that have a handedness (an L, a logo) are not drawn back to front.
-let canvasMirrored = false;
 function draw(view, scenery = false) {
   ctx.clearRect(0, 0, width, height);
-  canvasMirrored = false;
   ctx.save();
   if (!scenery && mirrored()) {
     ctx.translate(width, 0);
     ctx.scale(-1, 1);
-    canvasMirrored = true;
   }
   if (view.shake && !reduceMotion.matches) {
     const t = view.shake;
@@ -900,11 +896,7 @@ function drawShuttle({ flash, phase, shuttle, frozen }, alpha = 1) {
     ctx.globalAlpha = alpha;
   }
   ctx.beginPath();
-  // On a mirrored court the flip is undone for the shape itself: its own mirror image, turned the other way, comes out
-  // as the real shape on screen, still moving and spinning with the rest of the mirrored court.
-  const rings = canvasMirrored
-    ? shuttleOutline({ ...shuttle, angle: -shuttle.angle }).map(ring => ring.map(point => ({ x: -point.x, y: point.y })))
-    : shuttleOutline(shuttle);
+  const rings = shuttleOutline(shuttle);
   for (const ring of rings) {
     ring.forEach((point, index) => {
       const x = shuttle.x + point.x;
@@ -931,6 +923,8 @@ function frame(time) {
     return;
   }
   const workStart = frameMeter ? performance.now() : 0;
+  // On a mirrored CPU court the shuttle shapes are built back to front so they look right and hit as they look.
+  setMirroredShapes(mirrored());
   if (debugNet) netDebug.frames.push(time);
   if (mode === 'online') netMeter.frame(time);
   const scenery = demoShowing();
