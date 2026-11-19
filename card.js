@@ -132,13 +132,12 @@ export function drawCard(ctx, match) {
   ctx.fillStyle = palette.court; ctx.font = font(34); ctx.textAlign = 'left';
   ctx.fillText(daily ? `DAILY #${daily.number}` : 'FULL-TIME', inner + 62, panelY + 66);
   ctx.textAlign = 'right';
-  if (daily?.rank) {
-    // Everyone's card carries their place of the day; the top three say it louder, in gold, silver or bronze.
-    const top = daily.rank <= 3;
-    ctx.font = font(top ? 46 : 34);
-    ctx.fillStyle = top ? rankAccent(daily.rank) : palette.court;
-    if (!top) ctx.globalAlpha = 0.85;
-    ctx.fillText(`RANK #${daily.rank}${daily.players ? ` OF ${daily.players}` : ''}`, innerRight, panelY + (top ? 72 : 66));
+  if (daily?.rank && daily.rank > 3) {
+    // Everyone's card carries their place of the day, small; the top three get a big tab instead (card-rank.js).
+    ctx.font = font(34);
+    ctx.fillStyle = palette.court;
+    ctx.globalAlpha = 0.85;
+    ctx.fillText(`RANK #${daily.rank}${daily.players ? ` OF ${daily.players}` : ''}`, innerRight, panelY + 66);
   } else {
     ctx.globalAlpha = 0.6;
     ctx.fillText('ODD BIRDLE', innerRight, panelY + 66);
