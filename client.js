@@ -527,13 +527,17 @@ function setRacket(input) {
 let gamePaused = false;
 
 function showPauseState() {
-  const showing = gamePaused && (mode === 'solo' || mode === 'online');
+  // Nothing moves on a results screen, so it is never covered by the pause notice (Y8 pauses whenever the frame
+  // loses focus, and a notice there looked like a game that would not go on).
+  const showing = gamePaused && (mode === 'solo' || mode === 'online') && currentView().phase !== 'finished';
   pauseOverlay.hidden = !showing;
   stage.toggleAttribute('data-paused', showing);
   const online = mode === 'online';
+  // Y8 pauses when the game loses focus, and a click on the game brings it back.
+  const resume = portal === 'y8' ? 'Click the game to continue.' : 'Resume to continue.';
   setText(pauseTitle, online ? 'ONLINE MATCHES CANNOT BE PAUSED' : 'PAUSED');
-  setText(pauseDetail, online ? 'The match continues while you are away. Resume to return.'
-    : quick.on ? 'CPU game and matchmaking are paused. Resume to continue.' : 'Resume to continue.');
+  setText(pauseDetail, online ? 'The match continues while you are away. ' + (portal === 'y8' ? 'Click the game to return.' : 'Resume to return.')
+    : quick.on ? 'CPU game and matchmaking are paused. ' + resume : resume);
 }
 
 function moveRacket(event) {

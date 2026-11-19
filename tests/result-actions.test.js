@@ -6,6 +6,7 @@ import { createGame } from '../game.js';
 // After every finished match (lost or won, CPU, QUICK MATCH or online) there must be worded buttons that work.
 test('after a match there are buttons (and keys) to play again or go back to the menu', async t => {
   let clock = 0;
+  const windowEvents = {};
   let nextFrame;
   let paints = 0;
   const elements = new Map();
@@ -76,7 +77,7 @@ test('after a match there are buttons (and keys) to play again or go back to the
   };
   globalThis.window = {
     matchMedia: () => ({ matches: false }),
-    addEventListener() {}
+    addEventListener: (name, fn) => { (windowEvents[name] ??= []).push(fn); }
   };
   globalThis.devicePixelRatio = 1;
   globalThis.WebSocket = Socket;
@@ -119,6 +120,27 @@ test('after a match there are buttons (and keys) to play again or go back to the
   await new Promise(resolve => setImmediate(resolve));
   frames();
   assert.equal(element('#score').value, '0:0', 'Enter plays again');
+
+  // Y8 pauses when the frame loses focus (a click on the Y8 page). On the results screen that must not cover the
+  // buttons, and the click that brings focus back must also press PLAY AGAIN.
+  playUntilFinished();
+  for (const fn of windowEvents.blur) fn();
+  frames();
+  assert.equal(element('#pause-overlay').hidden, true, 'no pause notice over the results');
+  assert.equal(actions.hidden, false);
+  for (const fn of windowEvents.focus) fn();
+  await element('#play-again').click();
+  await new Promise(resolve => setImmediate(resolve));
+  frames();
+  assert.equal(element('#score').value, '0:0', 'one click after coming back plays again');
+
+  // During a match the notice shows, and says how to go on.
+  frames(60);
+  for (const fn of windowEvents.blur) fn();
+  assert.equal(element('#pause-overlay').hidden, false);
+  assert.match(element('#pause-detail').textContent, /Click the game/);
+  for (const fn of windowEvents.focus) fn();
+  assert.equal(element('#pause-overlay').hidden, true);
 
   // MENU goes back to the main menu.
   playUntilFinished();

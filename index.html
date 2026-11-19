@@ -37,7 +37,10 @@
     #stage { position: relative; }
     #pause-overlay { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center;
       padding: 16px; background: var(--court); background: color-mix(in srgb, var(--court) 96%, transparent);
-      color: var(--ink); text-align: center; cursor: default; }
+      color: var(--ink); text-align: center; cursor: default;
+      /* Clicks pass through: on Y8 the click that brings focus back must also reach the button under it (a paused
+         game still ignores it, see the stage's click guard in client.js). */
+      pointer-events: none; }
     #pause-overlay[hidden] { display: none; }
     #pause-overlay > div { width: min(100%, 600px); }
     #pause-title { margin: 0; font-size: clamp(1rem, 3.8vw, 2rem); line-height: 1.15; font-weight: 650; }

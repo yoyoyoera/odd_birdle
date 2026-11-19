@@ -102,7 +102,7 @@ test('invites are just the room code and nothing is counted', () => {
   assert.equal(portal.closedPortal, true);
 });
 
-test('an ad longer than twenty seconds cannot release rematch readiness early', async t => {
+test('an ad that outlasts the start timer cannot release rematch readiness early', async t => {
   t.mock.method(Date, 'now', () => 9999999999999);
   const timers = [];
   let cancelled = false;

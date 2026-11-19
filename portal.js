@@ -35,6 +35,8 @@ const adEveryMatches = 3;
 const gdAdGapMs = 2 * 60 * 1000;
 // The longest a Y8 ad may keep the game paused when the SDK never says it is over.
 export const y8AdLimitMs = 90 * 1000;
+// How long a Y8 break may take to start before the game goes on without it.
+export const y8AdStartMs = 3000;
 
 function refreshPause() {
   const next = sdkPaused || focusPaused || adPaused;
@@ -143,9 +145,9 @@ async function y8Break() {
       refreshPause();
       resolve();
     };
-    // Recover if a break never starts (20 s), and if a started ad never reports its end: Y8 rejected a build that
-    // stayed paused for good after a match, so even then the game comes back after y8AdLimitMs.
-    let giveUp = setTimeout(() => { if (!adPaused) finish(); }, 20000);
+    // Recover if a break never starts (y8AdStartMs: the SDK can sit on 'Ad is initializing' and say nothing, and
+    // a Play again that does nothing for long looks stuck), and if a started ad never reports its end (y8AdLimitMs).
+    let giveUp = setTimeout(() => { if (!adPaused) finish(); }, y8AdStartMs);
     try {
       Promise.resolve(sdk.showAd({
         type: 'next', name: 'match-end',
