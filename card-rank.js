@@ -11,7 +11,7 @@ export function drawRankFlourish(ctx, { rank, palette, panel, daily }) {
   const border = 10;
   // The frame and the tab are one shape: the tab rises out of the frame's top-right corner, flush with its right edge.
   const outerLeft = panel.x - border, outerTop = panel.y - border, outerRight = panel.x + panel.w + border;
-  const tabWidth = 490, tabHeight = 226;
+  const tabWidth = 580, tabHeight = 232;
   const tabLeft = outerRight - tabWidth, tabTop = outerTop - tabHeight;
   ctx.save();
   ctx.fillStyle = accent;
@@ -23,10 +23,10 @@ export function drawRankFlourish(ctx, { rank, palette, panel, daily }) {
   ctx.fillStyle = palette.ink;
   ctx.textBaseline = 'alphabetic';
   ctx.textAlign = 'left';
-  ctx.font = font(30);
-  const top = tabTop + 28, baseline = tabTop + tabHeight - 28;
-  ctx.fillText('RANK', tabLeft + 32, top + 22);
-  ctx.globalAlpha = 0.7; ctx.fillText('TODAY', tabLeft + 32, baseline); ctx.globalAlpha = 1;
+  ctx.font = font(66);
+  const top = tabTop + 30, baseline = tabTop + tabHeight - 30;
+  ctx.fillText('RANK', tabLeft + 36, top + 46);
+  ctx.globalAlpha = 0.7; ctx.fillText('TODAY', tabLeft + 36, baseline); ctx.globalAlpha = 1;
   ctx.textAlign = 'right';
   ctx.font = font(236);
   ctx.fillText(`#${rank}`, tabLeft + tabWidth - 26, baseline);
