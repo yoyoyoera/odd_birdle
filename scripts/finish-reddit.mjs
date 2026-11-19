@@ -8,5 +8,5 @@ const root = new URL('../', import.meta.url);
 const app = new URL('reddit/odd-birdle/', root);
 execFileSync(process.execPath, [fileURLToPath(new URL('scripts/build-portal.mjs', root)), 'reddit'], { stdio: 'inherit' });
 cpSync(new URL('portal/reddit/', root), new URL('dist/client/', app), { recursive: true });
-copyFileSync(new URL('portal/reddit/index.html', root), new URL('dist/client/game.html', app));
+for (const page of ['game.html', 'splash.html']) copyFileSync(new URL('portal/reddit/index.html', root), new URL(page, new URL('dist/client/', app)));
 console.log('Odd Birdle game laid over dist/client');
