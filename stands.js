@@ -39,7 +39,7 @@ const tonesFor = palette => {
   return {
     wall: m(0.05), pillar: m(0.08), step: [m(0.08), m(0.11), m(0.14), m(0.17)], edge: mix(palette.court, '#ffffff', 0.6),
     torso: [[m(0.15), m(0.18)], [m(0.19), m(0.22)], [m(0.23), m(0.26)], [m(0.27), m(0.3)]],
-    face: [m(0.02), m(0.05)], hair: [m(0.34), m(0.38), m(0.3)], hat: m(0.42), eye: m(0.6), rail: m(0.28),
+    face: [m(0.02), m(0.05)], hair: [m(0.34), m(0.38), m(0.3)], hat: m(0.6), eye: m(0.6), rail: m(0.28),
     board: m(0.3), cold: '#bcd8ea'
   };
 };
@@ -118,10 +118,9 @@ function drawPerson(ctx, p, tones, look) {
     if (p.hat) {
       ctx.fillStyle = tones.hat;
       ctx.beginPath();
-      ctx.moveTo(x - r - s, headY - 3 * s);
-      ctx.quadraticCurveTo(x, headY - r * 1.8, x + r + s, headY - 3 * s);
+      ctx.ellipse(x, headY - 5 * s, r + 0.5 * s, r * 0.85, 0, Math.PI, 0);
       ctx.fill();
-      ctx.fillRect(x - r - 5 * s, headY - 4 * s, 2 * r + 9 * s, 3 * s);
+      ctx.fillRect(x - r - 2.5 * s, headY - 6 * s, 2 * r + 5 * s, 2.5 * s);
     }
     let lookX = 0, lookY = 0;
     if (gaze) {
