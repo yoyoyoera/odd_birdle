@@ -89,7 +89,7 @@ npx devvit install oddbirdle   # r/oddbirdle 에 새 버전 설치
 | 6 | Sudden Death | One point. That's all. | Lv.3 | 1점, 효과 없음 |
 | 7 | Tiny Bird | A small shuttle and random effects. | Lv.3 | 5점, 작은 셔틀콕(크기 0) + 랜덤 효과 |
 | 8 | Doubles I | You and a CPU partner vs two. Take turns hitting. | 2v2 | 5점, 파트너 Lv.3·상대 2명 Lv.2 (6.4 참고) |
-| 9 | Letter L | The shuttle is always the L shape. | Lv.3 | 5점, 모양 고정 L, 효과 없음 |
+| 9 | Take the L | The shuttle is always an L. Hit it anyway. | Lv.3 | 5점, 모양 고정 L, 효과 없음 |
 | 10 | Boss: Chaos | Effects come twice as often. | Lv.3 | 7점, 랜덤 효과 빈도 2배 |
 | 11 | Sharp | No tricks, a faster CPU. | Lv.4 | 5점, 효과 없음 |
 | 12 | Five in a Row | You start 0:4 down. Win five straight. | Lv.4 | 시작 0:4, 상대는 5점에서 끝나므로 5연승 필요 |

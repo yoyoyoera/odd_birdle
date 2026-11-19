@@ -33,7 +33,7 @@ node tools/stage-difficulty.mjs --trials 24 --seed 20261119 --seconds 600 --stag
 | 6 | Sudden Death | 0 | 0.0% | 220.3 | 3 |
 | 7 | Tiny Bird | 0 | 0.0% | 564.2 | 9 |
 | 8 | Doubles I | 0 | 0.0% | 600.0 | 24 |
-| 9 | Letter L | 0 | 0.0% | 600.0 | 22 |
+| 9 | Take the L | 0 | 0.0% | 600.0 | 22 |
 | 10 | Boss: Chaos | 0 | 0.0% | 600.0 | 13 |
 | 11 | Sharp | 0 | 0.0% | 600.0 | 23 |
 | 12 | Five in a Row | 0 | 0.0% | 335.1 | 6 |

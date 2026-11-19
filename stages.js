@@ -11,7 +11,7 @@ export const stages = [
   { id: 6, name: 'Sudden Death', description: "One point. That's all.", rules: { cpuLevel: 3, points: 1, effects: 'none' } },
   { id: 7, name: 'Tiny Bird', description: 'A small shuttle and random effects.', rules: { cpuLevel: 3, points: 5, shuttleSize: 0 } },
   { id: 8, name: 'Doubles I', mode: 'doubles', fallback: true, description: 'Singles edition: clear the higher net.', doubles: { partner: 3, opponents: 2 }, rules: { cpuLevel: 3, points: 5, netScale: 'high', effects: 'none' } },
-  { id: 9, name: 'Letter L', description: 'The shuttle is always the L shape.', rules: { cpuLevel: 3, points: 5, shuttleShape: shapeCount - 1, effects: 'none' } },
+  { id: 9, name: 'Take the L', description: 'The shuttle is always an L. Hit it anyway.', rules: { cpuLevel: 3, points: 5, shuttleShape: shapeCount - 1, effects: 'none' } },
   { id: 10, name: 'Boss: Chaos', description: 'Effects come twice as often.', rules: { cpuLevel: 3, points: 7, effectRate: 2 } },
   { id: 11, name: 'Sharp', description: 'No tricks, a faster CPU.', rules: { cpuLevel: 4, points: 5, effects: 'none' } },
   { id: 12, name: 'Five in a Row', description: 'Start 0:4 down. Win five straight.', rules: { cpuLevel: 4, points: 5, startScore: { left: 0, right: 4 }, effects: 'none' } },
