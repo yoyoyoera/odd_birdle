@@ -1016,6 +1016,8 @@ function frame(time) {
   updateHud(demoBanner ? { ...view, eventText: demoView.eventText, eventWind: demoView.eventWind } : view);
   showLinkBars();
   let drawing = mode === 'online' ? predictedView(view, time) : view;
+  // Windy Day: a quiet wind bed runs under the whole stage.
+  sound.setBed('wind', mode === 'solo' && selectedStage?.rules.permanent === 'wind' && !stageIntroRemaining && !gamePaused && view.phase !== 'finished');
   if ((mode === 'solo' || mode === 'online') && !stageIntroRemaining) {
     for (const cue of soundCues.cues(drawing, time, mode === 'solo' ? 'left' : localSide)) sound.play(cue);
   }
@@ -1255,8 +1257,17 @@ function updateStageArrows() {
 stageList.addEventListener('scroll', updateStageArrows, { passive: true });
 stagePrev.addEventListener('click', () => stageList.scrollBy({ left: -stageList.clientWidth * 0.85, behavior: 'smooth' }));
 stageNext.addEventListener('click', () => stageList.scrollBy({ left: stageList.clientWidth * 0.85, behavior: 'smooth' }));
+// The mouse wheel slides the cards: one card column per notch, smoothly (a free scroll, so nothing snaps back).
+let wheelAt = 0;
 stageList.addEventListener('wheel', event => {
-  if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) { stageList.scrollLeft += event.deltaY; event.preventDefault(); }
+  const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+  if (!delta) return;
+  event.preventDefault();
+  const now = performance.now();
+  if (now - wheelAt < 120) return;
+  wheelAt = now;
+  const column = stageList.querySelector('button')?.getBoundingClientRect().width ?? 150;
+  stageList.scrollBy({ left: Math.sign(delta) * (column + 6) * (Math.abs(delta) > 200 ? 2 : 1), behavior: 'smooth' });
 }, { passive: false });
 if (portal === 'reddit') {
   stagesButton.hidden = false;

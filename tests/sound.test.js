@@ -70,3 +70,22 @@ test('the new effects have their own sounds', () => {
   assert.deepEqual(tracker.cues({ ...live, flash: 0.22, trampoline: { swell: 0.6, press: { x: 200, age: 0.1 } } }, 1200), []);
   assert.deepEqual(tracker.cues({ ...live, trampoline: { swell: 0, press: { x: 200, age: 0.5 } } }, 1500), []);
 });
+
+test('the wind bed is seamless where it loops and its two layers never line up', async () => {
+  const { windAmbience } = await import('../sound-synth.js');
+  const layers = windAmbience();
+  assert.equal(layers.length, 2);
+  assert.notEqual(layers[0].samples.length, layers[1].samples.length);
+  for (const { samples } of layers) {
+    let peak = 0, stepSum = 0;
+    for (let i = 0; i < samples.length; i++) {
+      assert.ok(Number.isFinite(samples[i]));
+      peak = Math.max(peak, Math.abs(samples[i]));
+      if (i) stepSum += Math.abs(samples[i] - samples[i - 1]);
+    }
+    const typicalStep = stepSum / (samples.length - 1);
+    const seam = Math.abs(samples[0] - samples[samples.length - 1]);
+    assert.ok(peak > 0.5 && peak <= 1.0001, `peak ${peak}`);
+    assert.ok(seam < typicalStep * 6 + 0.02, `a click of ${seam} where it loops (typical step ${typicalStep})`);
+  }
+});

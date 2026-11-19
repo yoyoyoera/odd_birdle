@@ -1,4 +1,4 @@
-import { renderEffects, sampleRate } from './sound-synth.js';
+import { renderEffects, sampleRate, windAmbience } from './sound-synth.js';
 
 const storageKey = 'oddbirdle-sound';
 
@@ -74,6 +74,42 @@ export function createSound() {
     source.start();
   }
 
+  // Background beds that run for a whole stage (wind). A bed fades in and out, starts at a random point of its loops
+  // and is made of loops of different lengths, so it never sounds like it repeats.
+  const beds = { wind: windAmbience };
+  const running = new Map();
+  const bedLevel = 0.3;
+  function startBed(name) {
+    if (running.has(name) || !context || context.state !== 'running') return;
+    const layers = beds[name]();
+    const level = context.createGain();
+    level.gain.value = 0;
+    level.connect(master);
+    const sources = layers.map(({ samples, gain }) => {
+      const source = context.createBufferSource();
+      source.buffer = toBuffer(samples);
+      source.loop = true;
+      const layerGain = context.createGain();
+      layerGain.gain.value = gain;
+      source.connect(layerGain).connect(level);
+      source.start(0, Math.random() * source.buffer.duration);
+      return source;
+    });
+    level.gain.setTargetAtTime(bedLevel, context.currentTime, 0.9);
+    running.set(name, { sources, level });
+  }
+  function stopBed(name) {
+    const bed = running.get(name);
+    if (!bed) return;
+    running.delete(name);
+    bed.level.gain.setTargetAtTime(0, context.currentTime, 0.35);
+    setTimeout(() => { for (const source of bed.sources) { try { source.stop(); } catch { /* already stopped */ } } bed.level.disconnect(); }, 2500);
+  }
+  function setBed(name, on) {
+    if (!beds[name]) return;
+    if (on) startBed(name); else stopBed(name);
+  }
+
   function applyGain() {
     if (master) master.gain.setTargetAtTime(audible() ? 1 : 0, context.currentTime, 0.02);
   }
@@ -92,7 +128,7 @@ export function createSound() {
   });
 
   return {
-    unlock, play,
+    unlock, play, setBed,
     get enabled() { return enabled; },
     get audible() { return audible(); },
     get portalMuted() { return portalMuted; },

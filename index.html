@@ -91,7 +91,7 @@
     [data-portal="reddit"] #stage-panel header { flex: 0 0 auto; min-height: 44px; padding: 0 12px 0 48px;
       display: flex; align-items: center; gap: 10px; }
     /* How many of the twenty are cleared: a notch smaller than the title, with a thin bar under the row. */
-    [data-portal="reddit"] #stage-score { text-align: right; line-height: 1; min-width: 44px; }
+    [data-portal="reddit"] #stage-score { text-align: right; line-height: 1; min-width: 44px; margin-left: auto; }
     [data-portal="reddit"] #stage-count { display: block; font-size: clamp(15px, 3.2vw, 20px); font-weight: 650;
       font-variant-numeric: tabular-nums; }
     [data-portal="reddit"] #stage-bar { flex: 0 0 auto; height: 3px; margin: 0 12px 4px 48px; background: color-mix(in srgb, var(--ink) 15%, transparent); }
@@ -102,10 +102,10 @@
     [data-portal="reddit"] #stage-panel { overflow: hidden; }
     [data-portal="reddit"] #stage-list { flex: 1 1 auto; min-height: 0; display: grid; grid-auto-flow: column;
       grid-template-rows: repeat(2, minmax(0, 1fr)); grid-auto-columns: clamp(132px, 31%, 200px); gap: 6px;
-      overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; touch-action: pan-x; scroll-snap-type: x proximity;
+      overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; touch-action: pan-x;
       scrollbar-width: thin; padding: 2px 2px 6px; }
     [data-portal="reddit"] #stage-list button { display: flex; flex-direction: column; align-items: stretch; gap: 2px; min-height: 0; overflow: hidden;
-      padding: 6px 9px 7px; text-align: left; border: 0; color: var(--ink); font: inherit; scroll-snap-align: start;
+      padding: 6px 9px 7px; text-align: left; border: 0; color: var(--ink); font: inherit;
       background: color-mix(in srgb, var(--court-hover) 55%, var(--court)); cursor: pointer; }
     [data-portal="reddit"] #stage-list button:hover { background: var(--court-hover); }
     [data-portal="reddit"] #stage-list button:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
@@ -118,11 +118,13 @@
     [data-portal="reddit"] .stage-copy > span { display: block; font-size: 10.5px; line-height: 1.3; opacity: .75; }
     [data-portal="reddit"] .stage-copy > span:nth-child(2) { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; flex: 0 1 auto; min-height: 0; max-height: 2.6em; }
     [data-portal="reddit"] .stage-copy > .stage-goal { margin-top: auto; flex: 0 0 auto; font-weight: 650; font-size: 9.5px; letter-spacing: .06em; opacity: .9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    [data-portal="reddit"] #stage-pager { display: flex; gap: 4px; margin-left: auto; }
-    [data-portal="reddit"] #stage-prev, [data-portal="reddit"] #stage-next { width: 34px; height: 34px; display: grid; place-items: center;
-      border: 0; color: var(--ink); cursor: pointer; background: color-mix(in srgb, var(--court-hover) 55%, var(--court)); }
-    [data-portal="reddit"] #stage-prev:hover:not(:disabled), [data-portal="reddit"] #stage-next:hover:not(:disabled) { background: var(--court-hover); }
-    [data-portal="reddit"] #stage-prev:disabled, [data-portal="reddit"] #stage-next:disabled { opacity: .3; cursor: default; }
+    /* Arrows sit over the two edges of the cards, halfway down, see-through until pointed at. */
+    [data-portal="reddit"] #stage-prev, [data-portal="reddit"] #stage-next { position: absolute; z-index: 4; top: 50%; transform: translateY(-50%);
+      width: 30px; height: 64px; display: grid; place-items: center; border: 0; color: var(--ink); cursor: pointer;
+      background: color-mix(in srgb, var(--court) 60%, transparent); opacity: .55; transition: opacity .15s; }
+    [data-portal="reddit"] #stage-prev { left: 8px; } [data-portal="reddit"] #stage-next { right: 8px; }
+    [data-portal="reddit"] #stage-prev:hover, [data-portal="reddit"] #stage-next:hover { opacity: 1; }
+    [data-portal="reddit"] #stage-prev:disabled, [data-portal="reddit"] #stage-next:disabled { opacity: 0; pointer-events: none; }
     [data-portal="reddit"] #back { z-index: 4; }
     [data-portal="reddit"] #menu > #stages-button, [data-portal="reddit"] #menu #cpu { background: color-mix(in srgb, var(--court-hover) 55%, var(--court)); }
     [data-portal="reddit"] #menu > #stages-button:hover, [data-portal="reddit"] #menu #cpu:hover { background: var(--court-hover); }
@@ -284,11 +286,11 @@
     <section id="stage-panel" aria-label="Choose a stage" hidden>
       <header>
         <h2>STAGES</h2>
-        <div id="stage-pager"><button id="stage-prev" type="button" aria-label="Earlier stages" title="Earlier stages"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button id="stage-next" type="button" aria-label="Later stages" title="Later stages"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
         <div id="stage-score" role="status"><strong id="stage-count">0/20</strong><span id="stage-progress"></span></div>
       </header>
       <div id="stage-bar" aria-hidden="true"><i></i></div>
       <div id="stage-list" aria-label="Available stages"></div>
+      <button id="stage-prev" type="button" aria-label="Earlier stages" title="Earlier stages"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button id="stage-next" type="button" aria-label="Later stages" title="Later stages"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     </section>
     <section id="stage-intro" role="status" aria-live="polite" hidden>
       <p id="stage-intro-number"></p><h2 id="stage-intro-name"></h2><p id="stage-intro-description"></p><p id="stage-intro-goal"></p>
