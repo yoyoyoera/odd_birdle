@@ -141,30 +141,34 @@ export async function matchBreak({ rematch = false } = {}) {
 // Y8: an interstitial between matches, never during one, as rarely as for GamePix (Y8 also caps them itself).
 // Paused in beforeAd and resumed in afterAd, as its guide says; a skipped break calls neither, and the game
 // carries on whatever happens (no SDK, an ad blocker, an error, a break that never reports back).
+let y8Request = 0;
 async function y8Break() {
   const sdk = window.y8Sdk;
   if (!sdk?.showAd || paused || matchesSinceAd < adEveryMatches || Date.now() - lastAd < adGapMs) return;
   matchesSinceAd = 0;
   lastAd = Date.now();
+  const request = ++y8Request;
   await new Promise(resolve => {
-    let finished = false;
+    let ended = false;
+    let started = false;
+    // This deadline releases the waiting menu action. The SDK may still display its ad later.
+    let timer = setTimeout(() => { if (!started) resolve(); }, y8AdStartMs);
     const finish = () => {
-      if (finished) return;
-      finished = true;
-      clearTimeout(giveUp);
+      if (ended || request !== y8Request) return;
+      ended = true;
+      clearTimeout(timer);
       adPaused = false;
       refreshPause();
       resolve();
     };
-    // Recover if a break never starts (y8AdStartMs: the SDK can sit on 'Ad is initializing' and say nothing, and
-    // a Play again that does nothing for long looks stuck), and if a started ad never reports its end (y8AdLimitMs).
-    let giveUp = setTimeout(() => { if (!adPaused) finish(); }, y8AdStartMs);
     try {
       Promise.resolve(sdk.showAd({
         type: 'next', name: 'match-end',
         beforeAd: () => {
-          clearTimeout(giveUp);
-          giveUp = setTimeout(finish, y8AdLimitMs);
+          if (ended || started || request !== y8Request) return;
+          started = true;
+          clearTimeout(timer);
+          timer = setTimeout(finish, y8AdLimitMs);
           adPaused = true;
           refreshPause();
         },
