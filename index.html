@@ -147,9 +147,11 @@
       min-height: 44px; padding: 0 12px; font: inherit; font-weight: 650; cursor: pointer; }
     #result-actions button:hover { background: var(--court-hover); }
     #result-actions button:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
-    /* Reddit: the end-of-match buttons are flat tinted tiles, like the CPU level button, with no outline. */
-    [data-portal="reddit"] #result-actions button { border: 0; background: var(--court-hover); }
-    [data-portal="reddit"] #result-actions button:hover:not(:disabled) { background: color-mix(in srgb, var(--court-hover) 82%, var(--ink)); }
+    /* Reddit: the end-of-match buttons look like the menu's: plain words (on the court's own colour, so the net never
+       shows through them), the size of the CPU button, and a tinted tile only under the pointer. */
+    [data-portal="reddit"] #result-actions { gap: clamp(4px, 2vw, 16px); }
+    [data-portal="reddit"] #result-actions button { border: 0; background: var(--court); min-height: 44px; padding: 0 8px; }
+    [data-portal="reddit"] #result-actions button:hover:not(:disabled) { background: var(--court-hover); }
     #result-actions #card-button:disabled { opacity: .6; cursor: default; }
     #result-actions #card-button[hidden] { display: none; }
     #result-actions #card-button svg { vertical-align: -5px; margin-right: 6px; }
