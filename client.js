@@ -71,6 +71,8 @@ const stageIntro = document.querySelector('#stage-intro');
 const stageIntroNumber = document.querySelector('#stage-intro-number');
 const stageIntroName = document.querySelector('#stage-intro-name');
 const stageIntroDescription = document.querySelector('#stage-intro-description');
+const stageIntroGoal = document.querySelector('#stage-intro-goal');
+const goalLabel = document.querySelector('#goal');
 const resultStagesButton = document.querySelector('#result-stages');
 const back = document.querySelector('#back');
 const roomDisplay = document.querySelector('#room-display');
@@ -393,6 +395,10 @@ function updateHud(view) {
   const { phase, score, eventText = '', eventWind = false, winner, message = '' } = view;
   if (stage.dataset.phase !== phase) stage.dataset.phase = phase;
   scoreboard.hidden = !score;
+  // The target is on screen all match (Reddit): "FIRST TO 5", under the score.
+  const goalShown = portal === 'reddit' && !!score && Number.isInteger(view.pointsToWin);
+  goalLabel.hidden = !goalShown;
+  if (goalShown) setText(goalLabel, 'FIRST TO ' + view.pointsToWin);
   sideLabel.hidden = mode !== 'online' && mode !== 'solo';
   sideLabel.dataset.side = shownSide();
   cpuLabel.dataset.side = shownSide() === 'left' ? 'right' : 'left';
@@ -1159,6 +1165,13 @@ document.querySelector('#cpu').addEventListener('click', () => afterMatchBreak((
   startCpu();
 }));
 
+// What a stage is played to, said plainly: "FIRST TO 5", and the head start (or deficit) when there is one.
+const goalText = challenge => {
+  const { points, startScore } = challenge.rules;
+  const behind = startScore && startScore.right > startScore.left ? ` · YOU START ${startScore.left}:${startScore.right}` : '';
+  return `FIRST TO ${points}${behind}`;
+};
+
 // Stage UI is exclusive to Reddit. Random CPU matches remain available as practice.
 let stageProgress;
 function renderStages(cleared, online) {
@@ -1173,10 +1186,11 @@ function renderStages(cleared, online) {
     const copy = document.createElement('span'); copy.className = 'stage-copy';
     const name = document.createElement('strong'); name.textContent = challenge.name;
     const description = document.createElement('span'); description.textContent = challenge.description;
-    copy.append(name, description);
+    const goal = document.createElement('span'); goal.className = 'stage-goal'; goal.textContent = goalText(challenge);
+    copy.append(name, description, goal);
     const check = document.createElement('span'); check.className = 'stage-check';
     check.textContent = cleared.includes(challenge.id) ? '✓' : '';
-    button.setAttribute('aria-label', `Stage ${challenge.id}: ${challenge.name}. ${challenge.description}${cleared.includes(challenge.id) ? ' Cleared.' : ''}`);
+    button.setAttribute('aria-label', `Stage ${challenge.id}: ${challenge.name}. ${challenge.description} ${goalText(challenge).toLowerCase()}.${cleared.includes(challenge.id) ? ' Cleared.' : ''}`);
     button.append(number, copy, check);
     button.addEventListener('click', () => afterMatchBreak(() => {
       selectedStage = challenge;
@@ -1205,6 +1219,7 @@ function showStageIntro() {
   stageIntroNumber.textContent = 'STAGE ' + selectedStage.id;
   stageIntroName.textContent = selectedStage.name;
   stageIntroDescription.textContent = selectedStage.description;
+  stageIntroGoal.textContent = goalText(selectedStage);
   stageIntro.hidden = false;
   youFlag.hidden = true;
 }

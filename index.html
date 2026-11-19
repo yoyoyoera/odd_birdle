@@ -102,6 +102,7 @@
     [data-portal="reddit"] .stage-copy { flex: 1; min-width: 0; }
     [data-portal="reddit"] .stage-copy strong { display: block; font-size: 13px; line-height: 1.25; }
     [data-portal="reddit"] .stage-copy > span { display: block; font-size: 11px; line-height: 1.3; opacity: .75; }
+    [data-portal="reddit"] .stage-copy > .stage-goal { font-weight: 650; letter-spacing: .08em; opacity: .9; }
     [data-portal="reddit"] .stage-check { min-width: 14px; font-size: 18px; }
     [data-portal="reddit"] #back { z-index: 4; }
     [data-portal="reddit"] #menu > #stages-button, [data-portal="reddit"] #menu #cpu { background: color-mix(in srgb, var(--court-hover) 55%, var(--court)); }
@@ -110,6 +111,7 @@
       padding: 20px 48px; text-align: center; background: var(--court); color: var(--ink); pointer-events: none; }
     [data-portal="reddit"] #stage-intro-number { margin: 0 0 6px; opacity: .65; font-size: 12px; letter-spacing: .12em; }
     [data-portal="reddit"] #stage-intro-name { margin: 0; font-size: clamp(22px, 5vw, 40px); line-height: 1.1; }
+    [data-portal="reddit"] #stage-intro-goal { margin: 12px 0 0; font-size: clamp(12px, 3vw, 18px); font-weight: 650; letter-spacing: .12em; }
     [data-portal="reddit"] #stage-intro-description { margin: 9px 0 0; font-size: clamp(11px, 2.7vw, 16px); line-height: 1.4; }
     canvas { display: block; width: 100%; aspect-ratio: 9 / 5; background: var(--court);
       touch-action: none; cursor: none; }
@@ -118,6 +120,11 @@
       color: var(--ink); opacity: .45; font-size: clamp(1.5rem, 6vw, 3.5rem); font-weight: 650; line-height: 1;
       font-variant-numeric: tabular-nums; pointer-events: none; }
     #stage[data-phase="ready"] #score, #stage[data-phase="finished"] #score { opacity: 1; }
+    /* Reddit: what the match is played to, small under the score while it is on. */
+    #goal { position: absolute; left: 50%; top: calc(50% + clamp(1.1rem, 4.4vw, 2.5rem)); transform: translateX(-50%); margin: 0;
+      color: var(--ink); opacity: .45; font-size: clamp(.6rem, 1.6vw, .8rem); font-weight: 650; letter-spacing: .14em;
+      white-space: nowrap; pointer-events: none; }
+    #goal[hidden], #stage[data-phase="ready"] #goal, #stage[data-phase="finished"] #goal { display: none; }
     #side-label, #cpu-label { position: absolute; top: 5%; left: 25%; transform: translateX(-50%);
       color: var(--ink); font-size: clamp(.65rem, 1.7vw, .875rem); font-weight: 650;
       letter-spacing: .08em; pointer-events: none; }
@@ -235,6 +242,7 @@
     <h1>ODD BIRDLE</h1>
     <canvas id="court" aria-label="Badminton court. Use your pointer to hit the shuttle."></canvas>
     <output id="score" aria-label="Left and right scores" hidden>0:0</output>
+    <p id="goal" hidden></p>
     <span id="side-label" hidden>YOU</span>
     <span id="cpu-label" hidden></span>
     <span id="you-flag" aria-hidden="true" hidden>YOU</span>
@@ -259,7 +267,7 @@
       <div id="stage-list" aria-label="Available stages"></div>
     </section>
     <section id="stage-intro" role="status" aria-live="polite" hidden>
-      <p id="stage-intro-number"></p><h2 id="stage-intro-name"></h2><p id="stage-intro-description"></p>
+      <p id="stage-intro-number"></p><h2 id="stage-intro-name"></h2><p id="stage-intro-description"></p><p id="stage-intro-goal"></p>
     </section>
     <div id="room-display" hidden>
       <span>Room code:</span>

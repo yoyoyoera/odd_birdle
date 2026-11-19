@@ -1246,7 +1246,7 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     const position = (racket) => racket && { x: racket.x, y: racket.y, seenTime: racket.seenTime };
     return {
       phase, score, message, winner, eventText, eventWind, flash, frozen, support, cpuLevel, netTop: matchNetTop,
-      ...(rules ? { pointsToWin } : {}),
+      pointsToWin,
       strike: strike?.flight === flight ? strike : undefined,
       force: currentForce(),
       // Where the crowd is looking: the shuttle's place, sent all through a rally so it is still there when
