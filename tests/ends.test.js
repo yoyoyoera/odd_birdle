@@ -61,8 +61,10 @@ test('every rematch swaps ends, and each player then moves the racket on their n
   assert.deepEqual(a.sides(), ['left', 'right', 'left', 'right']);
   assert.deepEqual(b.sides(), ['right', 'left', 'right', 'left']);
   a.say({ type: 'racket', input: { x: 700, y: 300, time: 1 } });
-  tick();
-  const state = a.sent.at(-1).state;
+  // Snapshots go out about every 1/60 s, so one 16 ms tick may not send one yet.
+  const before = a.sent.length;
+  for (let i = 0; i < 5; i++) tick();
+  const state = a.sent.slice(before).findLast(message => message.type === 'state').state;
   assert.ok(state.right, 'a now plays on the right');
   assert.equal(state.left ?? undefined, undefined, 'and does not move the left racket');
 });
