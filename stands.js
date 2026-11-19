@@ -81,7 +81,7 @@ function drawPerson(ctx, p, tones, look) {
   if (p.style < 0.35) {
     tilted(() => {
       ctx.fillStyle = hair;
-      ctx.fillRect(x - r - 1.5 * s, headY - 2 * s, 2 * r + 3 * s, 26 * s);
+      ctx.fillRect(x - r - 0.5 * s, headY - 2 * s, 2 * r + 1 * s, 26 * s);
     });
   }
   ctx.fillStyle = torso;
