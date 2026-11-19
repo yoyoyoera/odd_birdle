@@ -220,9 +220,9 @@ function outlineContact(from, to, radius, x, y, rings) {
   return inside;
 }
 
-function flightProfile(kind, size) {
+function flightProfile(kind, size, gravityScale = 1) {
   const sizeOffset = (size - 21) / 13;
-  return { gravity: baseGravity * kind.fall, airDrag: kind.drag * (1 + sizeOffset * 0.16) };
+  return { gravity: baseGravity * kind.fall * gravityScale, airDrag: kind.drag * (1 + sizeOffset * 0.16) };
 }
 
 function advanceFlight(body, dt, scale, drag, terminalVelocity, terminalX = 0) {
@@ -279,7 +279,7 @@ export function supportedShuttleY(pose, from, to) {
 
 export function projectStrike(pose, motion, seconds, force) {
   const velocity = swingVelocity(motion.vx, motion.vy);
-  const { gravity, airDrag } = flightProfile(shapes[pose.shape], pose.baseSize);
+  const { gravity, airDrag } = flightProfile(shapes[pose.shape], pose.baseSize, pose.gravityScale);
   const result = { ...pose, ...velocity };
   if (!force) {
     advanceFlight(result, seconds, flightScale(seconds, airDrag), Math.exp(-airDrag * seconds), gravity / airDrag);
@@ -296,7 +296,18 @@ export function projectStrike(pose, motion, seconds, force) {
   return result;
 }
 
-export function createGame({ withCpu = false, quickEvents = false } = {}) {
+export function createGame({ withCpu = false, quickEvents = false, rules: initialRules } = {}) {
+  // Rules belong to a match; test-page overrides and ordinary random matches keep their old defaults.
+  let rules = initialRules ? { ...initialRules } : undefined;
+  let permanentAge = 0;
+  const hasPermanentBumper = () => rules?.permanent === 'bumper';
+  const hasBumper = () => hasPermanentBumper() || activeEffect?.id === 'bumper';
+  const gravityScale = () => Number.isFinite(rules?.gravityScale) && rules.gravityScale > 0 ? rules.gravityScale : 1;
+  const effectRate = () => Number.isFinite(rules?.effectRate) && rules.effectRate > 0 ? rules.effectRate : 1;
+  const stageQuickEvents = () => Boolean(rules?.quickEvents);
+  const stageEffectPool = () => livePool.filter(effect =>
+    rules?.effects !== 'none' && (!Array.isArray(rules?.effects) || rules.effects.includes(effect.id)) &&
+    !(hasPermanentBumper() && effect.id === 'bumper'));
   let netReturn;
   let baseNetTop = netTop;
   let matchNetTop = netTop;
@@ -371,15 +382,19 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     support = undefined;
     strike = undefined;
     showEvent('');
-    shape = shuttleChoice.shape ?? (shape < 0
+    const fixedShape = Number.isInteger(rules?.shuttleShape) && rules.shuttleShape >= 0 && rules.shuttleShape < shapeCount
+      ? rules.shuttleShape : shuttleChoice.shape;
+    const fixedSize = Number.isInteger(rules?.shuttleSize) && rules.shuttleSize >= 0 && rules.shuttleSize < shuttleSizes.length
+      ? rules.shuttleSize : shuttleChoice.size;
+    shape = fixedShape ?? (shape < 0
       ? Math.floor(Math.random() * shapes.length)
       : (shape + 1 + Math.floor(Math.random() * (shapes.length - 1))) % shapes.length);
     const x = server === 'left' ? 245 : 660;
-    sizeTier = shuttleChoice.size ?? (sizeTier < 0
+    sizeTier = fixedSize ?? (sizeTier < 0
       ? Math.floor(Math.random() * shuttleSizes.length)
       : (sizeTier + 1 + Math.floor(Math.random() * (shuttleSizes.length - 1))) % shuttleSizes.length);
     const size = shuttleSizes[sizeTier];
-    shuttle = { x, y: 56, vx: 0, vy: 35, angle: 0, spin: 0.8, size, ...flightProfile(shapes[shape], size) };
+    shuttle = { x, y: 56, vx: 0, vy: 35, angle: 0, spin: 0.8, size, ...flightProfile(shapes[shape], size, gravityScale()) };
     updateOutline();
     cpu = withCpu ? { x: 660, y: 300 } : undefined;
     phase = 'live';
@@ -390,16 +405,29 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     message = server + ' serve';
   }
 
-  function restart(openingCountdown = 0, selectedCpuLevel) {
+  function restart(openingCountdown = 0, selectedCpuLevel, nextRules) {
+    // Passing a third argument (including undefined/null) explicitly returns practice to its defaults.
+    if (arguments.length >= 3) rules = nextRules ? { ...nextRules } : undefined;
+    permanentAge = 0;
+    bumperCooldown = 0;
+    bumperFlash = 0;
     netReturn = undefined;
     winner = undefined;
     score = { left: 0, right: 0 };
-    pointsToWin = 5 + Math.floor(Math.random() * 11);
-    matchNetTop = Math.round(floor - (floor - netTop) * [1, 1.2, 1.4][Math.floor(Math.random() * 3)]);
+    pointsToWin = Number.isInteger(rules?.points) && rules.points > 0 ? rules.points : 5 + Math.floor(Math.random() * 11);
+    for (const side of ['left', 'right']) {
+      const initial = rules?.startScore?.[side];
+      if (Number.isInteger(initial) && initial >= 0) score[side] = Math.min(initial, pointsToWin - 1);
+    }
+    const fixedNetScale = rules?.netScale === 'high' ? 1.4 : rules?.netScale === 'low' ? 0.65 : rules?.netScale;
+    const scale = Number.isFinite(fixedNetScale) && fixedNetScale > 0 && fixedNetScale < 4
+      ? fixedNetScale : [1, 1.2, 1.4][Math.floor(Math.random() * 3)];
+    matchNetTop = Math.round(floor - (floor - netTop) * scale);
     baseNetTop = matchNetTop;
     netStart.y = matchNetTop;
-    if (withCpu) cpuLevel = Number.isInteger(selectedCpuLevel) && selectedCpuLevel >= 1 && selectedCpuLevel <= 5
-      ? selectedCpuLevel : 1 + Math.floor(Math.random() * cpuLevels.length);
+    const wantedCpuLevel = rules?.cpuLevel ?? selectedCpuLevel;
+    if (withCpu) cpuLevel = Number.isInteger(wantedCpuLevel) && wantedCpuLevel >= 1 && wantedCpuLevel <= 5
+      ? wantedCpuLevel : 1 + Math.floor(Math.random() * cpuLevels.length);
     rackets.left = rackets.right = undefined;
     server = 'left';
     pops = [];
@@ -452,7 +480,8 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
   function scheduleEvent() {
     countdown = 0;
     // quickEvents is for trying effects out: they come around much sooner.
-    eventWait = quickEvents ? 1 + Math.random() * 1.5 : 3 + Math.random() * 4;
+    eventWait = stageQuickEvents() ? 1 + Math.random()
+      : (quickEvents ? 1 + Math.random() * 1.5 : 3 + Math.random() * 4) / effectRate();
   }
 
   // The active effect as a force description a client can replay (undefined when none pushes the bird).
@@ -464,7 +493,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
   function clearEffect() {
     for (const decoy of decoys) popDecoy(decoy);
     decoys = [];
-    bumperFlash = 0;
+    if (!hasPermanentBumper()) bumperFlash = 0;
     if (['freeze', 'balloon', 'wind'].includes(activeEffect?.id)) flight++;
     if (activeEffect?.id === 'freeze') cpuThaw = 0.25;
     activeEffect = undefined;
@@ -476,8 +505,10 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
   }
 
   function startEffect(chosen) {
-    const pool = onlyEffect ? everyEffect.filter(candidate => candidate.id === onlyEffect) : livePool;
+    const pool = rules ? stageEffectPool()
+      : onlyEffect ? everyEffect.filter(candidate => candidate.id === onlyEffect) : livePool;
     const effect = chosen ?? pool[Math.floor(Math.random() * pool.length)];
+    if (!effect) return;
     const length = effectSeconds[effect.id] ?? (Array.isArray(effect.duration)
       ? effect.duration[0] + Math.random() * (effect.duration[1] - effect.duration[0]) : effect.duration);
     activeEffect = { id: effect.id, remaining: length, total: length, netScale: netScales[effect.id] ?? effect.netScale };
@@ -530,6 +561,15 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
   }
 
   function updateEvent(dt) {
+    // The storm stage changes effects every 1–2 live rally seconds instead of stacking effects or warnings.
+    if (stageQuickEvents() && effectsOn && stageEffectPool().length && lastHitter) {
+      eventWait -= dt;
+      if (eventWait <= 1e-9) {
+        clearEffect();
+        startEffect();
+        return;
+      }
+    }
     if (activeEffect) {
       activeEffect.remaining -= dt;
       if (activeEffect.netScale !== undefined) {
@@ -539,7 +579,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
       if (activeEffect.remaining <= 1e-9) clearEffect();
       return;
     }
-    if (!effectsOn) return;
+    if (!effectsOn || (rules && !stageEffectPool().length) || stageQuickEvents()) return;
     // Before a countdown, short rallies still contribute to the waiting time.
     if (!lastHitter) return;
     if (countdown > 0) {
@@ -551,13 +591,14 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     } else {
       eventWait -= dt;
       if (eventWait > 0) return;
-      countdown = 3;
+      countdown = 3 / effectRate();
     }
     showEvent(String(Math.ceil(countdown - 1e-9)));
   }
 
   // --- BUMPER ---
   function bumperSize() {
+    if (hasPermanentBumper()) return smooth(Math.min(1, permanentAge / bumperGrow));
     if (activeEffect?.id !== 'bumper') return 0;
     const age = activeEffect.total - activeEffect.remaining;
     return smooth(Math.min(age / bumperGrow, activeEffect.remaining / bumperGrow));
@@ -704,8 +745,9 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
       const push = forceAt(force, t);
       advanceFlight(body, dt, flightScale(dt, airDrag), Math.exp(-airDrag * dt), gravity * push.gravity / airDrag + push.y, push.x);
       postWait -= dt;
-      if (activeEffect?.id === 'bumper' && left - t > 0 && postWait <= 0) {
-        const size = smooth(Math.min((clock + t) / bumperGrow, (left - t) / bumperGrow));
+      if (hasBumper() && (hasPermanentBumper() || left - t > 0) && postWait <= 0) {
+        const size = hasPermanentBumper() ? smooth(Math.min(1, (permanentAge + t) / bumperGrow))
+          : smooth(Math.min((clock + t) / bumperGrow, (left - t) / bumperGrow));
         const dx = body.x - bumperSpot.x;
         const dy = body.y - bumperSpot.y;
         const distance = Math.hypot(dx, dy);
@@ -733,7 +775,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     return { path, landing: undefined, hitPost };
   }
 
-  const pushed = () => Boolean(currentForce()) || ['freeze', 'trampoline', 'bumper'].includes(activeEffect?.id);
+  const pushed = () => hasPermanentBumper() || Boolean(currentForce()) || ['freeze', 'trampoline', 'bumper'].includes(activeEffect?.id);
 
   function velocityToLandAt(targetX, vy, watchPost = false) {
     if (!pushed()) {
@@ -754,7 +796,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
 
   // The CPU's ordinary return: aimed at targetX, and while the BUMPER post is up, with an arc that goes round it.
   function returnShot(targetX, vy) {
-    if (activeEffect?.id !== 'bumper') return { vx: velocityToLandAt(targetX, vy), vy };
+    if (!hasBumper()) return { vx: velocityToLandAt(targetX, vy), vy };
     let first;
     for (const option of [vy, -620, -380, -760, -300]) {
       const vx = velocityToLandAt(targetX, option, true);
@@ -800,6 +842,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
 
   function shuttlePose() {
     return { x: shuttle.x, y: shuttle.y, shape, angle: shuttle.angle,
+      ...(gravityScale() !== 1 ? { gravityScale: gravityScale() } : {}),
       size: settledSize ?? shuttle.size * (activeEffect?.id === 'balloon' ? 2 : 1) };
   }
 
@@ -1044,7 +1087,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     updateOutline();
     bumperCooldown = Math.max(0, bumperCooldown - dt);
     bumperFlash = Math.max(0, bumperFlash - dt);
-    if (activeEffect?.id === 'bumper') bumperBounce();
+    if (hasBumper()) bumperBounce();
     const left = Math.min(...outlinePoints.map(point => point.x));
     const right = Math.max(...outlinePoints.map(point => point.x));
     const bottom = Math.max(...outlinePoints.map(point => point.y));
@@ -1138,6 +1181,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
       return;
     }
 
+    permanentAge += dt;
     reveal = Math.max(0, reveal - dt);
     revealAge += dt;
     updateEvent(dt);
@@ -1196,6 +1240,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     const position = (racket) => racket && { x: racket.x, y: racket.y, seenTime: racket.seenTime };
     return {
       phase, score, message, winner, eventText, eventWind, flash, frozen, support, cpuLevel, netTop: matchNetTop,
+      ...(rules ? { pointsToWin } : {}),
       strike: strike?.flight === flight ? strike : undefined,
       force: currentForce(),
       // Where the crowd is looking: the shuttle's place, sent all through a rally so it is still there when
@@ -1208,7 +1253,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
       // How strongly the hidden shuttle shows right now (a soft ghost after a hit), for INVISIBLE only.
       shuttleAlpha: invisible ? revealPeak * Math.min(1, revealAge / 0.05) * (reveal / revealSeconds) ** 1.5 : undefined,
       shake: activeEffect?.id === 'shock' ? activeEffect.remaining : 0,
-      bumper: activeEffect?.id === 'bumper'
+      bumper: hasBumper()
         ? { x: bumperSpot.x, y: bumperSpot.y, r: bumperSpot.r, size: bumperSize(), ring: bumperFlash / bumperRingSeconds } : undefined,
       decoys: decoys.length ? decoys.map(decoy => ({ ...decoyPose(decoy) })) : undefined,
       pops: pops.length ? pops.map(pop => ({ ...pop, progress: pop.age / decoyPopSeconds })) : undefined,
@@ -1224,6 +1269,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
   function triggerEffect(id) {
     const effect = everyEffect.find(candidate => candidate.id === id);
     if (!effect || phase !== 'live' || activeEffect || !shuttle || pendingLanding) return false;
+    if (rules && !stageEffectPool().some(candidate => candidate.id === id)) return false;
     countdown = 0;
     startEffect(effect);
     return true;

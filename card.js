@@ -79,9 +79,9 @@ function wrap(ctx, text, maxWidth) {
   return rows;
 }
 
-// match: { won, mine, theirs, cpuLevel, stage, rally, effects: [['SHOCK', 3], ...], line, name, seed, palette }
+// match: { won, mine, theirs, cpuLevel, stage, stageName, rally, effects: [['SHOCK', 3], ...], line, name, seed, palette }
 export function drawCard(ctx, match) {
-  const { palette, won, mine, theirs, cpuLevel, stage, rally, effects = [], line, name, seed = 1 } = match;
+  const { palette, won, mine, theirs, cpuLevel, stage, stageName, rally, effects = [], line, name, seed = 1 } = match;
   // The card is shared by many players, so the player's own name stands where YOU would.
   const playerLabel = name || 'YOU';
   const random = randomFrom(seed);
@@ -120,6 +120,10 @@ export function drawCard(ctx, match) {
   ctx.textAlign = 'right'; ctx.globalAlpha = 0.6;
   ctx.fillText('ODD BIRDLE', innerRight, panelY + 66);
   ctx.globalAlpha = 1;
+  if (stageName) {
+    ctx.textAlign = 'center'; ctx.font = font(28);
+    ctx.fillText(stageName.toUpperCase(), W / 2, panelY + 119);
+  }
 
   ctx.textAlign = 'center'; ctx.fillStyle = palette.court; ctx.font = font(330);
   ctx.fillText(`${mine}:${theirs}`, W / 2, panelY + 400);
@@ -147,7 +151,10 @@ export function drawCard(ctx, match) {
   if (byCount.length <= 2) for (const [effect, times] of byCount) facts.push(`${effect} ×${times}`);
   else facts.push(`${byCount.length} EFFECTS`, `MOST: ${byCount[0][0]} ×${byCount[0][1]}`);
   ctx.fillStyle = palette.court; ctx.globalAlpha = 0.65; ctx.font = font(27); ctx.textAlign = 'center';
-  ctx.fillText(facts.join('  ·  '), W / 2, panelY + 568);
+  const factLine = facts.join('  ·  ');
+  let factSize = 27;
+  while (factSize > 18 && ctx.measureText(factLine).width > panelW - 2 * pad) ctx.font = font(--factSize);
+  ctx.fillText(factLine, W / 2, panelY + 568);
   ctx.globalAlpha = 1;
   ctx.fillStyle = palette.court; ctx.font = font(50);
   rows.forEach((row, index) => ctx.fillText(row, W / 2, panelY + 640 + index * 58));

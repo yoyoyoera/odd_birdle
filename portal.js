@@ -8,9 +8,10 @@ export const siteUrl = 'https://oddbirdle.pages.dev/';
 // The Reddit name of whoever is playing inside Reddit (empty anywhere else, or if Reddit does not say). Reddit's
 // client library is only loaded in the Reddit build, where the build tooling bundles it.
 let redditUser = '';
-if (portal === 'reddit') {
-  import('@devvit/web/client').then(({ context }) => { redditUser = context.username ?? ''; }).catch(() => {});
-}
+const redditIdentityReady = portal === 'reddit'
+  ? import('@devvit/web/client').then(({ context }) => { redditUser = context.username ?? ''; return context.userId ?? ''; }).catch(() => '')
+  : Promise.resolve('');
+export const redditIdentity = () => redditIdentityReady;
 export const redditName = () => redditUser;
 // Whether this build can post a card to Reddit.
 export const canPostCard = portal === 'reddit';

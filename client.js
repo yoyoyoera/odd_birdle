@@ -2,6 +2,8 @@ import { center, clamp, createGame, floor, height, leftLine, netTop, racketRadiu
 import { makeStands, drawStands } from './stands.js';
 import { createCrowd } from './crowd.js';
 import { drawCard, cardWidth, cardHeight } from './card.js';
+import { visibleStages } from './stages.js';
+import { createStageProgress } from './stage-progress.js';
 import { verdictFor } from './card-lines.js';
 import { createMatchStats } from './match-stats.js';
 import { createLinkQuality } from './link-quality.js';
@@ -21,7 +23,7 @@ import {
 } from './juice.js';
 import {
   initPortal, isInstantMultiplayer, loadingStart, loadingStop, matchBreak, matchEnded, onJoinRoom, onPortalMute, onPortalPause,
-  canPostCard, closedPortal, coordinatedBreak, portal, redditName, portalInviteLink, portalInviteRoom, portalMuted, roomFull, roomLeft, roomOpen, serverBase, setPlaying, siteUrl
+  canPostCard, closedPortal, coordinatedBreak, portal, redditName, redditIdentity, portalInviteLink, portalInviteRoom, portalMuted, roomFull, roomLeft, roomOpen, serverBase, setPlaying, siteUrl
 } from './portal.js';
 
 const court = document.querySelector('#court');
@@ -59,6 +61,15 @@ const cardButton = document.querySelector('#card-button');
 const cardLabel = document.querySelector('#card-label');
 const menu = document.querySelector('#menu');
 const cpuLevelButton = document.querySelector('#cpu-level');
+const stagesButton = document.querySelector('#stages-button');
+const stagePanel = document.querySelector('#stage-panel');
+const stageList = document.querySelector('#stage-list');
+const stageProgressLabel = document.querySelector('#stage-progress');
+const stageIntro = document.querySelector('#stage-intro');
+const stageIntroNumber = document.querySelector('#stage-intro-number');
+const stageIntroName = document.querySelector('#stage-intro-name');
+const stageIntroDescription = document.querySelector('#stage-intro-description');
+const resultStagesButton = document.querySelector('#result-stages');
 const back = document.querySelector('#back');
 const roomDisplay = document.querySelector('#room-display');
 const roomCode = document.querySelector('#room-code');
@@ -158,6 +169,8 @@ async function afterMatchBreak(action, options) {
 let joinVia = 'create';
 let finishedNoted = false;
 let selectedCpuLevel;
+let selectedStage;
+let stageIntroRemaining = 0;
 let localSide = 'left';
 // CPU games: the game itself always has the player on the left (the CPU plays the right), and half the matches are
 // shown mirrored so that the player appears on the right.
@@ -210,6 +223,7 @@ function setMode(next, message = '') {
   if (next !== mode) soundCues.reset();
   mode = next;
   menu.hidden = next !== 'menu';
+  stagePanel.hidden = next !== 'stages';
   roomDisplay.hidden = next !== 'waiting';
   joinForm.hidden = next !== 'join';
   back.hidden = next === 'menu';
@@ -249,6 +263,9 @@ function leave(message = '', stay = false) {
   localRacket = undefined;
   localSide = 'left';
   if (stay) return;
+  selectedStage = undefined;
+  stageIntroRemaining = 0;
+  stageIntro.hidden = true;
   youFlag.hidden = true;
   quick.on = false;
   showQueueStatus();
@@ -389,18 +406,19 @@ function updateHud(view) {
   winnerLabel.hidden = !winner;
   setText(winnerLabel, winner ? (winner === localSide ? 'You Win!' : 'You Lose..') : '');
   if (phase !== 'finished') recordNoted = false;
-  const record = phase === 'finished' && juice.record ? recordText : '';
+  const record = phase === 'finished' && (juice.record || selectedStage) ? recordText : '';
   recordLabel.hidden = !record;
   setText(recordLabel, record);
   setText(status, message);
   rematchLabel.hidden = mode !== 'online' || phase !== 'finished' || !rematchStatus;
   setText(rematchLabel, rematchStatus);
-  eventBanner.hidden = !eventText;
+  eventBanner.hidden = !eventText || stageIntroRemaining > 0;
   eventBanner.toggleAttribute('data-wind', eventWind);
   setText(eventBanner, mirrored() ? eventText.replace(/[←→]/g, arrow => arrow === '←' ? '→' : '←') : eventText);
   // During a CPU match the small restart icon; once any match is over, worded buttons to play again or leave.
   const finished = (mode === 'solo' || mode === 'online') && phase === 'finished';
-  gameControl.hidden = mode !== 'solo' || finished;
+  gameControl.hidden = mode !== 'solo' || finished || stageIntroRemaining > 0;
+  resultStagesButton.hidden = portal !== 'reddit' || !finished;
   resultActions.hidden = !finished;
   playAgainButton.hidden = mode === 'online' && rematchReady;
   setText(playAgainButton, mode === 'online' ? 'REMATCH' : 'PLAY AGAIN');
@@ -415,6 +433,10 @@ function noteFinish(view) {
   if (mode === 'online') reportNet();
   const result = view.winner === (mode === 'solo' ? 'left' : localSide) ? 'win' : 'lose';
   noteRecord(view, result);
+  if (mode === 'solo' && selectedStage && result === 'win') {
+    recordText = 'STAGE ' + selectedStage.id + ' CLEARED ✓';
+    stageProgress?.record(selectedStage.id);
+  }
   matchEnded(result === 'win');
   track('game_finish', mode === 'solo'
     ? { mode: 'cpu', level: String(view.cpuLevel), result }
@@ -518,7 +540,7 @@ function predictedView(view, time) {
 }
 
 function setRacket(input) {
-  if (mode === 'solo') solo.moveRacket('left', input);
+  if (mode === 'solo' && !stageIntroRemaining) solo.moveRacket('left', input);
   if (mode === 'online') {
     const previous = localRacket;
     const motion = input && !displayedFrozen ? swingMotion(previous ?? input, input) : { vx: 0, vy: 0 };
@@ -928,7 +950,11 @@ function frame(time) {
   if (debugNet) netDebug.frames.push(time);
   if (mode === 'online') netMeter.frame(time);
   const scenery = demoShowing();
-  if ((mode === 'solo' || scenery) && lastFrame !== undefined && !gamePaused) {
+  if (stageIntroRemaining > 0 && lastFrame !== undefined && !gamePaused) {
+    stageIntroRemaining = Math.max(0, stageIntroRemaining - Math.min((time - lastFrame) / 1000, 0.05));
+    if (!stageIntroRemaining) { stageIntro.hidden = true; accumulator = 0; flagYou(); }
+  }
+  if ((mode === 'solo' || scenery) && lastFrame !== undefined && !gamePaused && !stageIntroRemaining) {
     accumulator += Math.min((time - lastFrame) / 1000, 0.05);
     while (accumulator >= step) {
       if (scenery) demo.advance(step);
@@ -969,7 +995,7 @@ function frame(time) {
   updateHud(demoBanner ? { ...view, eventText: demoView.eventText, eventWind: demoView.eventWind } : view);
   showLinkBars();
   let drawing = mode === 'online' ? predictedView(view, time) : view;
-  if (mode === 'solo' || mode === 'online') {
+  if ((mode === 'solo' || mode === 'online') && !stageIntroRemaining) {
     for (const cue of soundCues.cues(drawing, time, mode === 'solo' ? 'left' : localSide)) sound.play(cue);
   }
   const pose = drawing.shuttle;
@@ -1055,6 +1081,7 @@ cpuLevelButton.addEventListener('click', () => {
 cardButton.addEventListener('click', async () => {
   const view = currentView();
   if (!view?.winner || cardButton.disabled) return;
+  const cardStage = selectedStage;
   cardButton.disabled = true;
   cardLabel.textContent = 'POSTING…';
   try {
@@ -1065,8 +1092,8 @@ cardButton.addEventListener('click', async () => {
     const canvas = document.createElement('canvas');
     canvas.width = cardWidth; canvas.height = cardHeight;
     try { await document.fonts.load('650 40px "Space Grotesk"'); } catch { /* the card falls back to the system font */ }
-    drawCard(canvas.getContext('2d'), { ...summary, palette, stage: undefined, line, seed, name: user ? 'u/' + user : '' });
-    const text = `FULL-TIME ${summary.mine}:${summary.theirs} vs CPU Lv.${summary.cpuLevel}. ${line}`;
+    drawCard(canvas.getContext('2d'), { ...summary, palette, stage: cardStage?.id, stageName: cardStage?.name, line, seed, name: user ? 'u/' + user : '' });
+    const text = `FULL-TIME ${summary.mine}:${summary.theirs} vs CPU Lv.${summary.cpuLevel}. ${cardStage ? `STAGE ${cardStage.id}: ${cardStage.name}. ` : ''}${line}`;
     const response = await fetch('/api/card', {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ image: canvas.toDataURL('image/jpeg', 0.9), text })
@@ -1095,7 +1122,7 @@ function flagYou() {
 // Each CPU match puts the player on a random side (the ?test= pages keep the left).
 function restartCpu() {
   cpuMirrored = !testParams.has('test') && Math.random() < 0.5;
-  solo.restart(3, selectedCpuLevel);
+  solo.restart(3, selectedStage?.rules.cpuLevel ?? selectedCpuLevel, selectedStage?.rules ?? null);
 }
 
 function startCpu() {
@@ -1103,11 +1130,70 @@ function startCpu() {
   restartCpu();
   accumulator = 0;
   setMode('solo');
-  flagYou();
+  if (selectedStage) showStageIntro();
+  else flagYou();
   finishedNoted = false;
   track('game_start', { mode: 'cpu', level: String(selectedCpuLevel ?? 'random') });
 }
-document.querySelector('#cpu').addEventListener('click', () => afterMatchBreak(startCpu));
+document.querySelector('#cpu').addEventListener('click', () => afterMatchBreak(() => {
+  selectedStage = undefined;
+  startCpu();
+}));
+
+// Stage UI is exclusive to Reddit. Random CPU matches remain available as practice.
+let stageProgress;
+function renderStages(cleared, online) {
+  if (portal !== 'reddit') return;
+  stageProgressLabel.textContent = `${cleared.filter(id => id <= 20).length}/20 cleared · ${online ? 'Saved to Reddit' : 'Device backup'}`;
+  const buttons = visibleStages(cleared).map(challenge => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.stageId = challenge.id;
+    const number = document.createElement('span');
+    number.className = 'stage-number'; number.textContent = String(challenge.id).padStart(2, '0');
+    const copy = document.createElement('span'); copy.className = 'stage-copy';
+    const name = document.createElement('strong'); name.textContent = challenge.name;
+    const description = document.createElement('span'); description.textContent = challenge.description;
+    copy.append(name, description);
+    const check = document.createElement('span'); check.className = 'stage-check';
+    check.textContent = cleared.includes(challenge.id) ? '✓' : '';
+    button.setAttribute('aria-label', `Stage ${challenge.id}: ${challenge.name}. ${challenge.description}${cleared.includes(challenge.id) ? ' Cleared.' : ''}`);
+    button.append(number, copy, check);
+    button.addEventListener('click', () => afterMatchBreak(() => {
+      selectedStage = challenge;
+      startCpu();
+    }));
+    return button;
+  });
+  const focused = document.activeElement?.dataset?.stageId;
+  const scroll = stageList.scrollTop;
+  stageList.replaceChildren(...buttons);
+  stageList.scrollTop = scroll;
+  if (focused) stageList.querySelector(`[data-stage-id="${focused}"]`)?.focus({ preventScroll: true });
+}
+function showStageIntro() {
+  soundCues.reset();
+  stageIntroRemaining = 1.8;
+  stageIntroNumber.textContent = 'STAGE ' + selectedStage.id;
+  stageIntroName.textContent = selectedStage.name;
+  stageIntroDescription.textContent = selectedStage.description;
+  stageIntro.hidden = false;
+  youFlag.hidden = true;
+}
+function openStages() {
+  leave();
+  setMode('stages');
+  stageList.querySelector('button')?.focus({ preventScroll: true });
+}
+if (portal === 'reddit') {
+  stagesButton.hidden = false;
+  document.querySelector('#cpu').textContent = 'PRACTICE';
+  stageProgress = createStageProgress({ storage, identity: redditIdentity(), onChange: renderStages });
+  renderStages([], false);
+  stagesButton.addEventListener('click', openStages);
+  resultStagesButton.addEventListener('click', openStages);
+}
+
 
 // Declared before the test pages below, which start a CPU game (and so read it) while the file is still loading.
 const quick = { on: false, queued: false, found: undefined, finished: false };
@@ -1583,8 +1669,10 @@ function playAgain() {
     // Online restarts arrive as a new 'start' message; CPU ones are counted here.
     if (mode === 'solo') track('game_start', { mode: 'cpu', level: selectedCpuLevel ?? 'random' });
     if (mode === 'solo') {
+      matchStats.reset();
       restartCpu();
-      flagYou();
+      if (selectedStage) showStageIntro();
+      else flagYou();
     }
     else {
       rematchReady = true;
