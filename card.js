@@ -3,7 +3,7 @@
 // Everything is seeded, so the same match always draws the same card; another seed gives another crowd.
 import { makeStands, drawStands } from './stands.js';
 import { motifs } from './card-motifs/index.js';
-import { drawRankFlourish, rankAccent } from './card-rank.js';
+import { drawRankFlourish, rankAccent, dayLabel } from './card-rank.js';
 
 export const cardWidth = 1080, cardHeight = 1350;
 
@@ -137,7 +137,7 @@ export function drawCard(ctx, match) {
     ctx.font = font(34);
     ctx.fillStyle = palette.court;
     ctx.globalAlpha = 0.85;
-    ctx.fillText(`RANK #${daily.rank} TODAY`, innerRight, panelY + 66);
+    ctx.fillText(`RANK #${daily.rank} · ${dayLabel(daily.date)}`, innerRight, panelY + 66);
   } else {
     ctx.globalAlpha = 0.6;
     ctx.fillText('ODD BIRDLE', innerRight, panelY + 66);

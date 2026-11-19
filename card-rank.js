@@ -6,6 +6,13 @@ const font = (size, weight = 650) => `${weight} ${size}px "Space Grotesk", syste
 
 export const rankAccent = rank => accents[rank];
 
+const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+// "2026-11-19" -> "NOV 19": the day of the challenge, so the card still means something years later.
+export const dayLabel = date => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date ?? '');
+  return match ? `${months[Number(match[2]) - 1]} ${Number(match[3])}` : 'TODAY';
+};
+
 export function drawRankFlourish(ctx, { rank, palette, panel, daily }) {
   const accent = accents[rank];
   const border = 10;
@@ -26,7 +33,7 @@ export function drawRankFlourish(ctx, { rank, palette, panel, daily }) {
   ctx.font = font(66);
   const top = tabTop + 30, baseline = tabTop + tabHeight - 30;
   ctx.fillText('RANK', tabLeft + 36, top + 46);
-  ctx.globalAlpha = 0.7; ctx.fillText('TODAY', tabLeft + 36, baseline); ctx.globalAlpha = 1;
+  ctx.globalAlpha = 0.7; ctx.fillText(dayLabel(daily?.date), tabLeft + 36, baseline); ctx.globalAlpha = 1;
   ctx.textAlign = 'right';
   ctx.font = font(236);
   ctx.fillText(`#${rank}`, tabLeft + tabWidth - 26, baseline);

@@ -26,7 +26,7 @@ const challenge = key ? challengeByKey(key) : undefined;
 const rank = num('rank', 0);
 const daily = challenge ? {
   number: num('number', 12), key, title: challenge.name, seconds: num('time', 47.3), attempt: num('attempt', 2),
-  attempts: challenge.attempts, ...(rank ? { rank, players: num('players', 18) } : {})
+  attempts: challenge.attempts, date: q.get('date') || '2026-11-19', ...(rank ? { rank, players: num('players', 18) } : {})
 } : undefined;
 const line = q.get('line') || verdictFor({ won, mine, theirs }, seed);
 drawCard(document.getElementById('c').getContext('2d'), {
