@@ -276,6 +276,6 @@ export function windAmbience() {
     // The rumble: low and round, with long, deep swells.
     { samples: windLayer(13.1, 4242, { lows: [150, 150, 150], swells: [[2, 0.3, 0.1], [5, 0.12, 0.6], [9, 0.05, 0.3]], floor: 0.12 }), gain: 0.8 },
     // The whoosh: a soft band in the low mids that comes and goes with its own gusts.
-    { samples: windLayer(19.3, 9091, { lows: [480, 480, 480], subtract: 160, swells: [[3, 0.34, 0.45], [7, 0.1, 0.05], [13, 0.04, 0.8]], floor: 0.04 }), gain: 0.3 }
+    { samples: windLayer(19.3, 9091, { lows: [320, 320, 320, 320], subtract: 110, swells: [[3, 0.34, 0.45], [7, 0.1, 0.05], [13, 0.04, 0.8]], floor: 0.04 }), gain: 0.3 }
   ];
 }
