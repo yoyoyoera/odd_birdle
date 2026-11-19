@@ -899,14 +899,31 @@ function drawShuttle({ flash, phase, shuttle, frozen }, alpha = 1) {
   ctx.fill('evenodd');
 }
 
+let lastFrameErrorAt = -Infinity;
 function frame(time) {
+  try {
+    advanceFrame(time);
+  } catch (error) {
+    // A failed draw may leave canvas transforms/clip state on the stack.
+    lastFrame = undefined;
+    accumulator = 0;
+    if (time - lastFrameErrorAt >= 5000) {
+      console.error('Odd Birdle frame failed', { mode, phase: stage.dataset.phase }, error);
+      lastFrameErrorAt = time;
+    }
+    resize();
+  } finally {
+    requestAnimationFrame(frame);
+  }
+}
+
+function advanceFrame(time) {
   // Freeze only this client's presentation. Online snapshots keep arriving;
   // resuming jumps to the current server state instead of replaying a backlog.
   if (gamePaused) {
     lastFrame = undefined;
     accumulator = 0;
     frameMeter?.reset();
-    requestAnimationFrame(frame);
     return;
   }
   const workStart = frameMeter ? performance.now() : 0;
@@ -988,7 +1005,6 @@ function frame(time) {
         : 'Measuring FPS…';
     }
   }
-  requestAnimationFrame(frame);
 }
 
 court.addEventListener('pointerenter', event => {

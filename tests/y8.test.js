@@ -145,3 +145,48 @@ test('an ad that never reports its end still gives the game back after the limit
   assert.equal(ready, true);
   assert.equal(portal.isPaused(), false);
 });
+
+test('a late Y8 ad can pause and resume after its rematch already started', async t => {
+  t.mock.method(Date, 'now', () => 29999999999999);
+  const timers = [];
+  t.mock.method(globalThis, 'setTimeout', (fn, ms) => { timers.push({ fn, ms }); return timers.length; });
+  t.mock.method(globalThis, 'clearTimeout', () => {});
+  let options;
+  window.y8Sdk = { showAd(value) { options = value; } };
+  portal.matchEnded(false); portal.matchEnded(false); portal.matchEnded(false);
+  const waiting = portal.matchBreak();
+  timers.find(timer => timer.ms === portal.y8AdStartMs).fn();
+  await waiting;
+  options.beforeAd();
+  assert.equal(portal.isPaused(), true);
+  options.afterAd();
+  assert.equal(portal.isPaused(), false, 'the late end must release the actual ad pause');
+});
+
+test('callbacks from an expired request cannot pause or release a newer Y8 ad', async t => {
+  let clock = 39999999999999;
+  t.mock.method(Date, 'now', () => clock);
+  const timers = [];
+  t.mock.method(globalThis, 'setTimeout', fn => timers.push(fn));
+  t.mock.method(globalThis, 'clearTimeout', () => {});
+  const requests = [];
+  window.y8Sdk = { showAd(options) { requests.push(options); } };
+  function requestBreak() {
+    for (let i = 0; i < 3; i++) portal.matchEnded(false);
+    return portal.matchBreak();
+  }
+  const first = requestBreak();
+  timers[0]();
+  await first;
+  clock += 600000;
+  const second = requestBreak();
+  requests[0].beforeAd();
+  assert.equal(portal.isPaused(), false);
+  requests[1].beforeAd();
+  requests[0].afterAd();
+  assert.equal(portal.isPaused(), true);
+  requests[1].adBreakDone();
+  await second;
+  requests[1].beforeAd();
+  assert.equal(portal.isPaused(), false);
+});
