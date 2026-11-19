@@ -1,4 +1,4 @@
-import { center, clamp, createGame, floor, height, leftLine, netTop, racketRadius, rightLine, shuttleOutline, step, width, contactMotion, isSwing, projectStrike, forceAt, effectIds, shapeCount, shuttleSizeOptions, racketTouches, supportedShuttleY, swingMotion, trialEffectIds, trialEffectLabels, trampolineLift, trampolineDent } from './game.js';
+import { center, clamp, createGame, floor, height, leftLine, netTop, racketRadius, rightLine, setMirroredShapes, shuttleOutline, step, width, contactMotion, isSwing, projectStrike, forceAt, effectIds, shapeCount, shuttleSizeOptions, racketTouches, supportedShuttleY, swingMotion, trialEffectIds, trialEffectLabels, trampolineLift, trampolineDent } from './game.js';
 import { makeStands, drawStands } from './stands.js';
 import { createCrowd } from './crowd.js';
 import { createLinkQuality } from './link-quality.js';
@@ -927,6 +927,8 @@ function advanceFrame(time) {
     return;
   }
   const workStart = frameMeter ? performance.now() : 0;
+  // On a mirrored CPU court the shuttle shapes are built back to front so they look right and hit as they look.
+  setMirroredShapes(mirrored());
   if (debugNet) netDebug.frames.push(time);
   if (mode === 'online') netMeter.frame(time);
   const scenery = demoShowing();
@@ -1067,6 +1069,8 @@ function flagYou() {
 // Each CPU match puts the player on a random side (the ?test= pages keep the left).
 function restartCpu() {
   cpuMirrored = !testParams.has('test') && Math.random() < 0.5;
+  // Before the restart, so the first serve's outline is already built for this court.
+  setMirroredShapes(cpuMirrored);
   solo.restart(3, selectedCpuLevel);
 }
 

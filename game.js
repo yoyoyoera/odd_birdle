@@ -162,15 +162,25 @@ export function netEffectTop(baseTop, elapsed, scale) {
   return baseTop + (target - baseTop) * eased;
 }
 
+// A CPU match can be played on a mirrored court (the screen is flipped left to right). The shapes are then built back to
+// front inside the game itself, so after the flip they read the right way round on screen (the studiyo { y o } shapes
+// were showing backwards) and the part of the shuttle you see is the part that hits: one outline for drawing and contact.
+let mirroredShapes = false;
+export function setMirroredShapes(value) { mirroredShapes = !!value; }
+
 export function shuttleOutline({ shape, size, angle }) {
   const kind = shapes[shape];
   const scale = size * kind.vertexScale;
   const cos = Math.cos(angle);
   const sin = Math.sin(angle);
-  return kind.rings.map(ring => ring.map(([x, y]) => ({
-    x: (x * cos - y * sin) * scale,
-    y: (x * sin + y * cos) * scale
-  })));
+  const handed = mirroredShapes ? -1 : 1;
+  return kind.rings.map(ring => ring.map(([vx, y]) => {
+    const x = vx * handed;
+    return {
+      x: (x * cos - y * sin) * scale,
+      y: (x * sin + y * cos) * scale
+    };
+  }));
 }
 
 function pointSegmentDistanceSquared(point, from, to) {
