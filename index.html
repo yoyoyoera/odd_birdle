@@ -126,61 +126,33 @@
     [data-portal="reddit"] #stage-prev:hover, [data-portal="reddit"] #stage-next:hover { opacity: 1; }
     [data-portal="reddit"] #stage-prev:disabled, [data-portal="reddit"] #stage-next:disabled { opacity: 0; pointer-events: none; }
     [data-portal="reddit"] #back { z-index: 4; }
-    /* Daily challenge panel (Reddit): today's twist on the left, this month's cleared days on the right. */
-    [data-portal="reddit"] #daily-panel { position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; padding: 8px;
-      background: var(--court); color: var(--ink); cursor: default; }
-    [data-portal="reddit"] #daily-panel[hidden] { display: none; }
-    [data-portal="reddit"] #daily-panel header { display: flex; align-items: center; justify-content: space-between; min-height: 44px; padding: 0 12px 0 48px; }
-    [data-portal="reddit"] #daily-panel h2 { margin: 0; font-size: clamp(16px, 3.5vw, 24px); line-height: 1.15; }
-    [data-portal="reddit"] #daily-date { font-size: clamp(13px, 2.8vw, 18px); font-weight: 650; opacity: .7; letter-spacing: .06em; }
-    [data-portal="reddit"] #daily-columns { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 18px; padding: 6px 14px 10px; }
-    [data-portal="reddit"] #daily-info { display: flex; flex-direction: column; min-height: 0; }
-    [data-portal="reddit"] #daily-name { margin: 0; font-size: clamp(22px, 5.4vw, 40px); line-height: 1.05; }
-    [data-portal="reddit"] #daily-desc { margin: 8px 0 0; font-size: clamp(11px, 2.4vw, 15px); line-height: 1.35; opacity: .8; }
-    [data-portal="reddit"] #daily-goal { margin: 10px 0 0; font-size: clamp(11px, 2.4vw, 14px); font-weight: 650; letter-spacing: .1em; }
-    [data-portal="reddit"] #daily-status { margin: 10px 0 0; font-size: clamp(12px, 2.6vw, 17px); font-weight: 650; }
-    [data-portal="reddit"] #daily-actions { margin-top: auto; display: flex; gap: 8px; }
-    [data-portal="reddit"] #daily-start, [data-portal="reddit"] #daily-card { min-height: 44px; border: 0; color: var(--ink); font: inherit; font-weight: 650;
-      letter-spacing: .08em; cursor: pointer; background: color-mix(in srgb, var(--court-hover) 55%, var(--court)); }
-    [data-portal="reddit"] #daily-start { padding: 0 26px; }
-    [data-portal="reddit"] #daily-card { width: 44px; display: grid; place-items: center; padding: 0; }
-    [data-portal="reddit"] #daily-start:hover:not(:disabled), [data-portal="reddit"] #daily-card:hover:not(:disabled) { background: var(--court-hover); }
-    [data-portal="reddit"] #daily-start:disabled, [data-portal="reddit"] #daily-card:disabled { opacity: .5; cursor: default; }
-    [data-portal="reddit"] #daily-card[hidden] { display: none; }
-    [data-portal="reddit"] #daily-month { align-self: start; }
-    [data-portal="reddit"] #daily-month-name { margin: 0 0 6px; font-size: 11px; font-weight: 650; letter-spacing: .12em; opacity: .7; }
-    [data-portal="reddit"] #daily-calendar { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(7, 18px); gap: 3px; }
-    [data-portal="reddit"] #daily-calendar li { width: 18px; height: 18px; display: grid; place-items: center; font-size: 9px; font-weight: 650;
-      background: color-mix(in srgb, var(--court-hover) 55%, var(--court)); opacity: .8; }
-    [data-portal="reddit"] #daily-calendar li[data-cleared] { background: var(--ink); color: var(--court); opacity: 1; }
-    [data-portal="reddit"] #daily-calendar li[data-today] { outline: 2px solid var(--ink); outline-offset: 1px; }
-    [data-portal="reddit"] #daily-calendar li[data-blank] { background: none; }
     /* Reddit's main menu: the two ways to play on the left, stacked; today's daily challenge on the right with the first
        five to clear it and a button. Sizes follow the court's width (cqw), so it scales with the frame. */
     #menu-modes { display: contents; }
     [data-portal="reddit"] #stage { container-type: inline-size; }
-    [data-portal="reddit"] #menu { top: 61%; width: 92%; display: grid; grid-template-columns: 34% minmax(0, 1fr); gap: 4cqw; align-items: stretch; white-space: normal; }
+    [data-portal="reddit"] #menu { top: 67%; width: 62%; display: grid; grid-template-columns: 20cqw minmax(0, 1fr); gap: 3cqw; align-items: stretch; white-space: normal; }
     [data-portal="reddit"] #menu[hidden] { display: none; }
-    [data-portal="reddit"] #menu-modes { display: flex; flex-direction: column; justify-content: center; gap: 2.4cqw; }
-    [data-portal="reddit"] #menu-modes > button, [data-portal="reddit"] #menu-modes #cpu { width: 100%; min-height: 0; height: 8cqw; padding: 0; font-size: 2.9cqw; letter-spacing: .08em;
+    [data-portal="reddit"] #menu-modes { display: flex; flex-direction: column; justify-content: center; gap: 1.6cqw; }
+    [data-portal="reddit"] #menu-modes > button, [data-portal="reddit"] #menu-modes #cpu { width: 100%; min-height: 0; height: 6cqw; padding: 0; font-size: max(9px, 2.2cqw); letter-spacing: .08em;
       background: color-mix(in srgb, var(--court-hover) 55%, var(--court)); }
     [data-portal="reddit"] #menu-modes #cpu-group { position: relative; display: block; }
-    [data-portal="reddit"] #menu-modes #cpu-level { position: static; transform: none; display: block; width: 100%; min-height: 0; margin-top: 1.2cqw; font-size: 2.3cqw; opacity: .7; }
+    [data-portal="reddit"] #menu-modes #cpu-level { position: static; transform: none; display: block; width: 100%; min-height: 0; margin-top: .8cqw; font-size: max(8px, 1.7cqw); opacity: .7; }
     [data-portal="reddit"] #menu-modes > button:hover, [data-portal="reddit"] #menu-modes #cpu:hover { background: var(--court-hover); }
-    [data-portal="reddit"] #daily-teaser { display: flex; flex-direction: column; min-width: 0; padding: 1.8cqw 2.4cqw 2cqw; text-align: left;
+    [data-portal="reddit"] #daily-teaser { display: flex; flex-direction: column; min-width: 0; padding: 1.3cqw 1.8cqw 1.5cqw; text-align: left; color: var(--ink);
       background: color-mix(in srgb, var(--court-hover) 55%, var(--court)); }
     [data-portal="reddit"] #daily-teaser[hidden] { display: none; }
-    [data-portal="reddit"] #teaser-head { display: flex; justify-content: space-between; width: 100%; min-height: 0; padding: 0; font-size: 2.1cqw; letter-spacing: .1em; opacity: .75; }
-    [data-portal="reddit"] #teaser-head:hover { background: none; opacity: 1; }
-    [data-portal="reddit"] #teaser-name { margin: .5cqw 0 1cqw; font-size: 4.8cqw; line-height: 1.05; }
-    [data-portal="reddit"] #teaser-board { list-style: none; margin: 0 0 auto; padding: 0; display: grid; gap: .2cqw; }
-    [data-portal="reddit"] #teaser-board li { display: flex; gap: 1.6cqw; align-items: baseline; font-size: 2.3cqw; line-height: 1.2; min-width: 0; }
-    [data-portal="reddit"] #teaser-board .place { width: 4.4cqw; font-weight: 650; opacity: .6; }
+    [data-portal="reddit"] #teaser-head { display: flex; justify-content: space-between; gap: 1cqw; margin: 0; font-size: max(8px, 1.5cqw); font-weight: 650; letter-spacing: .08em; }
+    [data-portal="reddit"] #teaser-day { opacity: .7; }
+    [data-portal="reddit"] #teaser-name { margin: .3cqw 0 .8cqw; font-size: max(13px, 3.4cqw); line-height: 1.05; color: var(--ink); }
+    [data-portal="reddit"] #teaser-board { list-style: none; margin: 0 0 auto; padding: 0; display: grid; gap: .1cqw; }
+    [data-portal="reddit"] #teaser-board li { display: flex; gap: 1.2cqw; align-items: baseline; font-size: max(8px, 1.75cqw); line-height: 1.2; min-width: 0; }
+    [data-portal="reddit"] #teaser-board .place { width: 3.2cqw; font-weight: 650; opacity: .6; }
     [data-portal="reddit"] #teaser-board .who { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 650; }
     [data-portal="reddit"] #teaser-board .time { opacity: .75; font-variant-numeric: tabular-nums; }
     [data-portal="reddit"] #teaser-board li[data-empty] { opacity: .35; }
-    [data-portal="reddit"] #daily-button { width: 100%; min-height: 0; height: 7cqw; margin-top: 1.4cqw; padding: 0; font-size: 2.8cqw; letter-spacing: .14em;
-      background: var(--ink); color: var(--court); }
+    [data-portal="reddit"] #daily-button { display: flex; align-items: center; justify-content: center; gap: 1cqw; width: 100%; min-height: 0; height: 5cqw; margin-top: 1cqw; padding: 0;
+      font-size: max(9px, 2.1cqw); letter-spacing: .14em; background: var(--ink); color: var(--court); }
+    [data-portal="reddit"] #daily-icon:not([hidden]) { display: block; width: 2.4cqw; height: 2.4cqw; }
     [data-portal="reddit"] #daily-button:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 82%, var(--court)); }
     [data-portal="reddit"] #daily-button:disabled { opacity: .55; cursor: default; }
     /* Small frames (a phone held upright) show the first three only. */
@@ -342,31 +314,12 @@
         </span>
       </span>
       <section id="daily-teaser" aria-label="Daily challenge" hidden>
-        <button id="teaser-head" type="button" aria-label="Open the daily challenge"><span id="teaser-day">DAILY</span><span aria-hidden="true">›</span></button>
+        <p id="teaser-head"><span id="teaser-day">DAILY</span><span id="teaser-tries"></span></p>
         <h3 id="teaser-name">…</h3>
         <ol id="teaser-board" aria-label="First to clear today"></ol>
-        <button id="daily-button" type="button">CHALLENGE</button>
+        <button id="daily-button" type="button"><svg id="daily-icon" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5M5 14v5.5h14V14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="daily-label">CHALLENGE</span></button>
       </section>
     </nav>
-    <section id="daily-panel" aria-label="Daily challenge" hidden>
-      <header><h2>DAILY <span id="daily-number"></span></h2><span id="daily-date"></span></header>
-      <div id="daily-columns">
-        <div id="daily-info">
-          <h3 id="daily-name">…</h3>
-          <p id="daily-desc"></p>
-          <p id="daily-goal"></p>
-          <p id="daily-status" role="status"></p>
-          <div id="daily-actions">
-            <button id="daily-start" type="button" disabled>START</button>
-            <button id="daily-card" type="button" hidden aria-label="Post card" title="Post card"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5M5 14v5.5h14V14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-          </div>
-        </div>
-        <div id="daily-month" aria-label="Days cleared this month">
-          <p id="daily-month-name"></p>
-          <ol id="daily-calendar"></ol>
-        </div>
-      </div>
-    </section>
     <section id="stage-panel" aria-label="Choose a stage" hidden>
       <header>
         <h2>STAGES</h2>
