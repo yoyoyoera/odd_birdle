@@ -82,6 +82,8 @@ function wrap(ctx, text, maxWidth) {
 // match: { won, mine, theirs, cpuLevel, stage, rally, effects: [['SHOCK', 3], ...], line, name, seed, palette }
 export function drawCard(ctx, match) {
   const { palette, won, mine, theirs, cpuLevel, stage, rally, effects = [], line, name, seed = 1 } = match;
+  // The card is shared by many players, so the player's own name stands where YOU would.
+  const playerLabel = name || 'YOU';
   const random = randomFrom(seed);
   const W = cardWidth, H = cardHeight;
   ctx.fillStyle = palette.page;
@@ -117,12 +119,17 @@ export function drawCard(ctx, match) {
   ctx.textAlign = 'center'; ctx.fillStyle = palette.court; ctx.font = font(330);
   ctx.fillText(`${mine}:${theirs}`, W / 2, panelY + 400);
 
-  // Who is who, with the colours the rackets have in the game.
-  ctx.font = font(40); ctx.textAlign = 'left'; ctx.fillStyle = palette.court;
-  ctx.fillRect(inner, panelY + 440, 120, 10);
+  // Who is who, with the colours the rackets have in the game. A long name shrinks to fit its half.
+  const youSize = (() => {
+    let size = 40;
+    ctx.font = font(size);
+    while (size > 22 && ctx.measureText(playerLabel).width > 440) { size -= 2; ctx.font = font(size); }
+    return size;
+  })();
+  ctx.textAlign = 'left';
   ctx.fillStyle = youColor; ctx.fillRect(inner, panelY + 440, 120, 10);
-  ctx.fillStyle = palette.court; ctx.fillText('YOU', inner, panelY + 500);
-  ctx.textAlign = 'right';
+  ctx.fillStyle = palette.court; ctx.font = font(youSize); ctx.fillText(playerLabel, inner, panelY + 500);
+  ctx.textAlign = 'right'; ctx.font = font(40);
   ctx.fillStyle = cpuColor; ctx.fillRect(innerRight - 120, panelY + 440, 120, 10);
   ctx.fillStyle = palette.court; ctx.fillText(`CPU LV.${cpuLevel}`, innerRight, panelY + 500);
 
@@ -141,8 +148,4 @@ export function drawCard(ctx, match) {
   const rows = wrap(ctx, line, panelW - 2 * pad);
   rows.forEach((row, index) => ctx.fillText(row, W / 2, panelY + 640 + index * 58));
 
-  if (name) {
-    ctx.fillStyle = palette.court; ctx.globalAlpha = 0.55; ctx.font = font(26); ctx.textAlign = 'left';
-    ctx.fillText(name, 56, H - 28); ctx.globalAlpha = 1;
-  }
 }
