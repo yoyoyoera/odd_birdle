@@ -88,17 +88,17 @@ npx devvit install oddbirdle   # r/oddbirdle 에 새 버전 설치
 | 5 | Windy Day | A steady wind blows one way, left or right. | Lv.2 | 5점, 바람 상시(`permanent: 'wind'`, 보통 돌풍의 1/2 세기, 방향은 판마다 왼쪽/오른쪽 랜덤) |
 | 6 | Sudden Death | One point. That's all. | Lv.3 | 1점, 효과 없음 |
 | 7 | Tiny Bird | A small shuttle and random effects. | Lv.3 | 5점, 작은 셔틀콕(크기 0) + 랜덤 효과 |
-| 8 | Doubles I | You and a CPU partner vs two. Take turns hitting. | 2v2 | 5점, 파트너 Lv.3·상대 2명 Lv.2 (6.4 참고) |
+| 8 | Doubles I | Take turns hitting with your partner. | 2v2 | 5점, 파트너 Lv.3·상대 2명 Lv.2 (6.4 참고) |
 | 9 | Take the L | The shuttle is always an L. Random effects join in. | Lv.3 | 5점, 모양 고정 L, 랜덤 효과 |
 | 10 | Boss: Chaos | Effects come twice as often. | Lv.3 | 7점, 랜덤 효과 빈도 2배 |
 | 11 | Smash Fest | The CPU sets it up high, then smashes. | Lv.4 | 5점, CPU 가 셔틀콕을 높이 띄우고(`cpuLift: 1`) 네트 위에서 기다렸다가 스매시(`cpuSpike: 1`), 효과 없음 |
 | 12 | Five in a Row | You start 0:4 down. Win five straight. | Lv.4 | 시작 0:4, 상대는 5점에서 끝나므로 5연승 필요 |
-| 13 | Doubles II | Doubles with random effects. | 2v2 | 5점, 파트너·상대 Lv.3, 랜덤 효과 |
+| 13 | Doubles II | Take turns through random effects. | 2v2 | 5점, 파트너·상대 Lv.3, 랜덤 효과 |
 | 14 | The Post | A bumper stays up all match. | Lv.2(서툴게 0.7) | 5점, 범퍼 상시 |
 | 15 | Moving Net | The net swings from very low to very high. | Lv.4 | 7점, 네트가 4.5초 주기로 0.3~2.0배 높이를 오르내림(`netSway`, `swayMid/Amp/Period`), 효과 없음 |
 | 16 | Boss: Storm | Effects twice as often, longer match. | Lv.4 | 9점, 랜덤 효과 2배 |
 | 17 | Shrinking Bird | Starts huge and shrinks with every hit. | Lv.5 | 5점, 가장 큰 크기(34)로 시작해 칠 때마다 8% 작아져 가장 작은 크기(11)의 절반(5.5)까지(`shuttleSize: 2, shrink: 0.92, shrinkTo: 5.5`), 효과 없음 |
-| 18 | Doubles III | Stronger partner, stronger rivals, more effects. | 2v2 | 7점, 파트너·상대 Lv.4, 효과 2배 |
+| 18 | Doubles III | Stronger teams and twice as many effects. | 2v2 | 7점, 파트너·상대 Lv.4, 효과 2배 |
 | 19 | No Warning | Effects come a bit faster, with no countdown. | Lv.5 | 5점, 효과 빈도 1.4배 + 카운트다운 없이 바로(`noCountdown`) |
 | 20 | Final Boss | More effects. A bumper that stays. | Lv.5(서툴게 0.35) | 9점, 상시 범퍼 + 효과 1.5배 |
 | 21 | Doubles IV | Top-level doubles with twice as many effects. | 2v2 | 11점, 파트너·상대 Lv.5, 효과 2배 (1~20 전부 클리어 후 표시) |

@@ -7,7 +7,7 @@
 2. `docs/HANDOFF-reddit-stages.md` — 작업 환경 만들기, 올리는 법(`devvit upload` / `devvit install oddbirdle`), 지켜야 할 제약, 함정. **Publish 금지, main push 금지.** 최신 스테이지 표와 변경 이력도 이 문서 끝에 있다.
 3. `docs/DESIGN-doubles.md` — 이번 작업의 설계안(규칙, 엔진 변경 위치, 클라이언트, 테스트, 일정). 이 문서가 이번 작업의 기준이다.
 
-## 현재 상태 (2026-11-19 밤, 앱 버전 0.0.45) — 이 절이 최신. 앞의 오래된 버전 표기는 무시
+## 구현 전 상태 (2026-11-19 밤, 앱 버전 0.0.45)
 - 브랜치 `reddit`(origin 최신을 받을 것). r/oddbirdle 에 0.0.45 가 설치돼 있다. 테스트: 루트 `node --test tests/` 201개, 앱 `cd reddit/odd-birdle && npx vitest run --coverage.enabled=false` 26개, `npx tsc --build` 통과.
 - **스테이지**: 21개(`stages.js`). 번호·이름은 `docs/HANDOFF-reddit-stages.md` 표 참고(그 문서의 표는 최신이다). 바뀐 것: 4 Hot Air(상시 풍선), 5 Windy Day(상시 바람), 9 Take the L(L 셔틀콕+효과), 11 Smash Fest(CPU 가 띄워서 스매시), 14 The Post, 15 Moving Net, 17 Shrinking Bird, 19 No Warning, 20 Final Boss 완화. 연습 대전은 목표 점수를 숨기고 스테이지만 `FIRST TO N` 표시.
 - **8·13·18·21 이 2v2 자리**: 지금은 `mode: 'doubles'`, `fallback: true` 로 싱글 대체 규칙이 돌아간다. 엔진이 되면 `fallback` 을 풀고 `rules.doubles` 를 넘길 것. 대체 규칙은 실패에 대비해 남겨 둘 것.
@@ -58,3 +58,7 @@
 CPU 반칙은 전체 946점 중 24점(2.5%), 사람 팀 파트너 반칙은 3점이었다. 13번의 장기 랠리 비중이 컸다. 고정된 조준 습관과 효과 타이밍의 영향을 받는 모델 수치로, 실제 플레이어의 승률이나 난이도 순서를 추정하기에는 표본이 제한적이다.
 
 - 숨김 21번은 1~20 클리어 테스트 응답으로 열었다. 로컬 브라우저에서 11:7로 이긴 뒤 21번 클리어 저장 요청과 `STAGE 21: Doubles IV`가 포함된 풀타임 카드 JPEG 요청을 확인했다. 이 확인에는 로컬 API 응답을 사용했다.
+
+### 배포
+
+2026-11-19에 Devvit 0.0.46을 업로드하고 r/oddbirdle에 설치했다. 공개 심사는 요청하지 않았다. 실제 Reddit 게시물에서의 입력과 카드 게시 확인은 로컬 검증과 별개다.
