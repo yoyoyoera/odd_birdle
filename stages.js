@@ -32,10 +32,10 @@ export const stages = [
   { id: 15, name: 'Moving Net', description: 'The net swings from very low to very high.', rules: { cpuLevel: 4, points: 7, netScale: 1, netSway: true, swayMid: 1.15, swayAmp: 0.85, swayPeriod: 4.5, effects: 'none' } },
   { id: 16, name: 'Boss: Storm', description: 'More effects, a longer match.', rules: { cpuLevel: 4, points: 9, effectRate: 2 } },
   { id: 17, name: 'Shrinking Bird', description: 'Starts huge and shrinks with every hit.', rules: { cpuLevel: 5, points: 5, shuttleSize: 2, shrink: 0.92, shrinkTo: 5.5, effects: 'none' } },
-  doublesStage({ id: 18, name: 'Doubles III', description: 'Stronger teams and twice as many effects.', doubles: { partner: 4, opponents: 4 }, rules: { cpuLevel: 5, points: 7, netScale: 'low', effectRate: 2 } }, { effectRate: 2 }),
+  doublesStage({ id: 18, name: 'Doubles III', description: 'Stronger rivals and twice as many effects.', doubles: { partner: 3, opponents: 4 }, rules: { cpuLevel: 5, points: 7, netScale: 'low', effectRate: 2 } }, { effectRate: 2 }),
   { id: 19, name: 'No Warning', description: 'Effects come a bit faster, with no countdown.', rules: { cpuLevel: 5, points: 5, effectRate: 1.4, noCountdown: true } },
   { id: 20, name: 'Final Boss', description: 'More effects. A bumper that stays.', rules: { cpuLevel: 5, cpuEase: 0.35, points: 9, permanent: 'bumper', effectRate: 1.5 } },
-  doublesStage({ id: 21, name: 'Doubles IV', hidden: true, description: 'Top-level doubles with twice as many effects.', doubles: { partner: 5, opponents: 5 }, rules: { cpuLevel: 5, points: 11, effectRate: 2 } }, { effectRate: 2 }),
+  doublesStage({ id: 21, name: 'Doubles IV', hidden: true, description: 'The strongest rivals and twice as many effects.', doubles: { partner: 3, opponents: 5 }, rules: { cpuLevel: 5, points: 11, effectRate: 2 } }, { effectRate: 2 }),
 ];
 
 export const validClears = values => [...new Set(Array.isArray(values) ? values.filter(id => Number.isInteger(id) && id >= 1 && id <= 21) : [])].sort((a, b) => a - b);

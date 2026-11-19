@@ -93,15 +93,15 @@ npx devvit install oddbirdle   # r/oddbirdle 에 새 버전 설치
 | 10 | Boss: Chaos | Effects come twice as often. | Lv.3 | 7점, 랜덤 효과 빈도 2배 |
 | 11 | Smash Fest | The CPU sets it up high, then smashes. | Lv.4 | 5점, CPU 가 셔틀콕을 높이 띄우고(`cpuLift: 1`) 네트 위에서 기다렸다가 스매시(`cpuSpike: 1`), 효과 없음 |
 | 12 | Five in a Row | You start 0:4 down. Win five straight. | Lv.4 | 시작 0:4, 상대는 5점에서 끝나므로 5연승 필요 |
-| 13 | Doubles II | Take turns through random effects. | 2v2 | 5점, 파트너·상대 Lv.3, 랜덤 효과 |
+| 13 | Doubles II | Take turns through random effects. | 2v2 | 5점, 파트너 Lv.3·상대 Lv.3+3, 랜덤 효과 |
 | 14 | The Post | A bumper stays up all match. | Lv.2(서툴게 0.7) | 5점, 범퍼 상시 |
 | 15 | Moving Net | The net swings from very low to very high. | Lv.4 | 7점, 네트가 4.5초 주기로 0.3~2.0배 높이를 오르내림(`netSway`, `swayMid/Amp/Period`), 효과 없음 |
 | 16 | Boss: Storm | Effects twice as often, longer match. | Lv.4 | 9점, 랜덤 효과 2배 |
 | 17 | Shrinking Bird | Starts huge and shrinks with every hit. | Lv.5 | 5점, 가장 큰 크기(34)로 시작해 칠 때마다 8% 작아져 가장 작은 크기(11)의 절반(5.5)까지(`shuttleSize: 2, shrink: 0.92, shrinkTo: 5.5`), 효과 없음 |
-| 18 | Doubles III | Stronger teams and twice as many effects. | 2v2 | 7점, 파트너·상대 Lv.4, 효과 2배 |
+| 18 | Doubles III | Stronger rivals and twice as many effects. | 2v2 | 7점, 파트너 Lv.3·상대 Lv.4+4, 효과 2배 |
 | 19 | No Warning | Effects come a bit faster, with no countdown. | Lv.5 | 5점, 효과 빈도 1.4배 + 카운트다운 없이 바로(`noCountdown`) |
 | 20 | Final Boss | More effects. A bumper that stays. | Lv.5(서툴게 0.35) | 9점, 상시 범퍼 + 효과 1.5배 |
-| 21 | Doubles IV | Top-level doubles with twice as many effects. | 2v2 | 11점, 파트너·상대 Lv.5, 효과 2배 (1~20 전부 클리어 후 표시) |
+| 21 | Doubles IV | The strongest rivals and twice as many effects. | 2v2 | 11점, 파트너 Lv.3·상대 Lv.5+5, 효과 2배 (1~20 전부 클리어 후 표시) |
 - INVISIBLE·FREEZE 효과는 랜덤에서 뺀 상태이고 스테이지에도 쓰지 않는다(사용자가 별로라고 판단).
 - 설명 문구는 다듬어도 되지만 짧게(한 줄) 유지. 난이도 곡선(점수·레벨·효과)은 구현 후 CPU 승률을 재서 조정한다(7절 D).
 
@@ -156,3 +156,5 @@ npx devvit install oddbirdle   # r/oddbirdle 에 새 버전 설치
 ## 변경 이력 (복식)
 - 8·13·18·21번에서 실제 2대 2 활성화. CPU는 차례가 아닐 때 팀원과 반대쪽 구역으로 물러나 셔틀과의 접촉을 피한다.
 - 206개 루트 테스트와 26개 Devvit 테스트 통과. 475×350, 890×510, 390×844의 로컬 화면에서 정상·반전 배치, 모바일 터치, 차례 전환 및 반칙 표시를 확인했다.
+
+- 복식 파트너는 모든 스테이지에서 Lv.3. 상대(대기 중인) CPU 는 셔틀콕을 늦게 알아채고 비키는 속도가 느려서(레벨이 낮을수록 더), 빠른 스매시를 그 선수에게 맞히면 상대 반칙이 된다(`moveWaitingBot`). 내 파트너는 예전처럼 정확히 비킨다.

@@ -1183,14 +1183,21 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     const home = teammate && teammate.x < (team === 'left' ? center / 2 : center * 1.5) ? lanes[1] : lanes[0];
     const target = { x: home, y: 285 };
     const before = { x: bot.x, y: bot.y };
-    const safeDistance = racketRadius + shuttlePose().size * 1.4 + 46;
-    const near = Math.hypot(shuttle.x - bot.x, shuttle.y - bot.y) < safeDistance;
+    // A rival that is waiting its turn is not perfect at getting out of the way: the weaker the CPU, the later it notices
+    // the shuttle, the shorter its margin and the slower its step aside, so a smash aimed at it can catch it, and then it
+    // is that team's foul. Your own partner keeps full care.
+    const rival = team === 'right';
+    const skill = rival ? clamp((bot.level - 1) / 4, 0, 1) : 1;
+    const safeDistance = (racketRadius + shuttlePose().size * 1.4 + 46) * (rival ? 0.55 + 0.25 * skill : 1);
+    const looming = Math.hypot(shuttle.x - bot.x, shuttle.y - bot.y) < safeDistance;
+    bot.alert = looming ? (bot.alert ?? 0) + dt : 0;
+    const near = looming && bot.alert >= (rival ? 0.12 - 0.06 * skill : 0);
     if (near) {
       target.x = clamp(bot.x + (bot.x < shuttle.x ? -110 : 110),
         team === 'left' ? racketRadius : center + racketRadius, team === 'left' ? center - racketRadius : width - racketRadius);
       target.y = clamp(bot.y + (bot.y < shuttle.y ? -100 : 100), racketRadius, floor - racketRadius);
     }
-    const speed = near ? 850 : 420;
+    const speed = near ? (rival ? 520 + 200 * skill : 850) : 420;
     bot.x += clamp(target.x - bot.x, -speed * dt, speed * dt);
     bot.y += clamp(target.y - bot.y, -speed * dt, speed * dt);
     if (canHit) wrongPartner(key, before, bot);
