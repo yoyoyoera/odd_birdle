@@ -8,23 +8,27 @@ export const rankAccent = rank => accents[rank];
 
 export function drawRankFlourish(ctx, { rank, palette, panel, daily }) {
   const accent = accents[rank];
+  const border = 10;
+  // The frame and the tab are one shape: the tab rises out of the frame's top-right corner, flush with its right edge.
+  const outerLeft = panel.x - border, outerTop = panel.y - border, outerRight = panel.x + panel.w + border;
+  const tabWidth = 372, tabHeight = 176;
+  const tabLeft = outerRight - tabWidth, tabTop = outerTop - tabHeight;
   ctx.save();
-  ctx.strokeStyle = accent;
-  ctx.lineWidth = 10;
-  ctx.strokeRect(panel.x - 5, panel.y - 5, panel.w + 10, panel.h + 10);
-  // The tab: flat, in the rank's colour, sitting on the panel's top edge at the right.
-  const width = 400, height = 190;
-  const x = panel.x + panel.w - width - 36, y = panel.y - height + 5;
   ctx.fillStyle = accent;
-  ctx.fillRect(x, y, width, height);
+  ctx.strokeStyle = accent;
+  ctx.lineWidth = border;
+  ctx.strokeRect(panel.x - border / 2, panel.y - border / 2, panel.w + border, panel.h + border);
+  ctx.fillRect(tabLeft, tabTop, tabWidth, tabHeight + border);
+  // Text: RANK and OF n stacked on the left, lined up with the top and the baseline of the big numeral.
   ctx.fillStyle = palette.ink;
   ctx.textBaseline = 'alphabetic';
   ctx.textAlign = 'left';
   ctx.font = font(30);
-  ctx.fillText('RANK', x + 30, y + 62);
-  if (daily?.players) { ctx.globalAlpha = 0.75; ctx.fillText(`OF ${daily.players}`, x + 30, y + 150); ctx.globalAlpha = 1; }
+  const top = tabTop + 24, baseline = tabTop + tabHeight - 24;
+  ctx.fillText('RANK', tabLeft + 32, top + 22);
+  if (daily?.players) { ctx.globalAlpha = 0.7; ctx.fillText(`OF ${daily.players}`, tabLeft + 32, baseline); ctx.globalAlpha = 1; }
   ctx.textAlign = 'right';
-  ctx.font = font(190);
-  ctx.fillText(`#${rank}`, x + width - 26, y + 158);
+  ctx.font = font(184);
+  ctx.fillText(`#${rank}`, tabLeft + tabWidth - 28, baseline);
   ctx.restore();
 }
