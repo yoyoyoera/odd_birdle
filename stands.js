@@ -17,9 +17,10 @@ function randomFrom(seed) {
   return () => (state = (state * 16807) % 2147483647) / 2147483647;
 }
 
-export function makeStands(seed = Math.random() * 2147483646) {
+export function makeStands(seed = Math.random() * 2147483646, fullness) {
   const random = randomFrom(seed);
-  const fill = 0.3 + random() * 0.7;
+  // `fullness` (0 to 1) fixes how packed the stands are; the game leaves it random, the full-time card packs them.
+  const fill = fullness ?? 0.3 + random() * 0.7;
   const people = [];
   rows.forEach(([y, s], row) => {
     for (let x = 60 + (row % 2) * 26 + random() * 10; x < 850; x += 50 * s + random() * 14) {
