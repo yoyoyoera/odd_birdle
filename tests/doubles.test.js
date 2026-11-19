@@ -139,3 +139,26 @@ test('all four rackets alternate in real rallies without the waiting partner mak
   }
   assert.deepEqual(hitters, new Set(['left', 'right', 'leftB', 'rightB']));
 });
+
+test('a rival that touches the shuttle out of turn is called THEIR FOUL, and a foul by your side is FOUL', async () => {
+  const { makePlayer } = await import('../tools/stage-difficulty.mjs');
+  const { stages } = await import('../stages.js');
+  const seeded = s => () => ((s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296);
+  const rules = stages.find(stage => stage.id === 21).rules;
+  const original = Math.random;
+  Math.random = seeded(101);
+  try {
+    const game = createGame({ withCpu: true, rules });
+    game.restart(0, 5, rules);
+    const play = makePlayer(seeded(77), rules);
+    let rival;
+    for (let tick = 0, time = 0; tick < 120 * 240 && !rival; tick++, time += step) {
+      play(game, time);
+      game.simulate(step);
+      const view = game.view();
+      if (view.fault?.startsWith('right')) rival = view;
+    }
+    assert.ok(rival, 'a rival foul happens in this seeded match');
+    assert.equal(rival.eventText, 'THEIR FOUL');
+  } finally { Math.random = original; }
+});

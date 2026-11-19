@@ -497,7 +497,8 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     }
     updateOutline();
     if (reason === 'out') showEvent('out');
-    if (faultPlayer === 'left') showEvent('FOUL');
+    // A wrong-turn hit is called out for either team: FOUL for you and your partner, THEIR FOUL for the rivals.
+    if (reason === 'wrong partner') showEvent(faultPlayer?.startsWith('left') ? 'FOUL' : 'THEIR FOUL');
     const matchPoint = Math.max(score.left, score.right) === pointsToWin - 1;
     if (!matchPoint && (reason === 'own court' || reason === 'Net')) {
       showEvent(faultReactions[Math.floor(Math.random() * faultReactions.length)]);
