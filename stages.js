@@ -17,7 +17,7 @@ export const stages = [
   { id: 12, name: 'Five in a Row', description: 'Start 0:4 down. Win five straight.', rules: { cpuLevel: 4, points: 5, startScore: { left: 0, right: 4 }, effects: 'none' } },
   { id: 13, name: 'Doubles II', mode: 'doubles', fallback: true, description: 'Singles edition: spot the real shuttle.', doubles: { partner: 3, opponents: 3 }, rules: { cpuLevel: 4, points: 5, effects: ['decoy'] } },
   { id: 14, name: 'The Post', description: 'A bumper stays up all match.', rules: { cpuLevel: 2, cpuEase: 0.7, points: 5, permanent: 'bumper', effects: 'none' } },
-  { id: 15, name: 'Moon Day', description: 'Low gravity. Everything floats.', rules: { cpuLevel: 4, points: 7, gravityScale: 0.6, effects: 'none' } },
+  { id: 15, name: 'Heavy Day', description: 'Gravity pulls harder. Rallies end fast.', rules: { cpuLevel: 4, points: 7, gravityScale: 1.5, effects: 'none' } },
   { id: 16, name: 'Boss: Storm', description: 'More effects, a longer match.', rules: { cpuLevel: 4, points: 9, effectRate: 2 } },
   { id: 17, name: 'Pure Skill', description: 'No tricks against the best.', rules: { cpuLevel: 5, points: 5, effects: 'none' } },
   { id: 18, name: 'Doubles III', mode: 'doubles', fallback: true, description: 'Singles edition: a low net, more effects.', doubles: { partner: 4, opponents: 4 }, rules: { cpuLevel: 5, points: 7, netScale: 'low', effectRate: 2 } },

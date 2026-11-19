@@ -95,7 +95,7 @@ npx devvit install oddbirdle   # r/oddbirdle 에 새 버전 설치
 | 12 | Five in a Row | You start 0:4 down. Win five straight. | Lv.4 | 시작 0:4, 상대는 5점에서 끝나므로 5연승 필요 |
 | 13 | Doubles II | Doubles with random effects. | 2v2 | 5점, 파트너·상대 Lv.3, 랜덤 효과 |
 | 14 | The Post | A bumper stays up all match. | Lv.2(서툴게 0.7) | 5점, 범퍼 상시 |
-| 15 | Moon Day | Low gravity. Everything floats. | Lv.4 | 7점, 중력 0.6배 |
+| 15 | Heavy Day | Gravity pulls harder. Rallies end fast. | Lv.4 | 7점, 중력 1.5배 (풍선판 Hot Air 와 겹치지 않게 반대 방향) |
 | 16 | Boss: Storm | Effects twice as often, longer match. | Lv.4 | 9점, 랜덤 효과 2배 |
 | 17 | Pure Skill | No tricks against the best. | Lv.5 | 5점, 효과 없음 |
 | 18 | Doubles III | Stronger partner, stronger rivals, more effects. | 2v2 | 7점, 파트너·상대 Lv.4, 효과 2배 |
