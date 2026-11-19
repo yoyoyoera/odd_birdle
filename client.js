@@ -1271,6 +1271,11 @@ function renderStages(cleared, online) {
     check.textContent = cleared.includes(challenge.id) ? '✓' : '';
     top.append(number, check);
     if (cleared.includes(challenge.id)) button.dataset.cleared = '';
+    if (challenge.boss) {
+      button.dataset.boss = '';
+      const tag = document.createElement('span'); tag.className = 'stage-boss'; tag.textContent = 'BOSS';
+      top.insertBefore(tag, check);
+    }
     const copy = document.createElement('span'); copy.className = 'stage-copy';
     const name = document.createElement('strong'); name.textContent = challenge.name;
     const description = document.createElement('span'); description.textContent = challenge.description;

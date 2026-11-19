@@ -110,6 +110,12 @@
     [data-portal="reddit"] #stage-list button:hover { background: var(--court-hover); }
     [data-portal="reddit"] #stage-list button:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
     [data-portal="reddit"] #stage-list button[data-cleared] { background: color-mix(in srgb, var(--ink) 14%, var(--court)); }
+    /* Boss stages: dark cards with a gold edge and a BOSS tag, so they stand out in the row. */
+    [data-portal="reddit"] #stage-list button[data-boss] { background: var(--ink); color: var(--court); box-shadow: inset 3px 0 0 #e9c25a; }
+    [data-portal="reddit"] #stage-list button[data-boss]:hover { background: color-mix(in srgb, var(--ink) 88%, var(--court)); }
+    [data-portal="reddit"] #stage-list button[data-boss][data-cleared] { background: color-mix(in srgb, var(--ink) 70%, #e9c25a); color: var(--court); }
+    [data-portal="reddit"] #stage-list button[data-boss] .stage-number { opacity: .75; }
+    [data-portal="reddit"] .stage-boss { margin-left: auto; margin-right: 6px; padding: 1px 5px; font-size: 8.5px; font-weight: 650; letter-spacing: .12em; background: #e9c25a; color: var(--ink); }
     [data-portal="reddit"] .stage-top { display: flex; justify-content: space-between; align-items: baseline; }
     [data-portal="reddit"] .stage-number { font-size: 19px; font-weight: 650; line-height: 1; opacity: .55; font-variant-numeric: tabular-nums; }
     [data-portal="reddit"] .stage-check { font-size: 20px; line-height: 1; min-width: 14px; text-align: right; }
