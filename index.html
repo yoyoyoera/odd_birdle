@@ -67,6 +67,9 @@
       #studio-links .link b { position: static; transform: none; width: 44px; white-space: normal; text-align: center;
         font-size: .6rem; line-height: 1.15; letter-spacing: 0; }
     }
+    /* The Reddit app plays against the computer only: no rooms, no online play, so no connection bars either. */
+    [data-portal="reddit"] #quick, [data-portal="reddit"] #create, [data-portal="reddit"] #join,
+    [data-portal="reddit"] #join-form, [data-portal="reddit"] .link { display: none !important; }
     /* Reddit's expanded post is a small, nearly square frame: the court takes the full width and the buttons sit
        in a row under it, unless the frame is really wide and short (a phone on its side). */
     @media (max-aspect-ratio: 8 / 5) {
