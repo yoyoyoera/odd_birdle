@@ -12,8 +12,20 @@ const browser = await puppeteer.launch({
   headless: true,
   // Keep the normal audio gesture policy, including Chrome's default headless output muting.
 });
+let diagnostics;
 try {
   const { page, frame, logs } = await open(browser, build);
+  diagnostics = logs;
+  page.on('console', async message => {
+    if (message.text().includes('Odd Birdle frame failed')) {
+      console.error(await message.args().at(-1).evaluate(error => error?.stack).catch(() => message.text()));
+    }
+  });
+  // Seed at the actual menu click, after sound unlock, so the randomly chosen point target is reproducible.
+  await frame.evaluate(() => document.querySelector('#cpu').addEventListener('click', () => {
+    let seed = 2004;
+    Math.random = () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296);
+  }, { capture: true, once: true }));
   await clickIn(page, frame, '#cpu');
   await untilPhase(frame, 'live');
   await frame.evaluate(fault => {
@@ -43,6 +55,8 @@ try {
     await clickIn(page, frame, '#back');
     await frame.waitForFunction(() => !document.querySelector('#menu').hidden);
   }
+  const frameErrors = logs.filter(line => line.includes('Odd Birdle frame failed'));
+  assert.equal(frameErrors.length, expected === 'recovered' && fault !== 'none' ? 1 : 0);
   const pageErrors = logs.filter(line => line.startsWith('pageerror:'));
   if (expected === 'stuck' && fault !== 'none') {
     assert.equal(pageErrors.length, 1);
@@ -51,6 +65,9 @@ try {
     assert.deepEqual(pageErrors, []);
   }
   console.log({ build, fault, expected, winner: loss.winner, sdkLoaded: loss.y8, pageErrors });
+} catch (error) {
+  console.error(diagnostics?.filter(line => line.startsWith('error') || line.startsWith('pageerror')));
+  throw error;
 } finally {
   await browser.close();
 }
