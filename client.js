@@ -18,7 +18,7 @@ import {
 } from './juice.js';
 import {
   initPortal, isInstantMultiplayer, loadingStart, loadingStop, matchBreak, matchEnded, onJoinRoom, onPortalMute, onPortalPause,
-  closedPortal, coordinatedBreak, portal, portalInviteLink, portalInviteRoom, portalMuted, roomFull, roomLeft, roomOpen, serverBase, setPlaying, siteUrl
+  closedPortal, coordinatedBreak, portal, redditName, portalInviteLink, portalInviteRoom, portalMuted, roomFull, roomLeft, roomOpen, serverBase, setPlaying, siteUrl
 } from './portal.js';
 
 const court = document.querySelector('#court');
@@ -370,6 +370,9 @@ function updateHud(view) {
   sideLabel.hidden = mode !== 'online' && mode !== 'solo';
   sideLabel.dataset.side = shownSide();
   cpuLabel.dataset.side = shownSide() === 'left' ? 'right' : 'left';
+  // Inside Reddit the player's own name stands where YOU does.
+  const redditUser = portal === 'reddit' ? redditName() : '';
+  sideLabel.textContent = redditUser ? 'u/' + (redditUser.length > 14 ? redditUser.slice(0, 13) + '…' : redditUser) : 'YOU';
   cpuLabel.hidden = mode !== 'solo' || !view.cpuLevel;
   setText(cpuLabel, view.cpuLevel ? 'CPU Lv. ' + view.cpuLevel : '');
   if (score) {

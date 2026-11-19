@@ -4,6 +4,14 @@ import { createGdAds, showGdContinue } from './gd-ads.js';
 
 export const portal = document.documentElement.dataset.portal ?? '';
 export const siteUrl = 'https://oddbirdle.pages.dev/';
+
+// The Reddit name of whoever is playing inside Reddit (empty anywhere else, or if Reddit does not say). Reddit's
+// client library is only loaded in the Reddit build, where the build tooling bundles it.
+let redditUser = '';
+if (portal === 'reddit') {
+  import('@devvit/web/client').then(({ context }) => { redditUser = context.username ?? ''; }).catch(() => {});
+}
+export const redditName = () => redditUser;
 // Portals that allow no links out of the game and no analytics of our own: invites are the room code, nothing is
 // counted, and the debug and test pages are off.
 export const closedPortal = ['gamepix', 'y8', 'gamedistribution', 'reddit'].includes(portal);
