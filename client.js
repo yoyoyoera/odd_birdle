@@ -1,6 +1,9 @@
 import { center, clamp, createGame, floor, height, leftLine, netTop, racketRadius, rightLine, shuttleOutline, step, width, contactMotion, isSwing, projectStrike, forceAt, effectIds, shapeCount, shuttleSizeOptions, racketTouches, supportedShuttleY, swingMotion, trialEffectIds, trialEffectLabels, trampolineLift, trampolineDent } from './game.js';
 import { makeStands, drawStands } from './stands.js';
 import { createCrowd } from './crowd.js';
+import { drawCard, cardWidth, cardHeight } from './card.js';
+import { verdictFor } from './card-lines.js';
+import { createMatchStats } from './match-stats.js';
 import { createLinkQuality } from './link-quality.js';
 import { createFrameMeter } from './frame-meter.js';
 import { launchConfetti, confettiAt } from './confetti.js';
@@ -18,7 +21,7 @@ import {
 } from './juice.js';
 import {
   initPortal, isInstantMultiplayer, loadingStart, loadingStop, matchBreak, matchEnded, onJoinRoom, onPortalMute, onPortalPause,
-  closedPortal, coordinatedBreak, portal, redditName, portalInviteLink, portalInviteRoom, portalMuted, roomFull, roomLeft, roomOpen, serverBase, setPlaying, siteUrl
+  canPostCard, closedPortal, coordinatedBreak, portal, redditName, portalInviteLink, portalInviteRoom, portalMuted, roomFull, roomLeft, roomOpen, serverBase, setPlaying, siteUrl
 } from './portal.js';
 
 const court = document.querySelector('#court');
@@ -52,6 +55,8 @@ const gameControl = document.querySelector('#game-control');
 const resultActions = document.querySelector('#result-actions');
 const playAgainButton = document.querySelector('#play-again');
 const toMenuButton = document.querySelector('#to-menu');
+const cardButton = document.querySelector('#card-button');
+const cardLabel = document.querySelector('#card-label');
 const menu = document.querySelector('#menu');
 const cpuLevelButton = document.querySelector('#cpu-level');
 const back = document.querySelector('#back');
@@ -363,7 +368,9 @@ function connect(request, via = request.type === 'join' ? 'code' : 'create') {
   });
 }
 
+const matchStats = createMatchStats();
 function updateHud(view) {
+  if (mode === 'solo') matchStats.update(view);
   const { phase, score, eventText = '', eventWind = false, winner, message = '' } = view;
   if (stage.dataset.phase !== phase) stage.dataset.phase = phase;
   scoreboard.hidden = !score;
@@ -397,6 +404,8 @@ function updateHud(view) {
   resultActions.hidden = !finished;
   playAgainButton.hidden = mode === 'online' && rematchReady;
   setText(playAgainButton, mode === 'online' ? 'REMATCH' : 'PLAY AGAIN');
+  const cardVisible = canPostCard && mode === 'solo' && finished && !!view.winner;
+  if (cardButton.hidden === cardVisible) { cardButton.hidden = !cardVisible; if (cardVisible) { cardButton.disabled = false; cardLabel.textContent = 'POST CARD'; } }
 }
 
 // Counts each match that reaches its final point once.
@@ -1039,6 +1048,35 @@ cpuLevelButton.addEventListener('click', () => {
   }
   showCpuLevel();
 });
+// Posts the full-time card as a comment from inside Reddit (the app's own server does the posting, as the player).
+cardButton.addEventListener('click', async () => {
+  const view = currentView();
+  if (!view?.winner || cardButton.disabled) return;
+  cardButton.disabled = true;
+  cardLabel.textContent = 'POSTING…';
+  try {
+    const summary = matchStats.summary(view);
+    const seed = Math.floor(Date.now() / 1000);
+    const line = verdictFor(summary, seed);
+    const user = redditName();
+    const canvas = document.createElement('canvas');
+    canvas.width = cardWidth; canvas.height = cardHeight;
+    try { await document.fonts.load('650 40px "Space Grotesk"'); } catch { /* the card falls back to the system font */ }
+    drawCard(canvas.getContext('2d'), { ...summary, palette, stage: undefined, line, seed, name: user ? 'u/' + user : '' });
+    const text = `FULL-TIME ${summary.mine}:${summary.theirs} vs CPU Lv.${summary.cpuLevel}. ${line}`;
+    const response = await fetch('/api/card', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ image: canvas.toDataURL('image/jpeg', 0.9), text })
+    });
+    const result = await response.json();
+    cardLabel.textContent = result.ok ? 'POSTED ✓' : 'TRY AGAIN';
+    cardButton.disabled = !!result.ok;
+  } catch {
+    cardLabel.textContent = 'TRY AGAIN';
+    cardButton.disabled = false;
+  }
+});
+
 // Shows YOU over the player's half for a moment as a match starts.
 let youFlagTimer;
 function flagYou() {
@@ -1058,6 +1096,7 @@ function restartCpu() {
 }
 
 function startCpu() {
+  matchStats.reset();
   restartCpu();
   accumulator = 0;
   setMode('solo');

@@ -5,6 +5,7 @@ import { trpcServer } from '@hono/trpc-server';
 import { createServer, getServerPort } from '@devvit/web/server';
 import { menu } from './routes/menu';
 import { triggers } from './routes/triggers';
+import { card } from './routes/card';
 import { appRouter } from './trpc';
 import { createContext } from './context';
 
@@ -19,6 +20,8 @@ api.use(
     createContext,
   })
 );
+
+api.route('/card', card);
 
 const internal = new Hono();
 internal.route('/menu', menu);
