@@ -5,7 +5,7 @@
 
 ## 구현 상태 (2026-11-19)
 - 아래 설계의 스테이지 규칙·선택/안내 UI·클리어 저장·카드 연동을 구현했다. 데이터는 `stages.js`, 저장 클라이언트는 `stage-progress.js`, 서버는 `reddit/odd-birdle/src/server/core/stages.ts`와 `routes/stages.ts`다.
-- 8·13·18·21번은 6.4의 싱글 대체 규칙이다. 실제 복식이 아니며 화면 설명도 이를 명시한다. 21번은 1~20 전체 클리어 후 표시한다.
+- 8·13·18·21번은 2대 2 복식이다. 싱글 대체 규칙은 `stages.js`의 `fallbackRules`에 보관한다. 21번은 1~20 전체 클리어 후 표시한다.
 - 엔진: `createGame({ withCpu, rules })` 또는 `restart(3, level, rules)`. 세 번째 인자를 생략하면 현재 규칙을 유지하고, 명시적으로 `null`/`undefined`를 넘기면 랜덤 연습 규칙으로 돌아간다. 기존 무규칙 동작과 테스트는 유지한다.
 - 6.3의 "상시 범퍼일 때 다른 효과 없음"은 4번에 적용한다. 20번의 더 구체적인 표를 우선하여 상시 범퍼를 활성 랜덤 효과와 독립적으로 구현했다. 19번은 실제 1~2초의 라이브 랠리 시간마다 효과를 교체한다.
 - 루트 테스트 182개, Devvit 테스트 16개, 타입·린트·빌드 통과. 새 작업 폴더에서는 먼저 `node scripts/prep-reddit.mjs`로 클라이언트를 생성한 다음 Devvit 빌드/전체 검사를 할 것.
@@ -101,7 +101,7 @@ npx devvit install oddbirdle   # r/oddbirdle 에 새 버전 설치
 | 18 | Doubles III | Stronger partner, stronger rivals, more effects. | 2v2 | 7점, 파트너·상대 Lv.4, 효과 2배 |
 | 19 | No Warning | Effects come a bit faster, with no countdown. | Lv.5 | 5점, 효과 빈도 1.4배 + 카운트다운 없이 바로(`noCountdown`) |
 | 20 | Final Boss | More effects. A bumper that stays. | Lv.5(서툴게 0.35) | 9점, 상시 범퍼 + 효과 1.5배 |
-| 21 | Doubles IV | Hidden. Unlocks after the Final Boss. | 2v2 | 11점, 상대 2명 Lv.5, 효과 2배 (1~20 전부 클리어 후 표시) |
+| 21 | Doubles IV | Top-level doubles with twice as many effects. | 2v2 | 11점, 파트너·상대 Lv.5, 효과 2배 (1~20 전부 클리어 후 표시) |
 - INVISIBLE·FREEZE 효과는 랜덤에서 뺀 상태이고 스테이지에도 쓰지 않는다(사용자가 별로라고 판단).
 - 설명 문구는 다듬어도 되지만 짧게(한 줄) 유지. 난이도 곡선(점수·레벨·효과)은 구현 후 CPU 승률을 재서 조정한다(7절 D).
 
@@ -118,10 +118,11 @@ npx devvit install oddbirdle   # r/oddbirdle 에 새 버전 설치
 - 규칙이 없으면 완전히 기존 동작이어야 하고, 기존 테스트가 그대로 통과해야 한다(특히 `tests/cpu-effects.test.js`, `tests/trial-effects.test.js`).
 - **주의**: `game.js`·`client.js` 는 main 에서 Code2 세션도 고친다. 변경은 추가형으로 작게, 이 브랜치에만 둔다.
 
-### 6.4 2v2 (8·13·18·21번)
-- 사용자가 "한 팀에서 번갈아 쳐야 하는 규칙, 어기면 반칙. 나 + CPU 파트너 vs CPU 2명" 을 원한다. 현재 코드는 **한쪽에 라켓 하나**를 전제로 해서(충돌, 마지막으로 친 사람, 렌더링, 소리, CPU 로직이 모두 left/right 기준) 비용이 가장 크다.
-- **일단 하지 말고 나머지(6.3, 6.5)를 먼저 끝낸다.** 12/1 쯤 시제품으로 가능 여부를 본 뒤 사용자와 정한다. 불가하면 해당 판은 대체 규칙을 쓴다: 8번 = Lv.3 높은 네트, 13번 = Lv.4 DECOY 만, 18번 = Lv.5 낮은 네트, 21번 = 숨김 유지하되 Lv.5 효과 2배 일반 판.
-- 표·UI 는 2v2 판 항목을 `mode: 'doubles'` 같은 필드로 두고, 엔진이 지원하기 전에는 대체 규칙으로 돌아가게 설계.
+### 6.4 복식 (8·13·18·21번)
+- 사람과 CPU 파트너 대 CPU 2명. 각 팀의 A가 첫 타자이고 팀 내 타격 순서가 A→B→A로 이어진다. 차례가 아닌 라켓이 새로 접촉하면 상대 득점이다. 같은 타격에서 이어진 접촉은 한 번으로 센다.
+- 차례인 라켓에는 고리가 뜨고 사람 팀에는 `YOUR TURN` 또는 `PARTNER’S TURN`이 표시된다. 반칙을 낸 팀과 라켓은 화면의 문구로 구분한다.
+- 엔진 규칙은 `rules.doubles: { partner, opponents }`. 상대 레벨은 숫자 하나 또는 두 원소 배열이다. 스테이지별 싱글 대체 규칙은 `fallbackRules`로 유지하며 `fallback: true`로 전환할 수 있다.
+- 연습과 하루 도전에는 복식 규칙을 적용하지 않았다. [복식 인수인계](HANDOFF-reddit-doubles.md)에 검증·측정 결과와 배포 상태가 있다.
 
 ### 6.5 UI·저장
 - 메뉴(지금 `CPU` 버튼 하나)에 스테이지 진입 추가. 선택 화면은 20개(+조건 충족 시 21번) 목록: 번호, 이름, 한 줄 설명, ✓ 표시. 코트 프레임이 작으므로(약 475×350, 모바일 세로) 스크롤·그리드 크기를 신경 쓸 것.
@@ -151,3 +152,7 @@ npx devvit install oddbirdle   # r/oddbirdle 에 새 버전 설치
 - 스테이지가 올라갈수록 관중이 늘어남(`stageCrowd`).
 - 연습 대전은 목표 점수를 표시하지 않음(긴장감), 스테이지만 `FIRST TO N` 표시.
 - 스테이지 번호의 의미가 바뀌었으므로 예전 클리어 기록은 번호 기준이라 어긋날 수 있음(현재 사용자 기록은 1·2번뿐).
+
+## 변경 이력 (복식)
+- 8·13·18·21번에서 실제 2대 2 활성화. CPU는 차례가 아닐 때 팀원과 반대쪽 구역으로 물러나 셔틀과의 접촉을 피한다.
+- 206개 루트 테스트와 26개 Devvit 테스트 통과. 475×350, 890×510, 390×844의 로컬 화면에서 정상·반전 배치, 모바일 터치, 차례 전환 및 반칙 표시를 확인했다.

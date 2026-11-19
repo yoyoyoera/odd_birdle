@@ -47,6 +47,7 @@ const stage = document.querySelector('#stage');
 const scoreboard = document.querySelector('#score');
 const sideLabel = document.querySelector('#side-label');
 const cpuLabel = document.querySelector('#cpu-label');
+const doublesTurnLabel = document.querySelector('#doubles-turn');
 const youFlag = document.querySelector('#you-flag');
 const winnerLabel = document.querySelector('#winner');
 const recordLabel = document.querySelector('#record');
@@ -414,7 +415,12 @@ function updateHud(view) {
   const redditUser = portal === 'reddit' ? redditName() : '';
   sideLabel.textContent = redditUser ? 'u/' + (redditUser.length > 14 ? redditUser.slice(0, 13) + '…' : redditUser) : 'YOU';
   cpuLabel.hidden = mode !== 'solo' || !view.cpuLevel;
-  setText(cpuLabel, view.cpuLevel ? 'CPU Lv. ' + view.cpuLevel : '');
+  setText(cpuLabel, view.doubles ? 'CPU TEAM' : view.cpuLevel ? 'CPU Lv. ' + view.cpuLevel : '');
+  doublesTurnLabel.dataset.side = shownSide();
+  const turnMessage = view.fault ? (view.fault === 'left' ? 'WRONG PARTNER' : view.fault === 'leftB' ? 'PARTNER FAULT' : 'CPU TEAM FAULT')
+    : view.turn?.left === 'left' ? 'YOUR TURN' : 'PARTNER’S TURN';
+  doublesTurnLabel.hidden = !view.turn || (phase === 'finished' && !view.fault) || stageIntroRemaining > 0;
+  if (!doublesTurnLabel.hidden) setText(doublesTurnLabel, turnMessage);
   if (score) {
     const value = mirrored() ? score.right + ':' + score.left : score.left + ':' + score.right;
     if (scoreboard.value !== value) scoreboard.value = value;
@@ -629,6 +635,34 @@ function drawRacket(position, fill, stroke, side) {
   ctx.stroke();
 }
 
+function drawDoublesRackets(view) {
+  const active = view.phase === 'starting' || view.phase === 'live';
+  for (const [key, team, fill, stroke] of [
+    ['leftB', 'left', '#a9d67844', palette.ink],
+    ['rightB', 'right', '#cf936b66', '#774935'],
+    ['right', 'right', '#cf936b99', '#774935'],
+    ['left', 'left', '#a9d67899', palette.ink]
+  ]) {
+    const racket = view[key];
+    if (racket) drawRacket(racket, fill, stroke, key === team ? key : undefined);
+    if (active && view.turn[team] === key) {
+      // A dashed outline marks the player's starting spot until a mouse or touch supplies a position.
+      const { x, y } = racket ?? { x: 245, y: 300 };
+      ctx.save();
+      if (!racket) ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      ctx.arc(x, y, racketRadius + 6, 0, Math.PI * 2);
+      ctx.strokeStyle = palette.court;
+      ctx.lineWidth = 7;
+      ctx.stroke();
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = 3.5;
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+}
+
 function drawCourt(view) {
   const top = view.netTop ?? netTop;
   ctx.fillStyle = palette.court;
@@ -739,12 +773,15 @@ function draw(view, scenery = false) {
   if (view.force?.type === 'wind') drawWind(view.force);
   if (view.phase !== 'ready') {
     if (scenery) ctx.globalAlpha = demoAlpha.racket;
-    const other = localSide === 'left' ? 'right' : 'left';
-    if (view[other]) drawRacket(view[other], '#cf936b99', '#774935', scenery ? undefined : other);
-    // Online matches draw the locally predicted racket; a quick-match CPU game (which also
-    // has a connection open while waiting) draws the game's own racket.
-    const ownRacket = mode === 'online' && !scenery ? localRacket : view[localSide];
-    if (ownRacket && view.phase !== 'finished') drawRacket(ownRacket, '#a9d67877', palette.ink, scenery ? undefined : localSide);
+    if (view.turn && !scenery) drawDoublesRackets(view);
+    else {
+      const other = localSide === 'left' ? 'right' : 'left';
+      if (view[other]) drawRacket(view[other], '#cf936b99', '#774935', scenery ? undefined : other);
+      // Online matches draw the locally predicted racket; a quick-match CPU game (which also
+      // has a connection open while waiting) draws the game's own racket.
+      const ownRacket = mode === 'online' && !scenery ? localRacket : view[localSide];
+      if (ownRacket && view.phase !== 'finished') drawRacket(ownRacket, '#a9d67877', palette.ink, scenery ? undefined : localSide);
+    }
     if (view.bumper) drawBumper(view.bumper);
     if (view.shuttle) drawShuttle(view, (scenery ? demoAlpha.bird : 1) * (view.shuttleAlpha ?? 1));
     ctx.globalAlpha = 1;
@@ -1250,7 +1287,7 @@ function showStageIntro() {
   stageIntroRemaining = 1.8;
   stageIntroNumber.textContent = selectedStage.daily ? `DAILY #${selectedStage.number} · TRY ${selectedStage.tryNumber}/${selectedStage.attempts}` : 'STAGE ' + selectedStage.id;
   stageIntroName.textContent = selectedStage.name;
-  stageIntroDescription.textContent = selectedStage.description;
+  stageIntroDescription.textContent = selectedStage.rules.doubles ? 'Take turns hitting with your partner.' : selectedStage.description;
   stageIntroGoal.textContent = goalText(selectedStage);
   stageIntro.hidden = false;
   youFlag.hidden = true;
