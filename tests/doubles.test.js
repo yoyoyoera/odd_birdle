@@ -34,9 +34,11 @@ test('doubles starts with three CPU rackets, A serves, and a second A contact gi
   for (let i = 0; i < 18; i++) game.simulate(step);
   tapShuttle(game);
   assert.equal(game.view().message, 'wrong partner');
+  assert.equal(game.view().eventText, 'FOUL');
   assert.deepEqual(game.view().score, { left: 0, right: 1 });
   const serve = until(game, view => view.message === 'right serve');
   assert.deepEqual(serve.turn, start.turn);
+  assert.equal(serve.eventText, '');
   assert.equal(serve.lastPlayer, undefined);
   until(game, view => view.lastPlayer === 'right');
   assert.equal(game.view().turn.right, 'rightB');
