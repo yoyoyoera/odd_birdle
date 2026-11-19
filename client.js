@@ -237,6 +237,7 @@ function setMode(next, message = '') {
   menu.hidden = next !== 'menu';
   stagePanel.hidden = next !== 'stages';
   dailyPanel.hidden = next !== 'daily';
+  if (next === 'menu' && portal === 'reddit' && typeof refreshDaily === 'function' && dailyReady) refreshDaily();
   roomDisplay.hidden = next !== 'waiting';
   joinForm.hidden = next !== 'join';
   back.hidden = next === 'menu';
@@ -1292,13 +1293,45 @@ let dailyToken;       // the try in progress
 let dailyResult;      // the clear this try earned (from the server)
 let dailyPending = false;
 let dailyMessage = '';
+let dailyReady = false; // set once the daily block below has run
 
 const dailyTriesLeft = () => dailyState ? Math.max(0, dailyState.plan.attempts - dailyState.attemptsUsed) : 0;
 function dailyCanRetry() {
   return !dailyPending && !dailyResult && !dailyState?.cleared && dailyTriesLeft() > 0;
 }
 
+// The main menu's daily card: today's challenge, the first five to clear it, and the button.
+function renderTeaser() {
+  const state = dailyState;
+  const button = dailyEl('daily-button');
+  dailyEl('teaser-day').textContent = state ? `DAILY #${state.plan.number} · ${dayLabel(state.plan.date)}` : 'DAILY';
+  dailyEl('teaser-name').textContent = state ? playableDaily(state.plan).name : '…';
+  const board = state?.board ?? [];
+  dailyEl('teaser-board').replaceChildren(...Array.from({ length: 5 }, (_, index) => {
+    const entry = board.find(item => item.rank === index + 1);
+    const li = document.createElement('li');
+    const place = document.createElement('span'); place.className = 'place'; place.textContent = '#' + (index + 1);
+    const who = document.createElement('span'); who.className = 'who'; who.textContent = entry ? 'u/' + entry.name : (index === 0 && state ? 'be the first' : '—');
+    const time = document.createElement('span'); time.className = 'time'; time.textContent = entry ? entry.seconds + 's' : '';
+    if (!entry) li.dataset.empty = '';
+    li.append(place, who, time);
+    return li;
+  }));
+  const left = dailyTriesLeft();
+  if (!state) { button.textContent = 'CHALLENGE'; button.disabled = true; }
+  else if (state.cleared) { button.textContent = 'CLEARED ✓'; button.disabled = false; }
+  else if (left === 0) { button.textContent = 'NO TRIES LEFT'; button.disabled = true; }
+  else { button.textContent = 'CHALLENGE'; button.disabled = dailyPending; }
+}
+
+// CHALLENGE: start a try right away; if today is already cleared, open the day's page instead.
+function onChallenge() {
+  if (dailyState?.cleared) openDaily();
+  else startDaily();
+}
+
 function renderDaily() {
+  renderTeaser();
   const state = dailyState;
   dailyEl('daily-number').textContent = state ? '#' + state.plan.number : '';
   dailyEl('daily-date').textContent = state ? dayLabel(state.plan.date) : '';
@@ -1431,8 +1464,11 @@ async function postDailyPanelCard() {
 }
 
 if (portal === 'reddit') {
-  dailyButton.hidden = false;
-  dailyButton.addEventListener('click', openDaily);
+  dailyEl('daily-teaser').hidden = false;
+  dailyButton.addEventListener('click', onChallenge);
+  dailyEl('teaser-head').addEventListener('click', openDaily);
+  dailyReady = true;
+  refreshDaily();
   dailyEl('daily-start').addEventListener('click', startDaily);
   dailyEl('daily-card').addEventListener('click', postDailyPanelCard);
   stagesButton.hidden = false;

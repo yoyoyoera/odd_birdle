@@ -19,7 +19,8 @@ const fixture = vi.hoisted(() => {
       expire: vi.fn(async (key: string, seconds: number) => { ttl.set(key, seconds); }),
       incrBy: vi.fn(async (key: string, by: number) => { counters.set(key, (counters.get(key) ?? 0) + by); return counters.get(key) as number; }),
       hGetAll: vi.fn(async (key: string) => Object.fromEntries(hashes.get(key) ?? [])),
-      hSet: vi.fn(async (key: string, fields: Record<string, string>) => { for (const [f, v] of Object.entries(fields)) hash(key).set(f, v); return 1; })
+      hSet: vi.fn(async (key: string, fields: Record<string, string>) => { for (const [f, v] of Object.entries(fields)) hash(key).set(f, v); return 1; }),
+      hDel: vi.fn(async (key: string, fields: string[]) => { let n = 0; for (const f of fields) if (hashes.get(key)?.delete(f)) n++; return n; })
     }
   };
 });
@@ -27,7 +28,7 @@ const fixture = vi.hoisted(() => {
 vi.mock('@devvit/web/server', () => ({ redis: fixture.redis }));
 
 import { dailyFor } from '../../shared/daily-plan';
-import { deleteDailyProgress, finishAttempt, getCalendar, getToday, retentionSeconds, startAttempt } from './daily';
+import { deleteDailyProgress, finishAttempt, getBoard, getCalendar, getToday, retentionSeconds, startAttempt } from './daily';
 
 const day = Date.parse('2026-12-02T10:00:00Z');
 const plan = dailyFor('2026-12-02');
@@ -112,5 +113,19 @@ describe('the daily challenge on the server', () => {
     const next = await getToday('t2_a', day + 24 * 3600 * 1000);
     expect(next.attemptsUsed).toBe(0);
     expect(next.plan.date).toBe('2026-12-03');
+  });
+
+  it('keeps the first five clears on a board with their names, and takes a player off it when asked', async () => {
+    const ids = ['t2_1', 't2_2', 't2_3', 't2_4', 't2_5', 't2_6'];
+    for (const [index, id] of ids.entries()) {
+      const started = await startAttempt(id, day);
+      if (!started.ok) throw new Error('could not start');
+      await finishAttempt(id, started.token, win, day + (60 + index) * 1000, `name${index + 1}`);
+    }
+    const board = await getBoard('2026-12-02');
+    expect(board.map((entry) => entry.rank)).toEqual([1, 2, 3, 4, 5]);
+    expect(board[0]).toMatchObject({ name: 'name1', seconds: 60 });
+    await deleteDailyProgress('t2_2');
+    expect((await getBoard('2026-12-02')).map((entry) => entry.name)).toEqual(['name1', 'name3', 'name4', 'name5']);
   });
 });

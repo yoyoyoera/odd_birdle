@@ -11,9 +11,13 @@ const tokenSeconds = 3 * 60 * 60;
 const userKey = (userId: string) => `daily:v1:user:${userId}`;
 const tokenKey = (token: string) => `daily:v1:token:${token}`;
 const countKey = (date: string) => `daily:v1:day:${date}:count`;
+// The first five to clear the day: place -> { name, seconds }. Only public Reddit names; removed with the player's data.
+const boardKey = (date: string) => `daily:v1:day:${date}:board`;
+export const boardSize = 5;
 const expiresIn = (seconds: number) => new Date(Date.now() + seconds * 1000);
 
 export interface ClearRecord { rank: number; seconds: number; mine: number; theirs: number; attempt: number; date: string }
+export interface BoardEntry { rank: number; name: string; seconds: number }
 export interface TodayState {
   plan: DailyPlan;
   attemptsUsed: number;
@@ -61,7 +65,7 @@ export type FinishResult =
   | { ok: false; reason: 'bad-token' | 'too-fast' | 'bad-result' };
 
 export async function finishAttempt(
-  userId: string, token: string, result: { won: boolean; mine: number; theirs: number }, now = Date.now()
+  userId: string, token: string, result: { won: boolean; mine: number; theirs: number }, now = Date.now(), name = ''
 ): Promise<FinishResult> {
   const text = await redis.get(tokenKey(token));
   if (!text) return { ok: false, reason: 'bad-token' };
@@ -84,6 +88,10 @@ export async function finishAttempt(
   const record: ClearRecord = { rank, seconds, mine: result.mine, theirs: result.theirs, attempt: attempt.attempt, date: plan.date };
   await redis.hSet(key, { [`clear:${plan.date}`]: JSON.stringify(record) });
   await redis.expire(key, retentionSeconds);
+  if (rank <= boardSize && name) {
+    await redis.hSet(boardKey(plan.date), { [String(rank)]: JSON.stringify({ name, seconds }) });
+    await redis.expire(boardKey(plan.date), 3 * 24 * 60 * 60);
+  }
   return { ok: true, cleared: true, record, fresh: true };
 }
 
@@ -97,6 +105,25 @@ export async function getClear(userId: string, date: string): Promise<ClearRecor
   return parseClear((await redis.hGetAll(userKey(userId)))[`clear:${date}`]);
 }
 
+// The first five to clear a day, best place first.
+export async function getBoard(date: string): Promise<BoardEntry[]> {
+  const record = await redis.hGetAll(boardKey(date));
+  const entries: BoardEntry[] = [];
+  for (const [place, text] of Object.entries(record)) {
+    try {
+      const value = JSON.parse(text) as { name: string; seconds: number };
+      if (typeof value.name === 'string') entries.push({ rank: Number(place), name: value.name, seconds: value.seconds });
+    } catch { /* skip a damaged entry */ }
+  }
+  return entries.sort((a, b) => a.rank - b.rank);
+}
+
 export async function deleteDailyProgress(userId: string): Promise<void> {
+  const record = await redis.hGetAll(userKey(userId));
+  for (const [field, text] of Object.entries(record)) {
+    if (!field.startsWith('clear:')) continue;
+    const entry = parseClear(text);
+    if (entry && entry.rank <= boardSize) await redis.hDel(boardKey(field.slice(6)), [String(entry.rank)]);
+  }
   await redis.del(userKey(userId));
 }

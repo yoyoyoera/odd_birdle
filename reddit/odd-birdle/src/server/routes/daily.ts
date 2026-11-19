@@ -1,6 +1,6 @@
-import { context } from '@devvit/web/server';
+import { context, reddit } from '@devvit/web/server';
 import { Hono } from 'hono';
-import { finishAttempt, getCalendar, getToday, startAttempt, deleteDailyProgress } from '../core/daily';
+import { finishAttempt, getBoard, getCalendar, getToday, startAttempt, deleteDailyProgress } from '../core/daily';
 
 export const daily = new Hono();
 
@@ -13,7 +13,8 @@ daily.use('*', async (c, next) => {
 daily.get('/', async (c) => {
   try {
     const userId = context.userId as string;
-    return c.json({ ...(await getToday(userId)), calendar: await getCalendar(userId) });
+    const state = await getToday(userId);
+    return c.json({ ...state, calendar: await getCalendar(userId), board: await getBoard(state.plan.date) });
   } catch {
     return c.json({ error: 'The daily challenge is temporarily unavailable.' }, 503);
   }
@@ -33,9 +34,10 @@ daily.post('/finish', async (c) => {
   try { input = await c.req.json(); } catch { return c.json({ error: 'Invalid result.' }, 400); }
   if (typeof input.token !== 'string' || typeof input.won !== 'boolean') return c.json({ error: 'Invalid result.' }, 400);
   try {
+    const name = (await reddit.getCurrentUsername()) ?? '';
     const result = await finishAttempt(context.userId as string, input.token, {
       won: input.won, mine: Number(input.mine), theirs: Number(input.theirs)
-    });
+    }, Date.now(), name);
     return c.json(result, result.ok ? 200 : 400);
   } catch {
     return c.json({ error: 'The result could not be saved. Try again later.' }, 503);
