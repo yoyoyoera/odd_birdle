@@ -14,10 +14,11 @@ const seeded = initial => {
 // the finger is lifted between strokes. No collision oracle or future-flight solver is used.
 export function makePlayer(random, rules) {
   let sampleAt = 0, decideAt = 0, previous, sight, stroke;
+  const doubles = Boolean(rules.doubles);
   const samples = [];
   return (game, time) => {
     const view = game.view();
-    if (view.phase !== 'live') {
+    if (view.phase !== 'live' || (view.turn && view.turn.left !== 'left')) {
       game.moveRacket('left', null);
       previous = sight = stroke = undefined;
       samples.length = 0;
@@ -54,13 +55,21 @@ export function makePlayer(random, rules) {
     const lead = clamp(time - sight.time + 0.08, 0, 0.28);
     const x = sight.x + sight.vx * lead;
     const y = sight.y + sight.vy * lead + 350 * lead * lead;
-    if (x < 38 || x > center - 24 || y < 205 || y > floor - 30 || sight.vy < -70) return;
+    if (x < 38 || x > center - 24 || y < (doubles ? 155 : 205) || y > floor - 30 || sight.vy < -70) return;
     if (random() < 0.06) { decideAt = time + 0.24; return; }
     // A learned lob, with noisy aim and tempo. Moon mode needs a gentler stroke.
     const gravity = Math.sqrt(rules.gravityScale ?? 1);
     const duration = 0.16 + (random() - 0.5) * 0.025;
-    const dx = clamp((700 - x) / 1.25 / 0.92, 220, 540) * duration * gravity;
-    const dy = -(580 + (random() - 0.5) * 110) * duration * gravity;
+    let dx = clamp((700 - x) / 1.25 / 0.92, 220, 540) * duration * gravity;
+    let dy = -(580 + (random() - 0.5) * 110) * duration * gravity;
+    if (doubles) {
+      // Mix deep clears, short returns and drives when the shuttle is high enough.
+      const shot = random();
+      const target = shot < 0.5 ? 760 : 575;
+      const drives = y < 222 && shot < 0.35;
+      dx = clamp((target - x) / (drives ? 0.69 : 1.23) / 0.92, 160, 860) * duration;
+      if (drives) dy = -85 * duration;
+    }
     const aimX = x + (random() - 0.5) * 16;
     const aimY = y + (random() - 0.5) * 16;
     stroke = { x: aimX - dx / 2, y: aimY - dy / 2, dx, dy, duration, time };
@@ -77,18 +86,23 @@ export function simulateStage(stage, { seed = 20261119, maxSeconds = 600 } = {})
     const game = createGame({ withCpu: true, rules: stage.rules });
     game.restart(0, stage.rules.cpuLevel, stage.rules);
     const play = makePlayer(playerRandom, stage.rules);
+    const turnFaults = { left: 0, leftB: 0, right: 0, rightB: 0 };
+    let points = game.view().score.left + game.view().score.right;
     let time = 0;
     for (; time < maxSeconds; time += step) {
       play(game, time);
       game.simulate(step);
       const frame = game.view();
+      const nextPoints = frame.score.left + frame.score.right;
+      if (nextPoints > points && frame.fault) turnFaults[frame.fault]++;
+      points = nextPoints;
       if (frame.shuttle && !['x', 'y', 'size', 'angle'].every(key => Number.isFinite(frame.shuttle[key]))) {
         throw new Error(`Non-finite shuttle at stage ${stage.id}, seed ${seed}, time ${time}`);
       }
       if (frame.phase === 'finished') break;
     }
     const view = game.view();
-    return { winner: view.winner ?? null, seconds: Number(time.toFixed(2)), score: { ...view.score } };
+    return { winner: view.winner ?? null, seconds: Number(time.toFixed(2)), score: { ...view.score }, turnFaults };
   } finally {
     Math.random = originalRandom;
   }
@@ -110,6 +124,8 @@ export function measureStages({ trials = 24, seed = 20261119, maxSeconds = 600, 
       winRate: Number((100 * wins / trials).toFixed(1)),
       medianSeconds: Number(median(matches.map(match => match.seconds)).toFixed(1)),
       meanSeconds: Number((matches.reduce((total, match) => total + match.seconds, 0) / trials).toFixed(1)),
+      turnFaults: Object.fromEntries(['left', 'leftB', 'right', 'rightB'].map(key =>
+        [key, matches.reduce((total, match) => total + match.turnFaults[key], 0)])),
       timeouts: matches.filter(match => match.winner === null).length,
       playerPoints: matches.reduce((total, match) => total + match.score.left, 0),
       cpuPoints: matches.reduce((total, match) => total + match.score.right - (stage.rules.startScore?.right ?? 0), 0)
@@ -132,5 +148,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     throw new Error('Use --trials 1..1000, numeric --seed, positive --seconds and optional --stages 1,2,...');
   }
   const rows = measureStages({ trials, seed, maxSeconds, ids });
-  console.log(JSON.stringify({ profile: 'delayed-touch-lob-v1', seed, maxSeconds, rows }, null, 2));
+  console.log(JSON.stringify({ profile: 'delayed-touch-v2', seed, maxSeconds, rows }, null, 2));
 }

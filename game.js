@@ -341,6 +341,11 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
   const rackets = {};
   const touching = {};
   let cpu;
+  let doubles;
+  let turn;
+  let lastPlayer;
+  let fault;
+  const bots = {};
   let cpuLevel;
   let cpuEase = 0;
   let server;
@@ -365,7 +370,6 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
   const shuttleChoice = { shape: undefined, size: undefined };
   let effectsOn = true;
   let onlyEffect;
-  let cpuOutFeint;
   let flight = 0;
   let strike;
   let support;
@@ -381,19 +385,27 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
   // True from a bounce off the post or the swollen floor until the next hit: the shuttle is a fresh chance for
   // whoever it comes to, even the side that hit it last (the CPU may then hit it twice in a row).
   let afterBounce = false;
-  let cpuPlan;
-  let cpuPlanWait = 0;
 
   const opponent = (side) => side === 'left' ? 'right' : 'left';
+  const teamOf = key => key === 'leftB' ? 'left' : key === 'rightB' ? 'right' : key;
+  const cpuLevelOr = (level, fallback) => Number.isInteger(level) && level >= 1 && level <= cpuLevels.length ? level : fallback;
+  const otherPlayer = (key, team) => key === team ? team + 'B' : team;
+
+  function resetDoubles() {
+    turn = { left: 'left', right: 'right' };
+    lastPlayer = undefined;
+    bots.leftB = { x: 112, y: 280, level: doubles.partner };
+    bots.right = { x: 660, y: 300, level: doubles.opponents[0] };
+    bots.rightB = { x: 790, y: 280, level: doubles.opponents[1] };
+    for (const key of ['left', 'leftB', 'right', 'rightB']) touching[key] = false;
+  }
 
   function serve() {
     settledSize = undefined;
     shrinkFrom = undefined;
     trampolineHold = undefined;
     afterBounce = false;
-    cpuPlan = undefined;
     cpuFollowUps = 0;
-    cpuOutFeint = undefined;
     flight++;
     pendingLanding = undefined;
     support = undefined;
@@ -413,7 +425,9 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     const size = shuttleSizes[sizeTier];
     shuttle = { x, y: 56, vx: 0, vy: 35, angle: 0, spin: 0.8, size, ...flightProfile(shapes[shape], size, gravityScale()) };
     updateOutline();
-    cpu = withCpu ? { x: 660, y: 300 } : undefined;
+    fault = undefined;
+    cpu = withCpu && !doubles ? { x: 660, y: 300 } : undefined;
+    if (doubles) resetDoubles();
     phase = 'live';
     lastHitter = undefined;
     hitCooldown = 0;
@@ -449,6 +463,13 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     const wantedCpuLevel = rules?.cpuLevel ?? selectedCpuLevel;
     if (withCpu) cpuLevel = Number.isInteger(wantedCpuLevel) && wantedCpuLevel >= 1 && wantedCpuLevel <= 5
       ? wantedCpuLevel : 1 + Math.floor(Math.random() * cpuLevels.length);
+    const config = withCpu && rules?.doubles;
+    const levels = Array.isArray(config?.opponents) ? config.opponents : [config?.opponents, config?.opponents];
+    doubles = config ? {
+      partner: cpuLevelOr(config.partner, cpuLevel),
+      opponents: [cpuLevelOr(levels[0], cpuLevel), cpuLevelOr(levels[1], cpuLevel)]
+    } : undefined;
+    if (doubles) cpuLevel = Math.max(...doubles.opponents);
     rackets.left = rackets.right = undefined;
     server = 'left';
     pops = [];
@@ -463,7 +484,8 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     }
   }
 
-  function finishPoint(side, reason) {
+  function finishPoint(side, reason, faultPlayer) {
+    fault = faultPlayer;
     if (countdown > 0) scheduleEvent();
     settledSize = shuttlePose().size;
     const finishedNetTop = matchNetTop;
@@ -847,7 +869,14 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
       updateOutline();
     }
     shuttle.spin = vx / 92 + 1.4;
-    lastHitter = hitter;
+    lastHitter = teamOf(hitter);
+    if (doubles) {
+      lastPlayer = hitter;
+      turn[lastHitter] = otherPlayer(hitter, lastHitter);
+      touching[hitter] = true;
+      // A returning CPU should plan anew for its next turn.
+      if (bots[hitter]) bots[hitter].plan = bots[hitter].outFeint = undefined;
+    }
     hitCooldown = 0.14;
     flash = 0.22;
     message = 'Rally in progress';
@@ -862,7 +891,7 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
   function playerHit(side, swingX, swingY) {
     if (side === 'left') {
       cpuFollowUps = 0;
-      cpuOutFeint = undefined;
+      if (cpu) cpu.outFeint = undefined;
     }
     const { vx, vy } = swingVelocity(swingX, swingY);
     launch(vx, vy, side);
@@ -887,7 +916,27 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     return outlineContact(from, to, racketRadius, shuttle.x, shuttle.y, outline);
   }
 
+  function wrongPartner(key, from, to) {
+    const team = teamOf(key);
+    if (phase !== 'live' || pendingLanding || trampolineHold || turn[team] === key) return false;
+    if (!onSide(team)) {
+      touching[key] = false;
+      return false;
+    }
+    const overlap = racketContact(to, to);
+    // Judge faults in the same contact window as legal hits. Pointer samples may still
+    // sweep over the shuttle as the swing follows through after the turn has changed.
+    const faulted = hitCooldown <= 0 && !touching[key] && racketContact(from, to);
+    touching[key] = overlap;
+    if (faulted) finishPoint(opponent(team), 'wrong partner', key);
+    return faulted;
+  }
+
   function checkContact(side, from, to, swingX, swingY) {
+    if (doubles && turn[side] !== side) {
+      wrongPartner(side, from, to);
+      return;
+    }
     const onCourt = onSide(side);
     const overlap = onCourt && racketContact(to, to);
     if (phase === 'live' && !trampolineHold && onCourt && hitCooldown <= 0 &&
@@ -967,6 +1016,7 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
   }
 
   function moveRacket(side, input, frame) {
+    if (doubles && side !== 'left') return;
     if (phase !== 'live' && phase !== 'between' && phase !== 'starting') return;
     if (!input) {
       rackets[side] = undefined;
@@ -989,50 +1039,61 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     if (decoys.length) racketPopsDecoys(previous, next);
     if (activeEffect?.id === 'freeze') return;
     Object.assign(next, swingMotion(previous, next));
-    if (next.vy < 0 && !isSwing(next) && supportShuttle(side, previous, next)) return;
+    if (!doubles && next.vy < 0 && !isSwing(next) && supportShuttle(side, previous, next)) return;
     if (withCpu) checkContact(side, previous, next, next.vx, next.vy);
     else onlineContact(side, previous, next, frame);
   }
 
   // canHit is off while the shuttle is frozen: the CPU may walk to it but cannot strike it.
-  function moveCpu(dt, canHit = true) {
-    cpuThaw = Math.max(0, cpuThaw - dt);
-    const tracked = cpuPrediction ?? shuttle;
+  function moveCpu(dt, canHit, key = 'right', bot = cpu, level = cpuLevel) {
+    const team = teamOf(key);
+    // Use the same aiming rules from either end of the court.
+    const reflect = team === 'left';
+    const courtX = x => reflect ? width - x : x;
+    const birdX = courtX(shuttle.x);
+    const incoming = lastHitter === opponent(team);
+    const source = cpuPrediction ?? shuttle;
+    const tracked = reflect ? { ...source, x: courtX(source.x), vx: -source.vx } : source;
     // A rising shuttle can be hit too when something threw it up (the floor, the post) or is holding it up.
     const lifted = afterBounce || ['wind', 'balloon'].includes(activeEffect?.id);
     const defending = tracked.x >= center && (tracked.vy > 0 || lifted);
     // Fly the shuttle forward (with whatever is pushing it) to see where it is really going to come to.
-    cpuPlanWait -= dt;
-    if (!cpuPrediction && shuttle && (lastHitter === 'left' || afterBounce)) {
-      if (!cpuPlan || cpuPlanWait <= 0 || cpuPlan.flight !== flight) {
+    bot.planWait = (bot.planWait ?? 0) - dt;
+    if (!cpuPrediction && shuttle && (incoming || afterBounce || (doubles && lastHitter === team))) {
+      if (!bot.plan || bot.planWait <= 0 || bot.plan.flight !== flight) {
         const flown = flyForward(shuttle);
+        if (reflect) {
+          for (const point of flown.path) point.x = courtX(point.x);
+          if (flown.landing) flown.landing.x = courtX(flown.landing.x);
+        }
         const meets = flown.path.find(point => point.x >= center + racketRadius && point.x <= rightLine && point.vy > 0 && point.y >= 250) ??
           (flown.landing && flown.landing.x >= center && flown.landing.x <= rightLine ? flown.landing : undefined);
-        cpuPlan = { flight, landing: flown.landing, meets };
-        cpuPlanWait = 0.05;
+        bot.plan = { flight, landing: flown.landing, meets };
+        bot.planWait = 0.05;
       }
     } else {
-      cpuPlan = undefined;
+      bot.plan = undefined;
     }
-    const aim = cpuLevel >= 3 && cpuPlan?.meets ? cpuPlan.meets : undefined;
-    const anticipates = cpuLevel === 5 && lastHitter === 'left' && tracked.vy > 0;
+    const aim = level >= 3 && bot.plan?.meets ? bot.plan.meets : undefined;
+    const anticipates = level === 5 && incoming && tracked.vy > 0;
     const lead = anticipates ? clamp((floor - tracked.y) / tracked.vy, 0, 0.14) : 0;
     const projectedX = tracked.x + tracked.vx * flightScale(lead, shuttle.airDrag);
     const preparing = anticipates && tracked.vx > 0 && projectedX >= center;
-    const levelProfile = cpuLevels[cpuLevel - 1];
+    const levelProfile = cpuLevels[level - 1];
     const { outMargin } = levelProfile;
     // Smash Fest: the CPU sets the shuttle up high, waits under it and smashes (stage rule cpuLift = how often it sets up).
     const settingUp = Number.isFinite(rules?.cpuLift);
-    const liftChance = settingUp ? clamp(rules.cpuLift, 0, 1) : levelProfile.liftChance;
+    const liftChance = doubles ? 0 : settingUp ? clamp(rules.cpuLift, 0, 1) : levelProfile.liftChance;
     const doubleLiftChance = settingUp ? 0.25 : levelProfile.doubleLiftChance ?? 0;
     // A stage can make its CPU smash far more than its level would (Smash Fest).
     const spikeChance = Number.isFinite(rules?.cpuSpike) ? clamp(rules.cpuSpike, 0, 1) : levelProfile.spikeChance;
     const speed = levelProfile.speed * (1 - 0.4 * cpuEase);
-    const outChance = levelProfile.outChance === undefined && !cpuEase ? undefined : (levelProfile.outChance ?? 0) + 0.12 * cpuEase;
+    // In doubles the open spaces are near the lines. Even strong CPUs occasionally overhit these returns.
+    const outChance = Math.max(doubles ? 0.065 : 0, (levelProfile.outChance ?? 0) + 0.12 * cpuEase);
     let leavingOut = false;
-    if (outMargin !== undefined && lastHitter === 'left' && cpuPlan?.landing && pushed()) {
-      leavingOut = cpuPlan.landing.x > rightLine + outMargin;
-    } else if (outMargin !== undefined && lastHitter === 'left' && tracked.vx > 0 && tracked.vy > 0) {
+    if (outMargin !== undefined && incoming && bot.plan?.landing && pushed()) {
+      leavingOut = bot.plan.landing.x > rightLine + outMargin;
+    } else if (outMargin !== undefined && incoming && tracked.vx > 0 && tracked.vy > 0) {
       // Even the earliest possible floor contact must land past the line.
       const radius = Math.max(...outlinePoints.map(point => Math.hypot(point.x, point.y)));
       const landingX = tracked.x + tracked.vx * landingScale(tracked.y, tracked.vy, floor - radius);
@@ -1041,74 +1102,111 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     const tracking = defending || preparing || Boolean(aim);
     const chaseX = clamp(aim ? aim.x : defending ? tracked.x : projectedX, center + racketRadius, rightLine - 24);
     const chaseY = clamp((aim ? aim.y : tracked.y) + 24, 205, floor - 14);
-    let targetX = tracking && !leavingOut ? chaseX : 660;
+    const baseX = key === 'rightB' ? 728 : 660;
+    let targetX = tracking && !leavingOut ? chaseX : baseX;
     let targetY = tracking && !leavingOut ? chaseY : 300;
     // After setting the shuttle up, wait for it above the net's height: that is where a smash has to start.
-    if (settingUp && cpuFollowUps > 0 && lastHitter === 'right') {
-      targetX = clamp(shuttle.x, center + 40, rightLine - 40);
+    if (settingUp && cpuFollowUps > 0 && lastHitter === team) {
+      targetX = clamp(birdX, center + 40, rightLine - 40);
       targetY = Math.min(shuttle.y + 20, matchNetTop - 80);
     }
-    if (leavingOut && tracking && !cpuOutFeint) {
+    if (leavingOut && tracking && !bot.outFeint) {
       // Commit to a small first step, then hesitate before backing off.
-      cpuOutFeint = {
-        x: cpu.x + clamp(chaseX - cpu.x, -22, 22),
-        y: cpu.y + clamp(chaseY - cpu.y, -14, 14),
+      bot.outFeint = {
+        x: courtX(bot.x) + clamp(chaseX - courtX(bot.x), -22, 22),
+        y: bot.y + clamp(chaseY - bot.y, -14, 14),
         remaining: 0.12
       };
     }
-    if (cpuOutFeint?.remaining > 0) {
-      cpuOutFeint.remaining = Math.max(0, cpuOutFeint.remaining - dt);
+    if (bot.outFeint?.remaining > 0) {
+      bot.outFeint.remaining = Math.max(0, bot.outFeint.remaining - dt);
       if (leavingOut) {
-        targetX = cpuOutFeint.x;
-        targetY = cpuOutFeint.y;
+        targetX = bot.outFeint.x;
+        targetY = bot.outFeint.y;
       }
     }
     const travel = speed * dt;
-    cpu.x += clamp(targetX - cpu.x, -290 * travel, 290 * travel);
-    cpu.y += clamp(targetY - cpu.y, -340 * travel, 340 * travel);
-    const inReach = defending && tracked.x <= rightLine && shuttle.x <= rightLine;
-    if (canHit && cpuThaw <= 0 && (inReach || leavingOut) && shuttle.x >= center &&
-        (lastHitter !== 'right' || cpuFollowUps > 0 || afterBounce) && hitCooldown <= 0 &&
-        racketContact(cpu, cpu)) {
+    bot.x += clamp(courtX(targetX) - bot.x, -290 * travel, 290 * travel);
+    bot.y += clamp(targetY - bot.y, -340 * travel, 340 * travel);
+    const inReach = defending && tracked.x <= rightLine && birdX <= rightLine;
+    if (canHit && cpuThaw <= 0 && (inReach || leavingOut) && birdX >= center &&
+        (doubles || lastHitter !== team || cpuFollowUps > 0 || afterBounce) && hitCooldown <= 0 &&
+        racketContact(bot, bot)) {
       if (leavingOut) {
         // The CPU tried to leave it, but the racket was still in the way.
         const vy = -485;
-        launch(velocityToLandAt(245, vy), vy, 'right');
+        launch(velocityToLandAt(courtX(245), vy), vy, key);
         return;
       }
       const followUp = cpuFollowUps > 0;
       if (followUp) {
         cpuFollowUps--;
-      } else if (liftChance && lastHitter === 'left' && !cpuPrediction) {
+      } else if (liftChance && incoming && !cpuPrediction) {
         const roll = Math.random();
         if (roll < liftChance) cpuFollowUps = roll < doubleLiftChance ? 2 : 1;
       }
       if (cpuFollowUps > 0) {
         // Keep the setup on our side and chase it for the next real contact.
         const target = clamp(shuttle.x, center + 78, rightLine - 75);
-        launch(clamp((target - shuttle.x) * 2, -130, 130), settingUp ? -560 : -380, 'right');
+        launch(clamp((target - shuttle.x) * 2, -130, 130), settingUp ? -560 : -380, key);
         return;
       }
-      if ((lastHitter === 'left' || followUp) && shuttle.y <= matchNetTop - 65 &&
+      if ((incoming || followUp) && shuttle.y <= matchNetTop - 65 &&
           Math.random() < (followUp ? Math.max(0.75, spikeChance) : spikeChance)) {
         const target = 205 + Math.random() * 120;
         const vy = 110;
-        const vx = velocityToLandAt(target, vy);
+        const vx = velocityToLandAt(courtX(target), vy);
         // Budget for the rotating outline until it has fully cleared the net.
         const radius = Math.max(...outlinePoints.map(point => Math.hypot(point.x, point.y)));
-        const netFraction = (shuttle.x - center + radius + 2) / (shuttle.x - target);
+        const netFraction = (birdX - center + radius + 2) / (birdX - target);
         const clearanceY = shuttle.y + (floor - shuttle.y) * netFraction + radius;
         if (clearanceY < matchNetTop && Math.abs(vx) <= 1050) {
-          launch(vx, vy, 'right');
+          launch(vx, vy, key);
           return;
         }
       }
       const vy = -485 - Math.random() * 45;
       const target = outChance && Math.random() < outChance
         ? leftLine - 16 - Math.random() * 20
-        : 160 + Math.random() * 165;
-      const shot = returnShot(target, vy);
-      launch(shot.vx, shot.vy, 'right');
+        : doubles ? 100 + Math.random() * 285 : 160 + Math.random() * 165;
+      const shot = returnShot(courtX(target), vy);
+      launch(shot.vx, shot.vy, key);
+    }
+  }
+
+  // Off-turn bots retreat into a free lane rather than chasing the same shot.
+  function moveWaitingBot(key, bot, dt, canHit) {
+    const team = teamOf(key);
+    const teammate = team === 'left' ? rackets.left : bots[otherPlayer(key, team)];
+    const lanes = team === 'left' ? [82, 368] : [532, 818];
+    const home = teammate && teammate.x < (team === 'left' ? center / 2 : center * 1.5) ? lanes[1] : lanes[0];
+    const target = { x: home, y: 285 };
+    const before = { x: bot.x, y: bot.y };
+    const safeDistance = racketRadius + shuttlePose().size * 1.4 + 46;
+    const near = Math.hypot(shuttle.x - bot.x, shuttle.y - bot.y) < safeDistance;
+    if (near) {
+      target.x = clamp(bot.x + (bot.x < shuttle.x ? -110 : 110),
+        team === 'left' ? racketRadius : center + racketRadius, team === 'left' ? center - racketRadius : width - racketRadius);
+      target.y = clamp(bot.y + (bot.y < shuttle.y ? -100 : 100), racketRadius, floor - racketRadius);
+    }
+    const speed = near ? 850 : 420;
+    bot.x += clamp(target.x - bot.x, -speed * dt, speed * dt);
+    bot.y += clamp(target.y - bot.y, -speed * dt, speed * dt);
+    if (canHit) wrongPartner(key, before, bot);
+  }
+
+  function moveCpus(dt, canHit = true) {
+    cpuThaw = Math.max(0, cpuThaw - dt);
+    if (!doubles) {
+      moveCpu(dt, canHit);
+      if (canHit && decoys.length && cpu) racketPopsDecoys(cpu, cpu);
+      return;
+    }
+    for (const [key, bot] of Object.entries(bots)) {
+      if (phase !== 'live' || pendingLanding) break;
+      if (turn[teamOf(key)] === key) moveCpu(dt, canHit, key, bot, bot.level);
+      else moveWaitingBot(key, bot, dt, canHit);
+      if (decoys.length) racketPopsDecoys(bot, bot);
     }
   }
 
@@ -1256,12 +1354,12 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
         strike = undefined;
       }
       updateOutline();
-      if (withCpu) moveCpu(dt, false);
+      if (withCpu) moveCpus(dt, false);
       return;
     }
     if (activeEffect?.id === 'freeze') {
       // Only the shuttle is frozen: players keep moving, but nothing can be hit until it thaws.
-      if (withCpu) moveCpu(dt, false);
+      if (withCpu) moveCpus(dt, false);
       return;
     }
     advanceShuttle(dt);
@@ -1283,8 +1381,7 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
         const motion = contactMotion(racket, racket.time + racket.age * 1000);
         checkContact(side, racket, racket, motion.vx, motion.vy);
       }
-      moveCpu(dt);
-      if (decoys.length && cpu) racketPopsDecoys(cpu, cpu);
+      if (phase === 'live' || !doubles) moveCpus(dt);
     }
   }
 
@@ -1316,7 +1413,13 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
         ? { swell: trampolineSwell(), press: press ? { x: press.x, age: press.age } : undefined } : undefined,
       shuttle: visible ? { ...shuttlePose(), flight, baseSize: shuttle.size, canHit: hitCooldown <= 0 && !pendingLanding && !frozen } : undefined,
       left: position(rackets.left),
-      right: position(cpu ?? rackets.right)
+      right: position(doubles ? bots.right : cpu ?? rackets.right),
+      ...(doubles ? {
+        leftB: position(bots.leftB), rightB: position(bots.rightB),
+        turn: turn && { ...turn }, lastPlayer, fault, doubles: {
+          partner: doubles.partner, opponents: [...doubles.opponents]
+        }
+      } : {})
     };
   }
 

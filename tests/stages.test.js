@@ -18,7 +18,7 @@ test('all20stages are available; bonus21 requires every normal stage', () => {
   assert.deepEqual(validClears([3, 3, '1', 0, 22, 1, null]), [1, 3]);
 });
 
-test('stage variants preserve prescribed handicaps and truthful doubles fallbacks', () => {
+test('stage variants preserve prescribed handicaps and doubles and their singles fallbacks', () => {
   const stage = id => stages.find(entry => entry.id === id);
   assert.deepEqual(stage(12).rules.startScore, { left: 0, right: 4 });
   assert.equal(stage(12).rules.points, 5);
@@ -39,7 +39,9 @@ test('stage variants preserve prescribed handicaps and truthful doubles fallback
   assert.equal(stage(20).rules.effectRate, 1.5);
   for (const id of [8, 13, 18, 21]) {
     assert.equal(stage(id).mode, 'doubles');
-    assert.match(stage(id).description, /singles/i);
+    assert.deepEqual(stage(id).rules.doubles, stage(id).doubles);
+    assert.equal(stage(id).fallbackRules.doubles, undefined);
+    assert.equal(stage(id).fallbackRules.points, stage(id).rules.points);
   }
   for (const challenge of stages) {
     assert.ok(challenge.rules.points >= 1 && challenge.rules.cpuLevel >= 1 && challenge.rules.cpuLevel <= 5);
