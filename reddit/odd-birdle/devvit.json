@@ -34,7 +34,11 @@
   "permissions": {
     "reddit": {
       "enable": true,
-      "asUser": ["SUBMIT_POST", "SUBMIT_COMMENT", "SUBSCRIBE_TO_SUBREDDIT"]
+      "asUser": [
+        "SUBMIT_POST",
+        "SUBMIT_COMMENT",
+        "SUBSCRIBE_TO_SUBREDDIT"
+      ]
     }
   },
   "triggers": {
@@ -42,6 +46,9 @@
   },
   "scripts": {
     "dev": "vite build --watch",
-    "build": "vite build"
+    "build": "vite build && node ../../scripts/finish-reddit.mjs"
+  },
+  "dev": {
+    "subreddit": "odd_birdle_dev"
   }
 }
