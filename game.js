@@ -327,6 +327,7 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
   const touching = {};
   let cpu;
   let cpuLevel;
+  let cpuEase = 0;
   let server;
   let lastHitter;
   let phase = 'ready';
@@ -425,6 +426,8 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     matchNetTop = Math.round(floor - (floor - netTop) * scale);
     baseNetTop = matchNetTop;
     netStart.y = matchNetTop;
+    // A stage can make its CPU clumsier than its level (0 = as the level, 1 = much easier): slower, less sure where the shuttle is.
+    cpuEase = Number.isFinite(rules?.cpuEase) ? clamp(rules.cpuEase, 0, 1) : 0;
     const wantedCpuLevel = rules?.cpuLevel ?? selectedCpuLevel;
     if (withCpu) cpuLevel = Number.isInteger(wantedCpuLevel) && wantedCpuLevel >= 1 && wantedCpuLevel <= 5
       ? wantedCpuLevel : 1 + Math.floor(Math.random() * cpuLevels.length);
@@ -534,7 +537,7 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
         break;
       case 'invisible':
         // The CPU keeps what it last saw and guesses the height from there, a little off.
-        cpuSightBias = (Math.random() * 2 - 1) * cpuSightError(cpuLevel ?? 3);
+        cpuSightBias = (Math.random() * 2 - 1) * cpuSightError(cpuLevel ?? 3) * (1 + 1.5 * cpuEase);
         cpuPrediction = { x: shuttle.x, y: shuttle.y + cpuSightBias, vx: shuttle.vx, vy: shuttle.vy };
         reveal = 0;
         flash = 0;
@@ -987,7 +990,10 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     const lead = anticipates ? clamp((floor - tracked.y) / tracked.vy, 0, 0.14) : 0;
     const projectedX = tracked.x + tracked.vx * flightScale(lead, shuttle.airDrag);
     const preparing = anticipates && tracked.vx > 0 && projectedX >= center;
-    const { speed, spikeChance, outChance, outMargin, liftChance, doubleLiftChance = 0 } = cpuLevels[cpuLevel - 1];
+    const levelProfile = cpuLevels[cpuLevel - 1];
+    const { spikeChance, outMargin, liftChance, doubleLiftChance = 0 } = levelProfile;
+    const speed = levelProfile.speed * (1 - 0.4 * cpuEase);
+    const outChance = levelProfile.outChance === undefined && !cpuEase ? undefined : (levelProfile.outChance ?? 0) + 0.12 * cpuEase;
     let leavingOut = false;
     if (outMargin !== undefined && lastHitter === 'left' && cpuPlan?.landing && pushed()) {
       leavingOut = cpuPlan.landing.x > rightLine + outMargin;

@@ -56,6 +56,8 @@ const eventBanner = document.querySelector('#event-banner');
 const gameControl = document.querySelector('#game-control');
 const resultActions = document.querySelector('#result-actions');
 const playAgainButton = document.querySelector('#play-again');
+const playAgainLabel = playAgainButton.querySelector('.label');
+const nextStageButton = document.querySelector('#next-stage');
 const toMenuButton = document.querySelector('#to-menu');
 const cardButton = document.querySelector('#card-button');
 const cardLabel = document.querySelector('#card-label');
@@ -421,9 +423,16 @@ function updateHud(view) {
   resultStagesButton.hidden = portal !== 'reddit' || !finished;
   resultActions.hidden = !finished;
   playAgainButton.hidden = mode === 'online' && rematchReady;
-  setText(playAgainButton, mode === 'online' ? 'REMATCH' : 'PLAY AGAIN');
-  const cardVisible = canPostCard && mode === 'solo' && finished && !!view.winner;
-  if (cardButton.hidden === cardVisible) { cardButton.hidden = !cardVisible; if (cardVisible) { cardButton.disabled = false; cardLabel.textContent = 'POST CARD'; } }
+  setText(playAgainLabel, mode === 'online' ? 'REMATCH' : 'PLAY AGAIN');
+  const againName = mode === 'online' ? 'Rematch' : 'Play again';
+  playAgainButton.setAttribute('aria-label', againName);
+  playAgainButton.title = againName;
+  // After winning a stage, a button goes straight to the next one that is open.
+  const following = portal === 'reddit' && mode === 'solo' && finished && selectedStage && view.winner === 'left' ? nextStageAfter(selectedStage) : undefined;
+  nextStageButton.hidden = !following;
+  // A card is for random matches, and for beating a boss; every ordinary stage would only flood the comments.
+  const cardVisible = canPostCard && mode === 'solo' && finished && !!view.winner && (!selectedStage || cardStageIds.has(selectedStage.id));
+  if (cardButton.hidden === cardVisible) { cardButton.hidden = !cardVisible; if (cardVisible) setCardState('ready'); }
 }
 
 // Counts each match that reaches its final point once.
@@ -1077,13 +1086,23 @@ cpuLevelButton.addEventListener('click', () => {
   }
   showCpuLevel();
 });
+const cardStageIds = new Set([10, 16, 20, 21]);
+const cardNames = { ready: 'Post card', posting: 'Posting…', posted: 'Posted', failed: 'Could not post, try again' };
+function setCardState(state) {
+  cardButton.dataset.state = state;
+  cardButton.disabled = state === 'posting' || state === 'posted';
+  cardButton.setAttribute('aria-label', cardNames[state]);
+  cardButton.title = cardNames[state];
+  cardLabel.textContent = state === 'ready' ? 'POST CARD' : cardNames[state].toUpperCase();
+}
+
 // Posts the full-time card as a comment from inside Reddit (the app's own server does the posting, as the player).
 cardButton.addEventListener('click', async () => {
   const view = currentView();
   if (!view?.winner || cardButton.disabled) return;
   const cardStage = selectedStage;
   cardButton.disabled = true;
-  cardLabel.textContent = 'POSTING…';
+  setCardState('posting');
   try {
     const summary = matchStats.summary(view);
     const seed = Math.floor(Date.now() / 1000);
@@ -1099,10 +1118,10 @@ cardButton.addEventListener('click', async () => {
       body: JSON.stringify({ image: canvas.toDataURL('image/jpeg', 0.9), text })
     });
     const result = await response.json();
-    cardLabel.textContent = result.ok ? 'POSTED ✓' : 'TRY AGAIN';
+    setCardState(result.ok ? 'posted' : 'failed');
     cardButton.disabled = !!result.ok;
   } catch {
-    cardLabel.textContent = 'TRY AGAIN';
+    setCardState('failed');
     cardButton.disabled = false;
   }
 });
@@ -1171,6 +1190,15 @@ function renderStages(cleared, online) {
   stageList.scrollTop = scroll;
   if (focused) stageList.querySelector(`[data-stage-id="${focused}"]`)?.focus({ preventScroll: true });
 }
+// The stage that follows `challenge` among those the player can see (the hidden one appears once every other is cleared).
+function nextStageAfter(challenge) {
+  return visibleStages(stageProgress?.cleared ?? []).find(candidate => candidate.id > challenge.id);
+}
+nextStageButton.addEventListener('click', () => {
+  const following = selectedStage && nextStageAfter(selectedStage);
+  if (!following) return;
+  afterMatchBreak(() => { selectedStage = following; startCpu(); });
+});
 function showStageIntro() {
   soundCues.reset();
   stageIntroRemaining = 1.8;
