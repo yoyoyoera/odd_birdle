@@ -1,15 +1,218 @@
 <!doctype html>
-<html lang="en" class="h-full">
-  <head>
-    <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
-    <title>devvit</title>
-  </head>
-  <body class="h-full">
-    <div id="root" class="h-full"></div>
-    <script type="module" src="game.tsx"></script>
-  </body>
+<html lang="en" data-portal="reddit">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>ODD BIRDLE</title>
+  <meta name="description" content="Badminton, but the bird is odd. A random 2D badminton game — play a friend or the CPU in your browser.">
+  <meta name="theme-color" content="#2b2722">
+  <style>
+    @font-face { font-family: 'Space Grotesk'; font-style: normal; font-weight: 650; font-display: swap;
+      src: url(fonts/space-grotesk-650-latin.woff2) format('woff2');
+      unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+    :root { --page: #182223; --court: #e8ebd6; --ink: #274d3b;
+      --page-hover: #293737; --court-hover: #d7dec6; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; min-height: 100svh; display: grid; place-items: center;
+      background: var(--page); font: 16px "Space Grotesk", system-ui, sans-serif;
+      -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+    input { -webkit-user-select: text; user-select: text; }
+    /* No links out of the game on CrazyGames. */
+    [data-portal="crazygames"] #studio-links a { display: none; }
+    main { width: min(940px, 100% - 32px); padding-block: 24px; }
+    h1 { position: absolute; top: 17%; left: 50%; transform: translate(-50%, -50%);
+      margin: 0; color: var(--ink); text-align: center; white-space: nowrap; pointer-events: none;
+      font-size: clamp(2rem, 8vw, 5rem); font-weight: 650; line-height: 1; letter-spacing: -.04em; }
+    #stage { position: relative; }
+    #pause-overlay { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center;
+      padding: 16px; background: var(--court); background: color-mix(in srgb, var(--court) 96%, transparent);
+      color: var(--ink); text-align: center; cursor: default; }
+    #pause-overlay[hidden] { display: none; }
+    #pause-overlay > div { width: min(100%, 600px); }
+    #pause-title { margin: 0; font-size: clamp(1rem, 3.8vw, 2rem); line-height: 1.15; font-weight: 650; }
+    #pause-detail { margin: 12px 0 0; font-size: clamp(.75rem, 1.9vw, 1rem); line-height: 1.4; }
+    #stage:not([data-phase="ready"]) h1 { display: none; }
+    #studio-links { display: flex; justify-content: center; margin-top: 8px; }
+    #studio-links a, #sound-toggle { display: grid; place-items: center; width: 44px; height: 44px; color: var(--court); }
+    #sound-toggle { border: 0; padding: 0; background: transparent; cursor: pointer; }
+    #studio-links a:hover, #sound-toggle:hover { background: var(--page-hover); }
+    #sound-toggle:focus-visible { outline: 2px solid currentColor; outline-offset: -3px; }
+    #sound-toggle .muted, #sound-toggle[aria-pressed="true"] .on { display: none; }
+    #sound-toggle[aria-pressed="true"] .muted { display: inline; }
+    #studio-links a:focus-visible { outline: 2px solid currentColor; outline-offset: -3px; }
+    /* Phones on their side, and any wide window too short for the court plus a row below it (a portal's embed
+       frame is often about 740x390): the buttons move to a column beside the court, so nothing is cut off. */
+    @media (orientation: landscape) and ((pointer: coarse) or (max-height: 620px)) {
+      main { display: grid; grid-template-columns: minmax(0, 1fr) 44px; align-items: center;
+        column-gap: 8px; width: min(992px, 100% - 24px, calc((100svh - 12px) * 1.8 + 52px));
+        padding-block: 6px; }
+      #studio-links { flex-direction: column; margin-top: 0; }
+      /* More specific than the plain .link rules below, which come later. The words sit under the bars in two short
+         lines (the column is only 44px wide) instead of floating out of the frame. */
+      #studio-links .link { flex-direction: column; height: auto; min-height: 44px; gap: 2px; padding: 6px 0; }
+      #studio-links .link b { position: static; transform: none; width: 44px; white-space: normal; text-align: center;
+        font-size: .6rem; line-height: 1.15; letter-spacing: 0; }
+    }
+    /* The Reddit app plays against the computer only: no rooms, no online play, so no connection bars either. */
+    [data-portal="reddit"] #quick, [data-portal="reddit"] #create, [data-portal="reddit"] #join,
+    [data-portal="reddit"] #join-form, [data-portal="reddit"] .link { display: none !important; }
+    /* Reddit's expanded post is a small, nearly square frame: the court takes the full width and the buttons sit
+       in a row under it, unless the frame is really wide and short (a phone on its side). */
+    /* The only button left, sound, sits on the court's floor corner, so the page is just the court, centred. */
+    [data-portal="reddit"] main { display: grid; grid-template-columns: minmax(0, 1fr); column-gap: 0; padding-block: 0; width: min(940px, 100% - 8px, (100svh - 4px) * 1.8); }
+    [data-portal="reddit"] #stage, [data-portal="reddit"] #studio-links { grid-area: 1 / 1; }
+    [data-portal="reddit"] #studio-links { align-self: end; justify-self: end; margin: 0 4px 4px 0; z-index: 2; }
+    [data-portal="reddit"] #sound-toggle { color: var(--ink); opacity: .55; }
+    [data-portal="reddit"] #sound-toggle:hover { opacity: 1; background: transparent; }
+    @media (max-aspect-ratio: 8 / 5) {
+      [data-portal="reddit"] main { display: grid; width: calc(100% - 8px); padding-block: 4px; }
+      [data-portal="reddit"] #studio-links { flex-direction: row; margin-top: 0; }
+      [data-portal="reddit"] #studio-links .link { flex-direction: row; height: 44px; min-height: 0; gap: 6px; padding: 0 4px; }
+      [data-portal="reddit"] #studio-links .link b { position: absolute; transform: translateX(-50%); width: auto;
+        white-space: nowrap; font-size: .75rem; line-height: normal; letter-spacing: 0; }
+    }
+    canvas { display: block; width: 100%; aspect-ratio: 9 / 5; background: var(--court);
+      touch-action: none; cursor: none; }
+    #stage[data-phase="ready"] canvas, #stage[data-phase="finished"] canvas { cursor: default; }
+    #score { position: absolute; inset: 50% auto auto 50%; transform: translate(-50%, -50%);
+      color: var(--ink); opacity: .45; font-size: clamp(1.5rem, 6vw, 3.5rem); font-weight: 650; line-height: 1;
+      font-variant-numeric: tabular-nums; pointer-events: none; }
+    #stage[data-phase="ready"] #score, #stage[data-phase="finished"] #score { opacity: 1; }
+    #side-label, #cpu-label { position: absolute; top: 5%; left: 25%; transform: translateX(-50%);
+      color: var(--ink); font-size: clamp(.65rem, 1.7vw, .875rem); font-weight: 650;
+      letter-spacing: .08em; pointer-events: none; }
+    #side-label[data-side="right"], #cpu-label { left: 75%; }
+    /* Connection bars (online only), beside the sound button under the court: out of the way of play. */
+    .link { display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 44px; height: 44px;
+      padding: 0 4px; color: var(--court); font-size: .8rem; font-weight: 650; letter-spacing: .06em; cursor: default; }
+    .link .bars { display: flex; align-items: flex-end; gap: 2px; height: 14px; }
+    .link i { width: 3px; background: currentColor; opacity: .2; }
+    .link i:nth-child(1) { height: 6px; } .link i:nth-child(2) { height: 10px; } .link i:nth-child(3) { height: 14px; }
+    .link[data-level="1"] i:nth-child(1), .link[data-level="2"] i:nth-child(-n+2), .link[data-level="3"] i { opacity: .85; }
+    .link { position: relative; }
+    .link:hover { background: var(--page-hover); }
+    /* The details float under the bars, so showing them never moves the buttons around the bars. */
+    .link b { position: absolute; top: calc(100% + 2px); left: 50%; transform: translateX(-50%); font-size: .75rem;
+      font-weight: 650; opacity: .85; white-space: nowrap; pointer-events: none; }
+    #winner { position: absolute; bottom: calc(50% + clamp(1rem, 5vw, 2.25rem)); left: 50%;
+      transform: translateX(-50%); margin: 0; color: var(--ink);
+      font-size: clamp(1rem, 3.8vw, 1.75rem); font-weight: 650; white-space: nowrap; pointer-events: none; }
+    #record { position: absolute; bottom: calc(50% + clamp(2.6rem, 10.5vw, 5rem)); left: 50%;
+      transform: translateX(-50%); margin: 0; color: var(--ink); opacity: .6; font-size: clamp(.65rem, 1.7vw, .875rem);
+      font-weight: 650; letter-spacing: .08em; white-space: nowrap; pointer-events: none; }
+    #rematch-status { position: absolute; top: calc(50% + clamp(1rem, 4vw, 2rem) + 48px); left: 50%;
+      transform: translateX(-50%); margin: 0; width: max-content; max-width: 95%; padding: .15rem .5rem;
+      text-align: center; color: var(--ink); background: var(--court);
+      font-size: clamp(.65rem, 1.8vw, .9rem); line-height: 1.3; font-weight: 650; pointer-events: none; }
+    #event-banner { position: absolute; top: 7%; left: 50%; transform: translateX(-50%);
+      color: var(--ink);
+      font-size: clamp(1.25rem, 5.5vw, 3.25rem); line-height: 1.05;
+      font-weight: 650; white-space: nowrap; pointer-events: none; }
+    #event-banner[data-wind] { font-size: clamp(1.4rem, 6vw, 3.6rem); }
+    #stage[data-phase="ready"] #event-banner { top: 33.5%; transform: translate(-50%, -50%); opacity: .75;
+      font-size: clamp(.75rem, 3.2vw, 1.9rem); }
+    #game-control { position: absolute; top: 8px; right: 8px; display: grid; place-items: center;
+      width: 44px; height: 44px; border: 0; background: transparent; color: var(--ink); cursor: pointer; }
+    #game-control:hover { background: var(--court-hover); }
+    #game-control:focus-visible { outline: 2px solid currentColor; outline-offset: -3px; }
+    #stage[data-phase="ready"] #game-control, #stage[data-phase="finished"] #game-control {
+      top: calc(50% + clamp(1rem, 4vw, 2rem)); right: auto; left: 50%; transform: translateX(-50%); }
+    #menu, #join-form, #room-display { position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%); white-space: nowrap; }
+    #menu, #join-form { display: flex; align-items: center; gap: clamp(4px, 2vw, 16px); }
+    /* The level option hangs under CPU without moving the menu row. */
+    #cpu-group { position: relative; }
+    #menu #cpu-level { position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+      min-height: 32px; font-size: .75rem; letter-spacing: .04em; opacity: .7; white-space: nowrap; }
+    #menu #cpu-level:hover, #menu #cpu-level:focus-visible { opacity: 1; }
+    #join-form { flex-wrap: wrap; justify-content: center; width: min(96%, 420px); }
+    #room-display { text-align: center; color: var(--ink); }
+    #room-display > span { display: block; font-size: clamp(.75rem, 2vw, 1rem); }
+    #room-code { display: block; font-size: clamp(1.6rem, 8vw, 4rem); font-weight: 650; letter-spacing: .12em; color: var(--ink); }
+    #copy-link { display: block; margin: 4px auto 0; min-width: 9em; }
+    #menu button, #join-form button, #back, #copy-link { border: 0; background: transparent;
+      color: var(--ink); min-height: 44px; padding: 0 8px; font: inherit; font-weight: 650; cursor: pointer; }
+    #menu button:hover, #join-form button:hover, #back:hover, #copy-link:hover { background: var(--court-hover); }
+    #join-form label { color: var(--ink); }
+    #code-input { min-width: 0; width: 7.5em; background: transparent; border: 0; border-bottom: 1px solid var(--ink);
+      color: var(--ink); text-transform: uppercase; font: inherit; }
+    #back { position: absolute; top: 8px; left: 8px; min-width: 44px; }
+    /* One fixed spot above the score, clear of the countdown banner and the You Win / restart
+       buttons, so it never moves between the rally and the results screen. No backing box:
+       a shuttle flying behind it must stay visible. */
+    #queue-status { position: absolute; top: 24%; left: 50%; transform: translateX(-50%); margin: 0;
+      color: var(--ink); font-size: clamp(.8rem, 2.2vw, 1.15rem); font-weight: 650; letter-spacing: .06em;
+      text-shadow: 0 0 3px var(--court), 0 0 3px var(--court), 0 0 6px var(--court);
+      white-space: nowrap; pointer-events: none; animation: searching 1.6s ease-in-out infinite; }
+    @keyframes searching { 50% { opacity: .5; } }
+    @media (prefers-reduced-motion: reduce) { #queue-status { animation: none; } }
+    #queue-status[data-found] { animation: none; font-size: clamp(1rem, 3.6vw, 1.75rem); }
+    #lobby-message { position: absolute; top: 32%; width: 100%; margin: 0; text-align: center;
+      color: var(--ink); font-size: .875rem; pointer-events: none; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden;
+      clip-path: inset(50%); white-space: nowrap; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+<main>
+  <section id="stage" data-phase="ready" aria-label="Game">
+    <h1>ODD BIRDLE</h1>
+    <canvas id="court" aria-label="Badminton court. Use your pointer to hit the shuttle."></canvas>
+    <output id="score" aria-label="Left and right scores" hidden>0:0</output>
+    <span id="side-label" hidden>YOU</span>
+    <span id="cpu-label" hidden></span>
+    <p id="winner" role="status" hidden></p>
+    <p id="record" hidden></p>
+    <p id="rematch-status" role="status" hidden></p>
+    <span id="status" class="sr-only" role="status"></span>
+    <div id="event-banner" role="status" hidden></div>
+    <p id="queue-status" role="status" hidden></p>
+    <nav id="menu" aria-label="Game mode">
+      <button id="quick" type="button">QUICK MATCH</button>
+      <button id="create" type="button">CREATE</button>
+      <button id="join" type="button">JOIN</button>
+      <span id="cpu-group">
+        <button id="cpu" type="button">CPU</button>
+        <button id="cpu-level" type="button">LV RANDOM</button>
+      </span>
+    </nav>
+    <div id="room-display" hidden>
+      <span>Room code:</span>
+      <output id="room-code" aria-label="Room code" aria-live="polite"></output>
+      <button id="copy-link" type="button">COPY CODE</button>
+    </div>
+    <form id="join-form" novalidate hidden>
+      <label for="code-input">Room code</label>
+      <input id="code-input" maxlength="6" aria-describedby="lobby-message"
+        autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Enter code">
+      <button type="submit" aria-label="JOIN">→</button>
+    </form>
+    <p id="lobby-message" role="status" hidden></p>
+    <button id="back" type="button" aria-label="Main menu" title="Main menu" hidden>←</button>
+    <button id="game-control" type="button" aria-label="Restart" title="Restart" hidden>
+      <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 5v5h5M4.7 10a7.5 7.5 0 1 1 .7 7" fill="none" stroke="currentColor"
+          stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+    <div id="pause-overlay" role="status" aria-live="polite" hidden>
+      <div><h2 id="pause-title">PAUSED</h2><p id="pause-detail">Resume to continue.</p></div>
+    </div>
+  </section>
+  <!-- The overlay has no online pause/resume controls; the portal owns its pause signal. -->
+  <nav id="studio-links" aria-label="studiyo links and sound">
+    <div id="link-own" class="link"><span class="bars"><i></i><i></i><i></i></span><b></b></div>
+    <button id="sound-toggle" type="button" aria-pressed="false" aria-label="Mute sound" title="Mute sound">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        stroke-width="1.6" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/>
+        <path class="on" d="M15.5 9a4.5 4.5 0 0 1 0 6M18 6.5a8 8 0 0 1 0 11" stroke-linecap="round"/>
+        <path class="muted" d="M16 9.5l5 5M21 9.5l-5 5" stroke-linecap="round"/>
+      </svg>
+    </button>
+  </nav>
+</main>
+<script type="module" src="./client.js"></script>
+</body>
 </html>
