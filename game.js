@@ -924,7 +924,9 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
       return false;
     }
     const overlap = racketContact(to, to);
-    const faulted = !touching[key] && racketContact(from, to);
+    // Judge faults in the same contact window as legal hits. Pointer samples may still
+    // sweep over the shuttle as the swing follows through after the turn has changed.
+    const faulted = hitCooldown <= 0 && !touching[key] && racketContact(from, to);
     touching[key] = overlap;
     if (faulted) finishPoint(opponent(team), 'wrong partner', key);
     return faulted;

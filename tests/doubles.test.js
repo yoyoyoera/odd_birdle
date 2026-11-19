@@ -31,6 +31,7 @@ test('doubles starts with three CPU rackets, A serves, and a second A contact gi
   tapShuttle(game);
   assert.equal(game.view().lastPlayer, 'left');
   assert.deepEqual(game.view().turn, { left: 'leftB', right: 'right' });
+  for (let i = 0; i < 18; i++) game.simulate(step);
   tapShuttle(game);
   assert.equal(game.view().message, 'wrong partner');
   assert.deepEqual(game.view().score, { left: 0, right: 1 });
@@ -42,6 +43,38 @@ test('doubles starts with three CPU rackets, A serves, and a second A contact gi
   game.restart(0, 2, null);
   assert.equal(game.view().rightB, undefined);
   assert.equal(game.view().turn, undefined);
+});
+
+test('one sweep and its immediate follow-through do not become a wrong-partner fault', () => {
+  const game = createGame({ withCpu: true, rules: { ...rules, effects: 'none' } });
+  game.restart();
+  const { x, y } = game.contactFrame();
+  // A swept strike can touch even when neither pointer sample overlaps the shuttle.
+  game.moveRacket('left', { x: x - 55, y, time: 0 });
+  game.moveRacket('left', { x: x + 55, y, time: 100 });
+  assert.equal(game.view().lastPlayer, 'left');
+  assert.equal(game.view().turn.left, 'leftB');
+  game.moveRacket('left', { x: x + 28, y, time: 108 });
+  assert.deepEqual(game.view().score, { left: 0, right: 0 });
+
+  // Touch capture may release the racket and send another sample within the same hit window.
+  game.moveRacket('left', null);
+  game.moveRacket('left', { x, y, time: 115 });
+  assert.deepEqual(game.view().score, { left: 0, right: 0 });
+  assert.equal(game.view().phase, 'live');
+});
+
+test('overlap acquired during the hit window stays a single contact after the window closes', () => {
+  const game = createGame({ withCpu: true, rules: { ...rules, effects: 'none' } });
+  game.restart();
+  tapShuttle(game);
+  const { x, y } = game.contactFrame();
+  game.moveRacket('left', { x, y, time: 10 });
+  for (let i = 0; i < 18; i++) game.simulate(step);
+  assert.deepEqual(game.view().score, { left: 0, right: 0 });
+  game.moveRacket('left', null);
+  tapShuttle(game);
+  assert.equal(game.view().fault, 'left');
 });
 
 test('SHOCK does not change the last player or either turn', () => {
