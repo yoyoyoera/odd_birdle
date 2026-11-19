@@ -29,7 +29,9 @@ test('stage variants preserve prescribed handicaps and truthful doubles fallback
   assert.equal(stage(19).rules.noCountdown, true);
   assert.equal(stage(9).rules.shuttleShape, shapeCount - 1);
   assert.equal(stage(7).rules.shuttleSize, 0);
-  assert.equal(stage(15).rules.gravityScale, 1.5);
+  assert.equal(stage(15).rules.netSway, true);
+  assert.equal(stage(11).rules.cpuSpike, 0.9);
+  assert.equal(stage(17).rules.shrink, 0.94);
   assert.equal(stage(20).rules.permanent, 'bumper');
   assert.equal(stage(20).rules.effectRate, 1.5);
   for (const id of [8, 13, 18, 21]) {

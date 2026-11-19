@@ -300,6 +300,8 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
   // Rules belong to a match; test-page overrides and ordinary random matches keep their old defaults.
   let rules = initialRules ? { ...initialRules } : undefined;
   let permanentAge = 0;
+  let swayAge = 0;
+  let shrinkFrom;
   const hasPermanentBumper = () => rules?.permanent === 'bumper';
   const hasBumper = () => hasPermanentBumper() || activeEffect?.id === 'bumper';
   // A wind or a balloon that never lets up: it is an effect that does not run out and is put back after every point.
@@ -386,6 +388,7 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
 
   function serve() {
     settledSize = undefined;
+    shrinkFrom = undefined;
     trampolineHold = undefined;
     afterBounce = false;
     cpuPlan = undefined;
@@ -423,6 +426,7 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     // Passing a third argument (including undefined/null) explicitly returns practice to its defaults.
     if (arguments.length >= 3) rules = nextRules ? { ...nextRules } : undefined;
     permanentAge = 0;
+    swayAge = 0;
     if (rules?.permanent === 'wind') permanentWindX = Math.random() < 0.5 ? -1 : 1;
     bumperCooldown = 0;
     bumperFlash = 0;
@@ -834,6 +838,13 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     pendingLanding = undefined;
     shuttle.vx = vx;
     shuttle.vy = vy;
+    if (Number.isFinite(rules?.shrink) && rules.shrink > 0 && rules.shrink < 1) {
+      // Shrinking Bird: every hit makes the shuttle a little smaller, down to 40% of its serving size.
+      shrinkFrom ??= shuttle.size;
+      shuttle.size = Math.max(shrinkFrom * 0.4, shuttle.size * rules.shrink);
+      Object.assign(shuttle, flightProfile(shapes[shape], shuttle.size, gravityScale()));
+      updateOutline();
+    }
     shuttle.spin = vx / 92 + 1.4;
     lastHitter = hitter;
     hitCooldown = 0.14;
@@ -1008,7 +1019,9 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     const projectedX = tracked.x + tracked.vx * flightScale(lead, shuttle.airDrag);
     const preparing = anticipates && tracked.vx > 0 && projectedX >= center;
     const levelProfile = cpuLevels[cpuLevel - 1];
-    const { spikeChance, outMargin, liftChance, doubleLiftChance = 0 } = levelProfile;
+    const { outMargin, liftChance, doubleLiftChance = 0 } = levelProfile;
+    // A stage can make its CPU smash far more than its level would (Smash Fest).
+    const spikeChance = Number.isFinite(rules?.cpuSpike) ? clamp(rules.cpuSpike, 0, 1) : levelProfile.spikeChance;
     const speed = levelProfile.speed * (1 - 0.4 * cpuEase);
     const outChance = levelProfile.outChance === undefined && !cpuEase ? undefined : (levelProfile.outChance ?? 0) + 0.12 * cpuEase;
     let leavingOut = false;
@@ -1205,6 +1218,15 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     }
 
     permanentAge += dt;
+    if (rules?.netSway) {
+      // Moving Net: the net slides between 0.6x and 1.4x of its height, over and over (base moves with it, so a
+      // point ending never starts the "ease back" of a net effect).
+      swayAge += dt;
+      const scale = 1 + 0.4 * Math.sin(swayAge * 2 * Math.PI / 9);
+      matchNetTop = Math.round(floor - (floor - netTop) * scale);
+      baseNetTop = matchNetTop;
+      netStart.y = matchNetTop;
+    }
     reveal = Math.max(0, reveal - dt);
     revealAge += dt;
     updateEvent(dt);

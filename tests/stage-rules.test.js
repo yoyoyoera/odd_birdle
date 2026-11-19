@@ -211,3 +211,40 @@ test('a permanent wind blows one way at half a gust and comes back after every p
   assert.equal(balloon.view().effect, 'balloon', 'still floating after thirty seconds');
   assert.equal(balloon.view().force.type, 'balloon');
 });
+
+test('Moving Net slides the net between a lower and a higher height all match', t => {
+  t.mock.method(Math, 'random', () => 0.5);
+  const game = createGame({ rules: { ...plainRules, netScale: 1, netSway: true } });
+  game.restart();
+  const heights = [];
+  for (let tick = 0; tick < 120 * 20; tick++) { lobTick(game); heights.push(game.view().netTop); }
+  const low = Math.max(...heights), high = Math.min(...heights);
+  assert.ok(low - high > 60, `the net moved ${low - high}px`);
+  assert.ok(heights.every(Number.isFinite));
+});
+
+test('Shrinking Bird makes the shuttle smaller with each hit, to a floor of 40% of its size', t => {
+  t.mock.method(Math, 'random', () => 0.5);
+  const game = createGame({ withCpu: true, rules: { ...plainRules, shrink: 0.94, shuttleSize: 2 } });
+  game.restart();
+  const start = game.view().shuttle.size;
+  let smallest = start;
+  for (let tick = 0; tick < 120 * 60; tick++) {
+    lobTick(game);
+    const size = game.view().shuttle?.size;
+    if (size !== undefined) { assert.ok(size <= start + 1e-9, 'it never grows'); smallest = Math.min(smallest, size); }
+  }
+  assert.ok(smallest < start * 0.95, `smallest ${smallest} of ${start}`);
+  assert.ok(smallest >= start * 0.4 - 1e-9);
+});
+
+test('Smash Fest keeps the CPU playing with its smash chance raised by the stage', t => {
+  t.mock.method(Math, 'random', () => 0.5);
+  const game = createGame({ withCpu: true, rules: { ...plainRules, cpuLevel: 4, cpuSpike: 0.9 } });
+  game.restart(0, 4, { ...plainRules, cpuLevel: 4, cpuSpike: 0.9 });
+  for (let tick = 0; tick < 120 * 30; tick++) {
+    lobTick(game);
+    const shuttle = game.view().shuttle;
+    if (shuttle) assert.ok(['x', 'y', 'size'].every(key => Number.isFinite(shuttle[key])));
+  }
+});

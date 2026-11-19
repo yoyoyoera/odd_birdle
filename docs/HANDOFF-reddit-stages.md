@@ -91,13 +91,13 @@ npx devvit install oddbirdle   # r/oddbirdle 에 새 버전 설치
 | 8 | Doubles I | You and a CPU partner vs two. Take turns hitting. | 2v2 | 5점, 파트너 Lv.3·상대 2명 Lv.2 (6.4 참고) |
 | 9 | Take the L | The shuttle is always an L. Random effects join in. | Lv.3 | 5점, 모양 고정 L, 랜덤 효과 |
 | 10 | Boss: Chaos | Effects come twice as often. | Lv.3 | 7점, 랜덤 효과 빈도 2배 |
-| 11 | Sharp | No tricks, a faster CPU. | Lv.4 | 5점, 효과 없음 |
+| 11 | Smash Fest | The CPU smashes almost everything. | Lv.4 | 5점, CPU 스매시 확률 0.9(`cpuSpike`), 효과 없음 |
 | 12 | Five in a Row | You start 0:4 down. Win five straight. | Lv.4 | 시작 0:4, 상대는 5점에서 끝나므로 5연승 필요 |
 | 13 | Doubles II | Doubles with random effects. | 2v2 | 5점, 파트너·상대 Lv.3, 랜덤 효과 |
 | 14 | The Post | A bumper stays up all match. | Lv.2(서툴게 0.7) | 5점, 범퍼 상시 |
-| 15 | Heavy Day | Gravity pulls harder. Rallies end fast. | Lv.4 | 7점, 중력 1.5배 (풍선판 Hot Air 와 겹치지 않게 반대 방향) |
+| 15 | Moving Net | The net rises and falls all match. | Lv.4 | 7점, 네트가 9초 주기로 0.6~1.4배 오르내림(`netSway`), 효과 없음 |
 | 16 | Boss: Storm | Effects twice as often, longer match. | Lv.4 | 9점, 랜덤 효과 2배 |
-| 17 | Pure Skill | No tricks against the best. | Lv.5 | 5점, 효과 없음 |
+| 17 | Shrinking Bird | The shuttle shrinks with every hit. | Lv.5 | 5점, 칠 때마다 6% 작아져 최소 40%(`shrink: 0.94`), 효과 없음 |
 | 18 | Doubles III | Stronger partner, stronger rivals, more effects. | 2v2 | 7점, 파트너·상대 Lv.4, 효과 2배 |
 | 19 | No Warning | Effects come a bit faster, with no countdown. | Lv.5 | 5점, 효과 빈도 1.4배 + 카운트다운 없이 바로(`noCountdown`) |
 | 20 | Final Boss | More effects. A bumper that stays. | Lv.5(서툴게 0.35) | 9점, 상시 범퍼 + 효과 1.5배 |
