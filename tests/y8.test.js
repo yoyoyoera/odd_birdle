@@ -104,10 +104,11 @@ test('invites are just the room code and nothing is counted', () => {
 
 test('an ad longer than twenty seconds cannot release rematch readiness early', async t => {
   t.mock.method(Date, 'now', () => 9999999999999);
-  let timer;
+  const timers = [];
   let cancelled = false;
-  t.mock.method(globalThis, 'setTimeout', fn => { timer = fn; return 123; });
+  t.mock.method(globalThis, 'setTimeout', (fn, ms) => { timers.push({ fn, ms }); return 122 + timers.length; });
   t.mock.method(globalThis, 'clearTimeout', id => { if (id === 123) cancelled = true; });
+  const timer = () => timers[0].fn();
   let options;
   window.y8Sdk = { showAd(value) { options = value; value.beforeAd(); return Promise.resolve(); } };
   portal.matchEnded(true); portal.matchEnded(true); portal.matchEnded(true);
@@ -123,5 +124,24 @@ test('an ad longer than twenty seconds cannot release rematch readiness early', 
   assert.equal(ready, true);
   assert.equal(portal.isPaused(), false);
   options.adBreakDone();
+  assert.equal(portal.isPaused(), false);
+});
+
+test('an ad that never reports its end still gives the game back after the limit', async t => {
+  t.mock.method(Date, 'now', () => 19999999999999);
+  const timers = [];
+  t.mock.method(globalThis, 'setTimeout', (fn, ms) => { timers.push({ fn, ms }); return timers.length; });
+  t.mock.method(globalThis, 'clearTimeout', () => {});
+  window.y8Sdk = { showAd(value) { value.beforeAd(); return new Promise(() => {}); } };
+  portal.matchEnded(false); portal.matchEnded(false); portal.matchEnded(false);
+  let ready = false;
+  const waiting = portal.matchBreak().then(() => { ready = true; });
+  await Promise.resolve();
+  assert.equal(portal.isPaused(), true, 'paused while the ad is up');
+  const limit = timers.find(entry => entry.ms === portal.y8AdLimitMs);
+  assert.ok(limit, 'a limit is set once the ad starts');
+  limit.fn();
+  await waiting;
+  assert.equal(ready, true);
   assert.equal(portal.isPaused(), false);
 });

@@ -147,14 +147,16 @@ test('real client pauses CPU/search, rejects a late match, and resumes online fr
   assert.equal(paints, onlinePaints, 'only the local scene is frozen while server state arrives');
   assert.equal(element('#score').value, originalScore);
   assert.ok(!matched.sent.some(m => m.type === 'pause' || m.type === 'restart'));
-  await element('#game-control').click();
+  await element('#play-again').click();
   assert.ok(!matched.sent.some(m => m.type === 'restart'), 'pause cannot trigger a restart');
   sdkEvents.resume();
   frames();
   assert.equal(notice().hidden, true);
   assert.equal(element('#score').value, '5:2', 'resume immediately shows the latest authoritative score');
   assert.equal(element('#stage').dataset.phase, 'finished');
-  assert.equal(element('#game-control').hidden, false);
+  assert.equal(element('#result-actions').hidden, false, 'worded buttons after an online match');
+  assert.equal(element('#play-again').textContent, 'REMATCH');
+  assert.equal(element('#game-control').hidden, true);
   await element('#back').click();
   matched.receive({ type: 'state', time: 10000, state: latest });
   assert.equal(element('#menu').hidden, false, 'late packets after leaving do not revive a match');

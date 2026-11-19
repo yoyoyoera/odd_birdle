@@ -48,6 +48,9 @@ const pauseDetail = document.querySelector('#pause-detail');
 const status = document.querySelector('#status');
 const eventBanner = document.querySelector('#event-banner');
 const gameControl = document.querySelector('#game-control');
+const resultActions = document.querySelector('#result-actions');
+const playAgainButton = document.querySelector('#play-again');
+const toMenuButton = document.querySelector('#to-menu');
 const menu = document.querySelector('#menu');
 const cpuLevelButton = document.querySelector('#cpu-level');
 const back = document.querySelector('#back');
@@ -375,10 +378,12 @@ function updateHud(view) {
   eventBanner.hidden = !eventText;
   eventBanner.toggleAttribute('data-wind', eventWind);
   setText(eventBanner, eventText);
-  gameControl.hidden = mode !== 'solo' && !(mode === 'online' && phase === 'finished' && !rematchReady);
-  const controlLabel = mode === 'online' ? 'Ready for rematch' : 'Restart';
-  gameControl.setAttribute('aria-label', controlLabel);
-  gameControl.title = controlLabel;
+  // During a CPU match the small restart icon; once any match is over, worded buttons to play again or leave.
+  const finished = (mode === 'solo' || mode === 'online') && phase === 'finished';
+  gameControl.hidden = mode !== 'solo' || finished;
+  resultActions.hidden = !finished;
+  playAgainButton.hidden = mode === 'online' && rematchReady;
+  setText(playAgainButton, mode === 'online' ? 'REMATCH' : 'PLAY AGAIN');
 }
 
 // Counts each match that reaches its final point once.
@@ -1481,7 +1486,7 @@ soundToggle.addEventListener('click', () => {
   showSoundState();
 });
 showSoundState();
-gameControl.addEventListener('click', () => {
+function playAgain() {
   if (gamePaused || breakPending || rematchReady) return;
   const rematch = currentView().phase === 'finished' || onlineView?.phase === 'finished';
   const restart = () => {
@@ -1500,6 +1505,16 @@ gameControl.addEventListener('click', () => {
   };
   if (rematch) afterMatchBreak(restart, { rematch: true });
   else restart();
+}
+gameControl.addEventListener('click', playAgain);
+playAgainButton.addEventListener('click', playAgain);
+toMenuButton.addEventListener('click', () => leave());
+// After a match, Enter, Space or R also plays again (not while typing a room code).
+document.addEventListener('keydown', event => {
+  if (resultActions.hidden || event.repeat || event.target?.closest?.('input, textarea, button')) return;
+  if (event.key !== 'Enter' && event.key !== ' ' && event.key.toLowerCase() !== 'r') return;
+  event.preventDefault();
+  playAgain();
 });
 resize();
 new ResizeObserver(resize).observe(court);
