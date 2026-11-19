@@ -39,8 +39,19 @@ export function createRooms(randomIndex) {
     return code;
   }
 
+  // Ends: the first match puts each player on a random side, and every rematch swaps them, as players change
+  // ends in badminton. Whoever is on the left serves first, so that alternates too.
+  function chooseEnds(room) {
+    if (room.round > 1 || randomIndex(2) === 1) {
+      [room.left, room.right] = [room.right, room.left];
+      states.get(room.left)?.seat(room, 'left');
+      states.get(room.right)?.seat(room, 'right');
+    }
+  }
+
   function start(room) {
     room.round = (room.round ?? 0) + 1;
+    chooseEnds(room);
     room.rematchReady = new Set();
     room.restartBarrier ??= [room.left, room.right].some(peer => {
       const state = states.get(peer);

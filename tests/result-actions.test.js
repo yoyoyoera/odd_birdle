@@ -170,4 +170,33 @@ test('after a match there are buttons (and keys) to play again or go back to the
     assert.equal(element('#menu').hidden, false);
     assert.equal(room.readyState, 3);
   }
+
+  // CPU sides: each match puts the player on a random half, flagged YOU, with the CPU label on the other half.
+  const seen = new Set();
+  for (let i = 0; i < 40; i++) {
+    await element('#cpu').click();
+    await new Promise(resolve => setImmediate(resolve));
+    frames();
+    const side = element('#side-label').dataset.side;
+    seen.add(side);
+    assert.equal(element('#you-flag').dataset.side, side);
+    assert.equal(element('#you-flag').hidden, false);
+    assert.notEqual(element('#cpu-label').dataset.side, side);
+    await element('#back').click();
+  }
+  assert.deepEqual([...seen].sort(), ['left', 'right']);
+
+  // Online: the YOU flag follows the side the server gives, which changes on a rematch.
+  await element('#create').click();
+  const ends = sockets.at(-1);
+  ends.open();
+  const endsGame = createGame();
+  endsGame.restart(3);
+  ends.receive({ type: 'start', side: 'left', round: 1, time: 1000, state: endsGame.view() });
+  frames();
+  assert.equal(element('#you-flag').dataset.side, 'left');
+  ends.receive({ type: 'start', side: 'right', round: 2, time: 2000, state: endsGame.view() });
+  frames();
+  assert.equal(element('#you-flag').dataset.side, 'right');
+  assert.equal(element('#side-label').dataset.side, 'right');
 });

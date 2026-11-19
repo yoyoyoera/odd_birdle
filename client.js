@@ -39,6 +39,7 @@ const stage = document.querySelector('#stage');
 const scoreboard = document.querySelector('#score');
 const sideLabel = document.querySelector('#side-label');
 const cpuLabel = document.querySelector('#cpu-label');
+const youFlag = document.querySelector('#you-flag');
 const winnerLabel = document.querySelector('#winner');
 const recordLabel = document.querySelector('#record');
 const rematchLabel = document.querySelector('#rematch-status');
@@ -153,6 +154,12 @@ let joinVia = 'create';
 let finishedNoted = false;
 let selectedCpuLevel;
 let localSide = 'left';
+// CPU games: the game itself always has the player on the left (the CPU plays the right), and half the matches are
+// shown mirrored so that the player appears on the right.
+let cpuMirrored = false;
+const mirrored = () => mode === 'solo' && cpuMirrored;
+// The half of the screen the player is on.
+const shownSide = () => mode === 'solo' ? (cpuMirrored ? 'right' : 'left') : localSide;
 let localRacket;
 let lastFrame;
 let lastHold = -Infinity;
@@ -237,6 +244,7 @@ function leave(message = '', stay = false) {
   localRacket = undefined;
   localSide = 'left';
   if (stay) return;
+  youFlag.hidden = true;
   quick.on = false;
   showQueueStatus();
   setMode('menu', message);
@@ -294,6 +302,7 @@ function connect(request, via = request.type === 'join' ? 'code' : 'create') {
         resetPrediction();
         playback.push(message.time, message.state, performance.now());
         setMode('online');
+        flagYou();
         finishedNoted = false;
         roomFull(message.code ?? request.code ?? roomCode.value);
         track('game_start', { mode: 'online', via: queueing ? 'quick' : joinVia });
@@ -359,11 +368,12 @@ function updateHud(view) {
   if (stage.dataset.phase !== phase) stage.dataset.phase = phase;
   scoreboard.hidden = !score;
   sideLabel.hidden = mode !== 'online' && mode !== 'solo';
-  sideLabel.dataset.side = mode === 'solo' ? 'left' : localSide;
+  sideLabel.dataset.side = shownSide();
+  cpuLabel.dataset.side = shownSide() === 'left' ? 'right' : 'left';
   cpuLabel.hidden = mode !== 'solo' || !view.cpuLevel;
   setText(cpuLabel, view.cpuLevel ? 'CPU Lv. ' + view.cpuLevel : '');
   if (score) {
-    const value = score.left + ':' + score.right;
+    const value = mirrored() ? score.right + ':' + score.left : score.left + ':' + score.right;
     if (scoreboard.value !== value) scoreboard.value = value;
   }
   winnerLabel.hidden = !winner;
@@ -377,7 +387,7 @@ function updateHud(view) {
   setText(rematchLabel, rematchStatus);
   eventBanner.hidden = !eventText;
   eventBanner.toggleAttribute('data-wind', eventWind);
-  setText(eventBanner, eventText);
+  setText(eventBanner, mirrored() ? eventText.replace(/[←→]/g, arrow => arrow === '←' ? '→' : '←') : eventText);
   // During a CPU match the small restart icon; once any match is over, worded buttons to play again or leave.
   const finished = (mode === 'solo' || mode === 'online') && phase === 'finished';
   gameControl.hidden = mode !== 'solo' || finished;
@@ -532,7 +542,8 @@ function moveRacket(event) {
   if ((phase !== 'live' && phase !== 'between' && phase !== 'starting') || !event.isPrimary ||
       (event.pointerType !== 'mouse' && event.buttons === 0)) return;
   const bounds = court.getBoundingClientRect();
-  const x = (event.clientX - bounds.left) * width / bounds.width;
+  const shownX = (event.clientX - bounds.left) * width / bounds.width;
+  const x = mirrored() ? width - shownX : shownX;
   racketIsTouch = event.pointerType !== 'mouse';
   setRacket({
     x: localSide === 'left' ? clamp(x, 0, center - racketRadius) : clamp(x, center + racketRadius, width),
@@ -653,6 +664,10 @@ function drawPops(pops) {
 function draw(view, scenery = false) {
   ctx.clearRect(0, 0, width, height);
   ctx.save();
+  if (!scenery && mirrored()) {
+    ctx.translate(width, 0);
+    ctx.scale(-1, 1);
+  }
   if (view.shake && !reduceMotion.matches) {
     const t = view.shake;
     ctx.translate(Math.sin(t * 91) * 17 * t, Math.cos(t * 117) * 12 * t);
@@ -723,7 +738,10 @@ function drawHint(view) {
   ctx.fillStyle = palette.ink;
   ctx.font = '650 26px "Space Grotesk", system-ui, sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('Move to hit', localSide === 'left' ? center / 2 : center * 1.5, floor * 0.42);
+  ctx.translate(localSide === 'left' ? center / 2 : center * 1.5, floor * 0.42);
+  // Words read the right way round on a mirrored court.
+  if (mirrored()) ctx.scale(-1, 1);
+  ctx.fillText('Move to hit', 0, 0);
   ctx.restore();
 }
 
@@ -1014,10 +1032,29 @@ cpuLevelButton.addEventListener('click', () => {
   }
   showCpuLevel();
 });
-function startCpu() {
+// Shows YOU over the player's half for a moment as a match starts.
+let youFlagTimer;
+function flagYou() {
+  youFlag.dataset.side = shownSide();
+  youFlag.hidden = true;
+  // Re-adding it restarts the fade.
+  void youFlag.offsetWidth;
+  youFlag.hidden = false;
+  clearTimeout(youFlagTimer);
+  youFlagTimer = setTimeout(() => { youFlag.hidden = true; }, 1800);
+}
+
+// Each CPU match puts the player on a random side (the ?test= pages keep the left).
+function restartCpu() {
+  cpuMirrored = !testParams.has('test') && Math.random() < 0.5;
   solo.restart(3, selectedCpuLevel);
+}
+
+function startCpu() {
+  restartCpu();
   accumulator = 0;
   setMode('solo');
+  flagYou();
   finishedNoted = false;
   track('game_start', { mode: 'cpu', level: String(selectedCpuLevel ?? 'random') });
 }
@@ -1496,7 +1533,10 @@ function playAgain() {
     finishedNoted = false;
     // Online restarts arrive as a new 'start' message; CPU ones are counted here.
     if (mode === 'solo') track('game_start', { mode: 'cpu', level: selectedCpuLevel ?? 'random' });
-    if (mode === 'solo') solo.restart(3, selectedCpuLevel);
+    if (mode === 'solo') {
+      restartCpu();
+      flagYou();
+    }
     else {
       rematchReady = true;
       rematchStatus = 'Waiting for opponent…';
