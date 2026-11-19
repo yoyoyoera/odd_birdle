@@ -137,7 +137,7 @@ export function drawCard(ctx, match) {
     ctx.font = font(34);
     ctx.fillStyle = palette.court;
     ctx.globalAlpha = 0.85;
-    ctx.fillText(`RANK #${daily.rank}${daily.players ? ` OF ${daily.players}` : ''}`, innerRight, panelY + 66);
+    ctx.fillText(`RANK #${daily.rank} TODAY`, innerRight, panelY + 66);
   } else {
     ctx.globalAlpha = 0.6;
     ctx.fillText('ODD BIRDLE', innerRight, panelY + 66);
