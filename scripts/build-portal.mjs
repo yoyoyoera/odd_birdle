@@ -5,11 +5,11 @@ import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url';
 
 // Portals that must make no outside requests carry the font themselves instead of asking Google Fonts.
-const ownFont = ['gamepix', 'y8', 'gamedistribution'];
+const ownFont = ['gamepix', 'y8', 'gamedistribution', 'reddit'];
 
 const name = process.argv[2];
-if (!['crazygames', 'itch', 'newgrounds', 'gamepix', 'y8', 'gamedistribution'].includes(name)) {
-  console.error('Usage: node scripts/build-portal.mjs crazygames|itch|newgrounds|gamepix|y8|gamedistribution');
+if (!['crazygames', 'itch', 'newgrounds', 'gamepix', 'y8', 'gamedistribution', 'reddit'].includes(name)) {
+  console.error('Usage: node scripts/build-portal.mjs crazygames|itch|newgrounds|gamepix|y8|gamedistribution|reddit');
   process.exit(1);
 }
 const gdPreview = name === 'gamedistribution' && process.argv.includes('--preview');
@@ -107,7 +107,7 @@ if (name === 'y8') {
 }
 if (ownFont.includes(name)) {
   // Nothing may point anywhere else: the only web address left in the page is the portal's SDK.
-  const sdkHost = name === 'gamepix' ? 'integration.gamepix.com' : name === 'y8' ? 'cdn.y8.com' : 'html5.api.gamedistribution.com';
+  const sdkHost = name === 'reddit' ? 'devvit.invalid' : name === 'gamepix' ? 'integration.gamepix.com' : name === 'y8' ? 'cdn.y8.com' : 'html5.api.gamedistribution.com';
   const outside = [...html.matchAll(/https?:\/\/[^"'\s)<]+/g)].map(match => match[0]).filter(link => !link.includes(sdkHost));
   if (outside.length) throw new Error(name + ' build still links out: ' + outside.join(', '));
 }

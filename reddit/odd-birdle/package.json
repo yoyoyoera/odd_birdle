@@ -1,0 +1,63 @@
+{
+  "private": true,
+  "name": "odd-birdle",
+  "version": "0.0.0",
+  "license": "BSD-3-Clause",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "deploy": "npm run test:types && npm run lint && npm run test:unit && devvit upload",
+    "dev": "devvit playtest",
+    "launch": "npm run deploy && devvit publish",
+    "lint": "eslint 'src/**/*.{ts,tsx}'",
+    "login": "devvit login",
+    "prettier": "prettier-package-json --write ./package.json && prettier --write .",
+    "test": "npm run test:types && npm run lint && npm run test:unit && npm run build",
+    "test:types": "tsc --build",
+    "test:unit": "vitest run"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "dependencies": {
+    "@devvit/start": "0.15.4",
+    "@devvit/test": "0.15.4",
+    "@devvit/web": "0.15.4",
+    "@hono/node-server": "2.1.6",
+    "@hono/trpc-server": "0.4.2",
+    "@trpc/client": "11.23.0",
+    "@trpc/server": "11.23.0",
+    "clsx": "2.1.1",
+    "devvit": "0.15.4",
+    "hono": "4.13.17",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "superjson": "2.2.6",
+    "tailwind-merge": "3.7.0",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@tailwindcss/vite": "4.3.4",
+    "@types/node": "24.19.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.3.0",
+    "@vitest/coverage-v8": "5.1.0",
+    "eslint": "10.14.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "eslint-plugin-react-refresh": "0.5.7",
+    "globals": "17.14.0",
+    "prettier": "3.9.10",
+    "prettier-package-json": "2.8.0",
+    "prettier-plugin-tailwindcss": "0.8.1",
+    "tailwindcss": "4.3.4",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.2",
+    "vite": "8.3.7",
+    "vitest": "5.1.0"
+  },
+  "redisMemoryServer": {
+    "version": "8.8.1"
+  }
+}

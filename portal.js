@@ -6,7 +6,7 @@ export const portal = document.documentElement.dataset.portal ?? '';
 export const siteUrl = 'https://oddbirdle.pages.dev/';
 // Portals that allow no links out of the game and no analytics of our own: invites are the room code, nothing is
 // counted, and the debug and test pages are off.
-export const closedPortal = ['gamepix', 'y8', 'gamedistribution'].includes(portal);
+export const closedPortal = ['gamepix', 'y8', 'gamedistribution', 'reddit'].includes(portal);
 export const coordinatedBreak = ['gamepix', 'gamedistribution'].includes(portal);
 // Portal builds are served from the portal's domain but play on our server.
 export const serverBase = portal ? siteUrl : new URL('./', location.href).href;
