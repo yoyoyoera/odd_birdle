@@ -67,6 +67,15 @@
       #studio-links .link b { position: static; transform: none; width: 44px; white-space: normal; text-align: center;
         font-size: .6rem; line-height: 1.15; letter-spacing: 0; }
     }
+    /* Reddit's expanded post is a small, nearly square frame: the court takes the full width and the buttons sit
+       in a row under it, unless the frame is really wide and short (a phone on its side). */
+    @media (max-aspect-ratio: 8 / 5) {
+      [data-portal="reddit"] main { display: block; width: calc(100% - 8px); padding-block: 4px; }
+      [data-portal="reddit"] #studio-links { flex-direction: row; margin-top: 4px; }
+      [data-portal="reddit"] #studio-links .link { flex-direction: row; height: 44px; min-height: 0; gap: 6px; padding: 0 4px; }
+      [data-portal="reddit"] #studio-links .link b { position: absolute; transform: translateX(-50%); width: auto;
+        white-space: nowrap; font-size: .75rem; line-height: normal; letter-spacing: 0; }
+    }
     canvas { display: block; width: 100%; aspect-ratio: 9 / 5; background: var(--court);
       touch-action: none; cursor: none; }
     #stage[data-phase="ready"] canvas, #stage[data-phase="finished"] canvas { cursor: default; }
