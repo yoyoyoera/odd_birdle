@@ -70,7 +70,11 @@ function drizzle(ctx, palette, random, top, bottom) {
   }
 }
 
-const formatTime = seconds => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
+const formatTime = (seconds, tenths = false) => {
+  const whole = Math.floor(seconds);
+  const text = `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`;
+  return tenths ? `${text}.${Math.floor((seconds - whole) * 10)}` : text;
+};
 
 function wrap(ctx, text, maxWidth) {
   const rows = [];
@@ -127,36 +131,75 @@ export function drawCard(ctx, match) {
   ctx.fillRect(inner, panelY + 52, 44, 8);
   ctx.fillStyle = palette.court; ctx.font = font(34); ctx.textAlign = 'left';
   ctx.fillText(daily ? `DAILY #${daily.number}` : 'FULL-TIME', inner + 62, panelY + 66);
-  ctx.textAlign = 'right'; ctx.globalAlpha = 0.6;
-  ctx.fillText('ODD BIRDLE', innerRight, panelY + 66);
+  ctx.textAlign = 'right';
+  if (daily?.rank) {
+    // Everyone's card carries their place of the day; the top three say it louder, in gold, silver or bronze.
+    const top = daily.rank <= 3;
+    ctx.font = font(top ? 46 : 34);
+    ctx.fillStyle = top ? rankAccent(daily.rank) : palette.court;
+    if (!top) ctx.globalAlpha = 0.85;
+    ctx.fillText(`RANK #${daily.rank}${daily.players ? ` OF ${daily.players}` : ''}`, innerRight, panelY + (top ? 72 : 66));
+  } else {
+    ctx.globalAlpha = 0.6;
+    ctx.fillText('ODD BIRDLE', innerRight, panelY + 66);
+  }
   ctx.globalAlpha = 1;
   if (stageName) {
     ctx.textAlign = 'center'; ctx.font = font(28);
     ctx.fillText(stageName.toUpperCase(), W / 2, panelY + 119);
   }
 
-  ctx.textAlign = 'center'; ctx.fillStyle = palette.court; ctx.font = font(330);
-  ctx.fillText(`${mine}:${theirs}`, W / 2, panelY + 400);
+  if (daily) {
+    // A daily card is about the clear: CLEARED in big letters, the time under it, the player's name large, and the
+    // score still there, smaller, with the CPU.
+    ctx.textAlign = 'center'; ctx.fillStyle = palette.court;
+    let heroSize = 168;
+    ctx.font = font(heroSize);
+    while (heroSize > 80 && ctx.measureText('CLEARED').width > panelW - 2 * pad) ctx.font = font(--heroSize);
+    ctx.fillText('CLEARED', W / 2, panelY + 250);
+    if (Number.isFinite(daily.seconds)) {
+      ctx.font = font(96); ctx.fillStyle = daily.rank <= 3 ? rankAccent(daily.rank) : gold;
+      ctx.fillText(formatTime(daily.seconds, true), W / 2, panelY + 372);
+    }
+    ctx.fillStyle = palette.court;
+    const nameSize = (() => {
+      let size = 56;
+      ctx.font = font(size);
+      while (size > 26 && ctx.measureText(playerLabel).width > 560) { size -= 2; ctx.font = font(size); }
+      return size;
+    })();
+    ctx.textAlign = 'left';
+    ctx.fillStyle = youColor; ctx.fillRect(inner, panelY + 424, 120, 10);
+    ctx.fillStyle = palette.court; ctx.font = font(nameSize); ctx.fillText(playerLabel, inner, panelY + 494);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = cpuColor; ctx.fillRect(innerRight - 120, panelY + 424, 120, 10);
+    ctx.fillStyle = palette.court; ctx.font = font(60); ctx.fillText(`${mine}:${theirs}`, innerRight, panelY + 494);
+    ctx.globalAlpha = 0.65; ctx.font = font(26); ctx.fillText(`VS CPU LV.${cpuLevel}`, innerRight, panelY + 530);
+    ctx.globalAlpha = 1;
+  } else {
+    ctx.textAlign = 'center'; ctx.fillStyle = palette.court; ctx.font = font(330);
+    ctx.fillText(`${mine}:${theirs}`, W / 2, panelY + 400);
 
-  // Who is who, with the colours the rackets have in the game. A long name shrinks to fit its half.
-  const youSize = (() => {
-    let size = 40;
-    ctx.font = font(size);
-    while (size > 22 && ctx.measureText(playerLabel).width > 440) { size -= 2; ctx.font = font(size); }
-    return size;
-  })();
-  ctx.textAlign = 'left';
-  ctx.fillStyle = youColor; ctx.fillRect(inner, panelY + 440, 120, 10);
-  ctx.fillStyle = palette.court; ctx.font = font(youSize); ctx.fillText(playerLabel, inner, panelY + 500);
-  ctx.textAlign = 'right'; ctx.font = font(40);
-  ctx.fillStyle = cpuColor; ctx.fillRect(innerRight - 120, panelY + 440, 120, 10);
-  ctx.fillStyle = palette.court; ctx.fillText(`CPU LV.${cpuLevel}`, innerRight, panelY + 500);
+    // Who is who, with the colours the rackets have in the game. A long name shrinks to fit its half.
+    const youSize = (() => {
+      let size = 40;
+      ctx.font = font(size);
+      while (size > 22 && ctx.measureText(playerLabel).width > 440) { size -= 2; ctx.font = font(size); }
+      return size;
+    })();
+    ctx.textAlign = 'left';
+    ctx.fillStyle = youColor; ctx.fillRect(inner, panelY + 440, 120, 10);
+    ctx.fillStyle = palette.court; ctx.font = font(youSize); ctx.fillText(playerLabel, inner, panelY + 500);
+    ctx.textAlign = 'right'; ctx.font = font(40);
+    ctx.fillStyle = cpuColor; ctx.fillRect(innerRight - 120, panelY + 440, 120, 10);
+    ctx.fillStyle = palette.court; ctx.fillText(`CPU LV.${cpuLevel}`, innerRight, panelY + 500);
+
+  }
 
   // Facts, then the line.
   const facts = [];
   if (daily) {
     facts.push(daily.title.toUpperCase());
-    if (Number.isFinite(daily.seconds)) facts.push(`CLEARED IN ${formatTime(daily.seconds)}`);
     if (daily.attempts > 1) facts.push(`TRY ${daily.attempt}/${daily.attempts}`);
   }
   if (stage) facts.push(`STAGE ${stage}`);
@@ -170,7 +213,7 @@ export function drawCard(ctx, match) {
   const factLine = facts.join('  ·  ');
   let factSize = 27;
   while (factSize > 18 && ctx.measureText(factLine).width > panelW - 2 * pad) ctx.font = font(--factSize);
-  ctx.fillText(factLine, W / 2, panelY + 568);
+  ctx.fillText(factLine, W / 2, panelY + (daily ? 590 : 568));
   ctx.globalAlpha = 1;
   ctx.fillStyle = palette.court; ctx.font = font(50);
   rows.forEach((row, index) => ctx.fillText(row, W / 2, panelY + 640 + index * 58));
