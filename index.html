@@ -54,6 +54,18 @@
     #sound-toggle .muted, #sound-toggle[aria-pressed="true"] .on { display: none; }
     #sound-toggle[aria-pressed="true"] .muted { display: inline; }
     #studio-links a:focus-visible { outline: 2px solid currentColor; outline-offset: -3px; }
+    /* Thumb pad (Reddit, touch, portrait): the court stays on top and the rest of the page is where the thumb moves. */
+    html[data-pad] body { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; place-items: initial; }
+    html[data-pad] main { width: 100%; padding-block: 0; }
+    #pad { display: none; }
+    html[data-pad] #pad { display: grid; place-items: center; align-content: center; gap: 10px; box-sizing: border-box; width: calc(100% - 24px); margin: 12px;
+      border: 2px dashed color-mix(in srgb, var(--court) 28%, transparent); border-radius: 22px; color: var(--court); touch-action: none;
+      -webkit-user-select: none; user-select: none; cursor: grab; }
+    html[data-pad] #pad[hidden] { display: none; }
+    #pad-hint { margin: 0; max-width: 16em; text-align: center; font-size: 14px; font-weight: 650; letter-spacing: .04em; opacity: .75; }
+    #pad[data-used] #pad-icon { opacity: .22; }
+    #pad[data-used] #pad-hint { opacity: .28; }
+    #pad[data-held] { border-color: color-mix(in srgb, var(--court) 60%, transparent); }
     /* Phones on their side, and any wide window too short for the court plus a row below it (a portal's embed
        frame is often about 740x390): the buttons move to a column beside the court, so nothing is cut off. */
     @media (orientation: landscape) and ((pointer: coarse) or (max-height: 620px)) {
@@ -406,6 +418,15 @@
     </button>
   </nav>
 </main>
+<!-- A phone held upright (Reddit): the space under the court is a thumb pad; the racket follows the thumb's movement. -->
+<div id="pad" hidden aria-label="Thumb pad: slide to move your racket">
+  <svg id="pad-icon" width="64" height="64" viewBox="0 0 64 64" aria-hidden="true">
+    <circle cx="32" cy="32" r="9" fill="currentColor" opacity=".9"/>
+    <path d="M32 6v12M32 46v12M6 32h12M46 32h12M32 6l-5 6M32 6l5 6M32 58l-5-6M32 58l5-6M6 32l6-5M6 32l6 5M58 32l-6-5M58 32l-6 5"
+      fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity=".7"/>
+  </svg>
+  <p id="pad-hint">Slide your thumb here to move your racket</p>
+</div>
 <script type="module" src="./client.js"></script>
 </body>
 </html>

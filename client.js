@@ -240,6 +240,7 @@ function setMode(next, message = '') {
   roomDisplay.hidden = next !== 'waiting';
   joinForm.hidden = next !== 'join';
   back.hidden = next === 'menu';
+  if (typeof layoutPad === 'function') layoutPad();
   lobbyMessage.hidden = !message;
   setText(lobbyMessage, message);
   showPauseState();
@@ -606,7 +607,7 @@ function showPauseState() {
 }
 
 function moveRacket(event) {
-  if (gamePaused) return;
+  if (gamePaused || padActive) return;
   const phase = currentView().phase;
   if ((phase !== 'live' && phase !== 'between' && phase !== 'starting') || !event.isPrimary ||
       (event.pointerType !== 'mouse' && event.buttons === 0)) return;
@@ -618,6 +619,82 @@ function moveRacket(event) {
     x: localSide === 'left' ? clamp(x, 0, center - racketRadius) : clamp(x, center + racketRadius, width),
     y: clamp((event.clientY - bounds.top) * height / bounds.height, 0, floor),
     time: event.timeStamp
+  });
+}
+
+// ---- Thumb pad (Reddit, touch, portrait): the finger stays off the court. Wherever the thumb lands on the pad, the racket
+// follows how far it moves (not where it is), so nothing jumps and the racket is never hidden under a finger. How fast the
+// thumb moves is how hard the swing is. The court's left and right are as before. Everything else (mouse, a phone on its
+// side) keeps the old controls. ----
+const pad = document.querySelector('#pad');
+const padGain = 1.5; // how many times further the racket moves than the thumb, on screen
+const padHintKey = 'oddbirdle-pad-hint-done';
+let padActive = false;
+let padThumb;   // { id, x, y } of the finger on the pad
+let padRacket;  // where the racket is, in court coordinates (kept between touches)
+const padQuery = window.matchMedia('(pointer: coarse)');
+
+function layoutPad() {
+  const wants = portal === 'reddit' && padQuery.matches && window.innerHeight > window.innerWidth * 1.05;
+  let space = 0;
+  if (wants) {
+    // Measure with the pad layout on (the court at the top), whatever screen this is.
+    document.documentElement.toggleAttribute?.('data-pad', true);
+    pad.hidden = false;
+    pad.style.height = '0px';
+    space = window.innerHeight - stage.getBoundingClientRect().bottom - 24;
+    pad.style.height = Math.max(0, space) + 'px';
+  }
+  // Too little room under the court (a short inline post): the old touch controls are better than a sliver of a pad.
+  padActive = wants && space >= 110;
+  // The menus keep their centred layout; the court moves to the top only while a match is on.
+  document.documentElement.toggleAttribute?.('data-pad', padActive && mode === 'solo');
+  pad.hidden = !(padActive && mode === 'solo');
+  try { if (localStorage.getItem(padHintKey)) pad.dataset.used = ''; } catch { /* the hint shows every time */ }
+}
+window.addEventListener?.('resize', layoutPad);
+padQuery.addEventListener?.('change', layoutPad);
+window.addEventListener?.('orientationchange', () => setTimeout(layoutPad, 250));
+
+const padScale = () => width / court.getBoundingClientRect().width * padGain;
+
+function padPush(time) {
+  const phase = currentView().phase;
+  if (gamePaused || (phase !== 'live' && phase !== 'between' && phase !== 'starting')) return;
+  padRacket ??= { x: center / 2, y: 280 };
+  racketIsTouch = true;
+  setRacket({ x: padRacket.x, y: padRacket.y, time });
+}
+
+pad.addEventListener('pointerdown', event => {
+  if (!event.isPrimary || gamePaused) return;
+  event.preventDefault();
+  padThumb = { id: event.pointerId, x: event.clientX, y: event.clientY };
+  try { pad.setPointerCapture(event.pointerId); } catch { /* the pad still gets moves over itself */ }
+  pad.dataset.held = '';
+  pad.dataset.used = '';
+  try { localStorage.setItem(padHintKey, '1'); } catch { /* shown again next time */ }
+  padPush(event.timeStamp);
+});
+pad.addEventListener('pointermove', event => {
+  if (!padThumb || event.pointerId !== padThumb.id) return;
+  event.preventDefault();
+  const scale = padScale() * (mirrored() ? -1 : 1);
+  padRacket ??= { x: center / 2, y: 280 };
+  padRacket = {
+    x: clamp(padRacket.x + (event.clientX - padThumb.x) * scale, 0, center - racketRadius),
+    y: clamp(padRacket.y + (event.clientY - padThumb.y) * Math.abs(scale), 0, floor)
+  };
+  padThumb.x = event.clientX;
+  padThumb.y = event.clientY;
+  padPush(event.timeStamp);
+});
+for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
+  pad.addEventListener(type, event => {
+    if (!padThumb || event.pointerId !== padThumb.id) return;
+    padThumb = undefined;
+    delete pad.dataset.held;
+    setRacket(null);
   });
 }
 
@@ -1486,6 +1563,7 @@ async function postDailyPanelCard() {
 }
 
 if (portal === 'reddit') {
+  layoutPad();
   dailyEl('daily-teaser').hidden = false;
   dailyButton.addEventListener('click', onChallenge);
   dailyReady = true;
