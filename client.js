@@ -1657,7 +1657,7 @@ if (portal === 'reddit') {
   dailyReady = true;
   refreshDaily();
   stagesButton.hidden = false;
-  document.querySelector('#cpu').textContent = 'PRACTICE';
+  document.querySelector('#cpu').textContent = 'FREE PLAY';
   stageProgress = createStageProgress({ storage, identity: redditIdentity(), onChange: renderStages });
   renderStages([], false);
   stagesButton.addEventListener('click', openStages);
