@@ -13,10 +13,11 @@ export function createCrowd() {
   let effect;
   let effectSince = -Infinity;
   let surpriseSince = -Infinity;
+  let cords;
   let clock = 0;
   return {
     reset() {
-      rally = 0; standing = 0; last = undefined; cheer = undefined; effect = undefined; clock = 0;
+      rally = 0; standing = 0; last = undefined; cheer = undefined; effect = undefined; clock = 0; cords = undefined;
     },
     get rally() { return rally; },
     update(view, events, now) {
@@ -28,6 +29,13 @@ export function createCrowd() {
         effectSince = now;
         if (surprising.includes(effect)) surpriseSince = now;
       }
+      // NET CORD: the whole crowd goes "ooh" and jumps a little.
+      const cordNow = view.cord?.count ?? 0;
+      if (cords !== undefined && cordNow > cords) {
+        surpriseSince = now;
+        cues.push('ooh');
+      }
+      cords = cordNow;
       // The crowd's own clock, which stands still during FREEZE: nobody sways, nobody waves.
       if (effect !== 'freeze') clock += dt * 1000;
       for (const event of events) {

@@ -41,9 +41,10 @@ test('the same low shot passes the original net and hits a higher net', t => {
     const frame = game.contactFrame();
     game.moveRacket('left', { x: frame.x - 50, y: frame.y, time: 0 }, frame);
     game.moveRacket('left', { x: frame.x, y: frame.y, time: 20 }, { ...frame, time: 0, age: 0 });
-    for (let i = 0; i < 100 && game.view().phase === 'live'; i++) game.simulate(step);
-    results.push(game.view().message);
+    for (let i = 0; i < 300 && game.view().phase === 'live'; i++) game.simulate(step);
+    results.push([game.view().message, game.view().cord.count > 0]);
     t.mock.restoreAll();
   }
-  assert.deepEqual(results, ['out', 'Net']);
+  // Over the original net it flies long; the higher net catches it on the tape (a NET CORD) and it drops over short.
+  assert.deepEqual(results, [['out', false], ['Landed', true]]);
 });

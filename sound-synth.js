@@ -213,6 +213,33 @@ export function applause(seconds = 2.2, perSecond = 34) {
   return out;
 }
 
+// NET CORD: a dry tick off the tape with a short low string twang under it.
+export function cord() {
+  const noise = seeded(41);
+  return make(0.18, x => 0.55 * noise() * env(x, 0.0004, 0.004) + 0.5 * Math.sin(TAU * 2200 * x) * env(x, 0.0008, 0.012) +
+    0.35 * Math.sin(TAU * 140 * x + 0.6 * Math.sin(TAU * 7 * x)) * env(x, 0.002, 0.07));
+}
+
+// The crowd's "ooh": many voices on a gliding vowel, rising then falling, softly.
+export function ooh(seconds = 0.9) {
+  const random = uniform(51);
+  const voices = Array.from({ length: 14 }, () => ({ pitch: 150 + random() * 160, phase: random() * TAU, vibrato: 4 + random() * 3 }));
+  const out = new Float32Array(length(seconds));
+  for (let i = 0; i < out.length; i++) {
+    const x = time(i);
+    const glide = 1 + 0.18 * Math.sin(Math.PI * Math.min(1, x / seconds));
+    let sum = 0;
+    for (const voice of voices) {
+      const f = voice.pitch * glide * (1 + 0.012 * Math.sin(TAU * voice.vibrato * x));
+      // A round "oo": the fundamental with only a little of the next two harmonics.
+      const p = TAU * f * x + voice.phase;
+      sum += Math.sin(p) + 0.3 * Math.sin(2 * p) + 0.08 * Math.sin(3 * p);
+    }
+    out[i] = sum / voices.length * Math.sin(Math.PI * Math.min(1, x / seconds)) ** 1.5;
+  }
+  return lowpass(out, 0.25);
+}
+
 // Name -> [samples, gain], gains as mixed in the shorts.
 export function renderEffects() {
   return {
@@ -222,7 +249,7 @@ export function renderEffects() {
     invisible: [invisible(), 0.7], balloon: [balloon(), 0.7], freeze: [freeze(), 0.7],
     doong: [doong(170, 0.6), 0.9], boing: [doong(115, 0.55), 1], pop: [pop(), 0.8],
     bumper: [bumper(), 0.7], bumperIn: [bumperIn(), 0.5], decoyIn: [decoyIn(), 0.45],
-    applauseBig: [applause(2.2, 34), 0.35]
+    applauseBig: [applause(2.2, 34), 0.35], cord: [cord(), 0.6], ooh: [ooh(), 0.9]
   };
 }
 

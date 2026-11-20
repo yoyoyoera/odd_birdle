@@ -40,6 +40,8 @@ export function createCueTracker() {
         // BUMPER: the ring starts again at each bounce. DECOY: a fresh burst. TRAMPOLINE: a new press into the floor.
         if ((view.bumper?.ring ?? 0) > (previous.ring ?? 0) + 0.05) cues.push('bumper');
         if (fresh > previous.fresh) cues.push('pop');
+        // NET CORD: the tape's little tick.
+        if ((view.cord?.count ?? 0) > (previous.cords ?? 0)) cues.push('cord');
         const pressAge = view.trampoline?.press?.age;
         if (pressAge !== undefined && (previous.pressAge === undefined || pressAge < previous.pressAge)) cues.push('boing');
         if (view.phase === 'finished' && previous.phase !== 'finished' && view.winner) {
@@ -51,7 +53,7 @@ export function createCueTracker() {
           else if (view.score[other] > previous.score[other]) cues.push('pointLost');
         }
       }
-      previous = { flash: view.flash ?? 0, text, ring: view.bumper?.ring ?? 0, fresh, pressAge: view.trampoline?.press?.age, phase: view.phase, score: view.score && { ...view.score } };
+      previous = { cords: view.cord?.count ?? 0, flash: view.flash ?? 0, text, ring: view.bumper?.ring ?? 0, fresh, pressAge: view.trampoline?.press?.age, phase: view.phase, score: view.score && { ...view.score } };
       return cues;
     }
   };
