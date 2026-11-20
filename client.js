@@ -288,6 +288,8 @@ function leave(message = '', stay = false) {
 }
 
 function connect(request, via = request.type === 'join' ? 'code' : 'create') {
+  // The Reddit build never opens a connection to a match server (Devvit apps make no outside connections).
+  if (portal === 'reddit') return;
   const join = request.type === 'join';
   const queueing = request.type === 'queue';
   if (socket || gamePaused) return;
