@@ -143,7 +143,7 @@
     /* Reddit's expanded post is a small, nearly square frame: the court takes the full width and the buttons sit
        in a row under it, unless the frame is really wide and short (a phone on its side). */
     /* The only button left, sound, sits on the court's floor corner, so the page is just the court, centred. */
-    [data-portal="reddit"] main { display: grid; grid-template-columns: minmax(0, 1fr); column-gap: 0; padding-block: 0; width: min(940px, 100% - 8px, (100svh - 4px) * 1.8); }
+    [data-portal="reddit"] main { display: grid; grid-template-columns: minmax(0, 1fr); column-gap: 0; padding-block: 0; width: min(100% - 8px, (100svh - 4px) * 1.8); }
     [data-portal="reddit"] #stage, [data-portal="reddit"] #studio-links { grid-area: 1 / 1; }
     [data-portal="reddit"] #studio-links { align-self: end; justify-self: end; margin: 0 4px 4px 0; z-index: 2; }
     [data-portal="reddit"] #sound-toggle { color: var(--ink); opacity: .55; }
@@ -203,7 +203,7 @@
     [data-portal="reddit"] #stage-prev:disabled, [data-portal="reddit"] #stage-next:disabled { opacity: 0; pointer-events: none; }
     [data-portal="reddit"] #back { z-index: 4; }
     /* PC in Reddit: a corner button on the main menu opens the bigger window (and brings it back). */
-    #view-toggle { position: absolute; top: 8px; right: 8px; z-index: 4; min-width: 44px; height: 32px; padding: 0 10px; font-size: 11px; font-weight: 650; letter-spacing: .12em; border: 0; color: var(--ink);
+    #view-toggle { position: absolute; top: 8px; right: 8px; z-index: 4; width: 36px; min-width: 0; height: 36px; padding: 0; display: grid; place-items: center; border: 0; color: var(--ink);
       background: color-mix(in srgb, var(--court) 60%, transparent); opacity: .85; cursor: pointer; transition: opacity .15s; }
     #view-toggle:hover { opacity: 1; background: color-mix(in srgb, var(--court) 60%, transparent); }
     #view-toggle[hidden] { display: none; }

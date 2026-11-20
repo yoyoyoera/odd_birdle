@@ -754,7 +754,10 @@ function updateViewToggle() {
   const viewToggle = document.querySelector('#view-toggle');
   const expanded = redditViewMode() === 'expanded';
   viewToggle.hidden = !(portal === 'reddit' && !window.matchMedia('(pointer: coarse)').matches && mode === 'menu');
-  viewToggle.textContent = expanded ? '⤡ SMALLER' : '⛶ EXPAND';
+  viewToggle.innerHTML = expanded
+    ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4v6H4M14 20v-6h6M10 10 4 4M14 14l6 6"/></svg>'
+    : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 15v5h-5M4 4l6 6M20 20l-6-6"/></svg>';
+  viewToggle.title = expanded ? 'Smaller' : 'Expand';
   viewToggle.setAttribute('aria-label', expanded ? 'Back to the small view' : 'Open bigger');
 }
 document.querySelector('#view-toggle').addEventListener('click', event => (redditViewMode() === 'expanded' ? exitRedditExpanded(event) : expandRedditView(event)));
