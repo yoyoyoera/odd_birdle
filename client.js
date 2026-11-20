@@ -197,7 +197,11 @@ function resize() {
   court.width = Math.round(bounds.width * ratio);
   court.height = Math.round(bounds.height * ratio);
   ctx.setTransform(court.width / width, 0, 0, court.height / height, 0, 0);
+  // How much bigger than the old 940 wide court this one is: the words over the court grow with it (index.html).
+  const grow = Math.min(Math.max(bounds.width / 940, 1), 1.4).toFixed(3);
+  if (grow !== shownGrow) document.documentElement.style.setProperty('--grow', shownGrow = grow);
 }
+let shownGrow;
 
 function setText(element, text) {
   if (element.textContent !== text) element.textContent = text;
