@@ -3,10 +3,13 @@ import { launch, open, state, sleep, clickIn, untilPhase } from './lib.mjs';
 const [build, mode, after, mobile] = process.argv.slice(2);
 const tap = mobile === 'mobile';
 const browser = await launch();
-const { page, frame, logs } = await open(browser, build, tap ? { width: 812, height: 375, mobile: true } : {});
+// GD's ad frames make Chrome swap the cross-origin game frame mid-match (Puppeteer: 'detached Frame'), so GD runs same-origin.
+const { page, frame, logs } = await open(browser, build, { ...(tap ? { width: 812, height: 375, mobile: true } : {}), sameOrigin: build.startsWith('gd') });
 const log = (...a) => console.log(`[${build} ${mode} ${after}${tap ? ' mobile' : ''}]`, ...a);
 try {
   await clickIn(page, frame, mode === 'cpu' ? '#cpu' : '#quick', { tap });
+  // Off the court: a pointer left where the menu button was can hold the serve up on a mirrored court forever.
+  if (!tap) await page.mouse.move(2, 2);
   await sleep(1500);
   log('started', JSON.stringify(await state(frame)));
   const end = await untilPhase(frame, 'finished');
