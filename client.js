@@ -420,8 +420,8 @@ function updateHud(view) {
   setText(cpuLabel, view.doubles ? 'CPU TEAM' : view.cpuLevel ? 'CPU Lv. ' + view.cpuLevel : '');
   doublesTurnLabel.dataset.side = shownSide();
   const turnMessage = view.fault ? (view.fault === 'left' ? 'WRONG PARTNER' : view.fault === 'leftB' ? 'PARTNER FAULT' : 'CPU TEAM FAULT')
-    : view.turn?.left === 'left' ? 'YOUR TURN' : 'PARTNER’S TURN';
-  doublesTurnLabel.hidden = !view.turn || (phase === 'finished' && !view.fault) || stageIntroRemaining > 0;
+    : '';
+  doublesTurnLabel.hidden = !view.turn || !view.fault || stageIntroRemaining > 0;
   if (!doublesTurnLabel.hidden) setText(doublesTurnLabel, turnMessage);
   if (score) {
     const value = mirrored() ? score.right + ':' + score.left : score.left + ':' + score.right;
