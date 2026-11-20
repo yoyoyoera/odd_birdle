@@ -66,6 +66,8 @@
        leaderboard) fill the space under it; in a match it holds the sensitivity bar and the thumb pad; the stage list
        takes the whole screen. */
     /* The title is the first thing on a phone: bigger than on a wide screen. */
+    /* Reddit on a computer: the title is a good deal bigger, following the court's width (the phone in portrait keeps its own size below). */
+    [data-portal="reddit"] h1 { font-size: max(2rem, 10.5cqw); }
     html[data-pad] h1 { top: 22%; font-size: clamp(2.35rem, 13vw, 4.15rem); }
     /* The effect names the title-screen demo shows (GUST, BUMPER...) sit lower and a little bigger, to balance the title. */
     html[data-pad] #stage[data-phase="ready"] #event-banner { top: 46%; font-size: clamp(1rem, 5.8vw, 2.2rem); }

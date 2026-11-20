@@ -37,11 +37,12 @@ test('doubles starts with three CPU rackets, A serves, and a second A contact gi
   assert.equal(game.view().eventText, 'FOUL');
   assert.deepEqual(game.view().score, { left: 0, right: 1 });
   const serve = until(game, view => view.message === 'right serve');
-  assert.deepEqual(serve.turn, start.turn);
+  // The other team won the serve, so its second player serves (see the serve-order test).
+  assert.deepEqual(serve.turn, { left: 'left', right: 'rightB' });
   assert.equal(serve.eventText, '');
   assert.equal(serve.lastPlayer, undefined);
-  until(game, view => view.lastPlayer === 'right');
-  assert.equal(game.view().turn.right, 'rightB');
+  until(game, view => view.lastPlayer === 'rightB');
+  assert.equal(game.view().turn.right, 'right');
   game.restart(0, 2, null);
   assert.equal(game.view().rightB, undefined);
   assert.equal(game.view().turn, undefined);
@@ -164,4 +165,28 @@ test('a rival that touches the shuttle out of turn is called THEIR FOUL, and a f
     assert.ok(rival, 'a rival foul happens in a seeded match');
     assert.equal(rival.eventText, 'THEIR FOUL');
   } finally { Math.random = original; }
+});
+
+test('serve order: the same player keeps serving while the team scores, and each regained serve passes to the other player', () => {
+  const game = createGame({ withCpu: true, rules: { ...rules, points: 9, effects: 'none' } });
+  game.restart();
+  const scoreOf = () => game.view().score;
+  // An untouched serve falls on the server's own half and is called against them, so each serve below hands the point
+  // to the other team (that team has then just won the serve). The human is left alone, so left's serve is a lost point.
+  assert.deepEqual(game.view().turn, { left: 'left', right: 'right' });
+  let before = { ...scoreOf() };
+  until(game, view => view.score.right > before.right, 3000);
+  const afterRight = until(game, view => view.message === 'right serve', 3000);
+  assert.deepEqual(afterRight.turn, { left: 'left', right: 'rightB' }, 'right won the serve back: its other player serves');
+  // Right's serve is returned by nobody here either; the same player must serve again only if right wins the next point.
+  before = { ...scoreOf() };
+  until(game, view => view.score.left > before.left || view.score.right > before.right, 3000);
+  const view = game.view();
+  if (view.score.right > before.right) {
+    const again = until(game, v => v.message === 'right serve', 3000);
+    assert.equal(again.turn.right, 'rightB', 'a team that keeps scoring keeps its server');
+  } else {
+    const back = until(game, v => v.message === 'left serve', 3000);
+    assert.deepEqual(back.turn, { left: 'leftB', right: 'right' }, 'left regained the serve: its other player');
+  }
 });

@@ -385,6 +385,9 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
   let cpuLevel;
   let cpuEase = 0;
   let server;
+  // Doubles serving: who serves for each team. The same player keeps serving while their team keeps scoring; each time a team
+  // wins the serve back, its other player serves.
+  let teamServer = { left: 'left', right: 'right' };
   let lastHitter;
   let phase = 'ready';
   let phaseTime;
@@ -433,11 +436,15 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
   const otherPlayer = (key, team) => key === team ? team + 'B' : team;
 
   function resetDoubles() {
-    turn = { left: 'left', right: 'right' };
+    // The serving team starts with its server; the receiving team starts with its first player.
+    turn = { left: server === 'left' ? teamServer.left : 'left', right: server === 'right' ? teamServer.right : 'right' };
     lastPlayer = undefined;
     bots.leftB = { x: 112, y: 280, level: doubles.partner };
     bots.right = { x: 660, y: 300, level: doubles.opponents[0] };
     bots.rightB = { x: 790, y: 280, level: doubles.opponents[1] };
+    // A bot that serves starts beside the spot the shuttle drops on.
+    if (turn.left === 'leftB') bots.leftB.x = 190;
+    if (turn.right === 'rightB') bots.rightB.x = 705;
     for (const key of ['left', 'leftB', 'right', 'rightB']) touching[key] = false;
   }
 
@@ -515,6 +522,7 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     if (doubles) cpuLevel = Math.max(...doubles.opponents);
     rackets.left = rackets.right = undefined;
     server = 'left';
+    teamServer = { left: 'left', right: 'right' };
     pops = [];
     press = undefined;
     clearEffect();
@@ -548,6 +556,7 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     }
     if (!matchPoint && reason === 'missed serve') showEvent('Sleepy?');
     score[side]++;
+    if (doubles && server !== side) teamServer[side] = otherPlayer(teamServer[side], side);
     server = side;
     if (score[side] === pointsToWin) {
       phase = 'finished';
@@ -1130,6 +1139,12 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
   }
 
   // canHit is off while the shuttle is frozen: the CPU may walk to it but cannot strike it.
+  // Doubles: a bot that is not chasing hovers higher when the shuttle is high and lower when it is low, so it is already
+  // where it will need to be (up for a lob, down for a drop), instead of sliding along one fixed height.
+  const idleHeight = (waiting = true) => waiting
+    ? clamp(275 + (shuttle.y - 224) * 0.2, 240, 335)
+    : clamp(310 + (shuttle.y - 224) * 0.15, 290, 345);
+
   function moveCpu(dt, canHit, key = 'right', bot = cpu, level = cpuLevel) {
     const team = teamOf(key);
     // Use the same aiming rules from either end of the court.
@@ -1186,10 +1201,11 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     }
     const tracking = defending || preparing || Boolean(aim);
     const chaseX = clamp(aim ? aim.x : defending ? tracked.x : projectedX, center + racketRadius, rightLine - 24);
-    const chaseY = clamp((aim ? aim.y : tracked.y) + 24, 205, floor - 14);
+    // In doubles a bot goes higher for a high shuttle, to meet it early (it is also where a smash starts from).
+    const chaseY = clamp((aim ? aim.y : tracked.y) + 24, doubles ? 150 : 205, floor - 14);
     const baseX = key === 'rightB' ? 728 : 660;
     let targetX = tracking && !leavingOut ? chaseX : baseX;
-    let targetY = tracking && !leavingOut ? chaseY : 300;
+    let targetY = tracking && !leavingOut ? chaseY : doubles ? idleHeight(false) : 300;
     // After setting the shuttle up, wait for it above the net's height: that is where a smash has to start.
     if (settingUp && cpuFollowUps > 0 && lastHitter === team) {
       targetX = clamp(birdX, center + 40, rightLine - 40);
@@ -1269,9 +1285,11 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
   function moveWaitingBot(key, bot, dt, canHit) {
     const team = teamOf(key);
     const teammate = team === 'left' ? rackets.left : bots[otherPlayer(key, team)];
+    // Roles: the waiting player takes the front (near the net) or the back, whichever the partner who will hit next is not
+    // holding, so the two never crowd the same patch. It follows the shuttle's height and drifts a little towards it.
     const lanes = team === 'left' ? [82, 368] : [532, 818];
     const home = teammate && teammate.x < (team === 'left' ? center / 2 : center * 1.5) ? lanes[1] : lanes[0];
-    const target = { x: home, y: 285 };
+    const target = { x: clamp(home - (shuttle.x - home) * 0.06, home - 24, home + 24), y: idleHeight() };
     const before = { x: bot.x, y: bot.y };
     // A rival that is waiting its turn is not perfect at getting out of the way: the weaker the CPU, the later it notices
     // the shuttle, the shorter its margin and the slower its step aside, so a smash aimed at it can catch it, and then it
