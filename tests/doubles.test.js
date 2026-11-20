@@ -146,19 +146,22 @@ test('a rival that touches the shuttle out of turn is called THEIR FOUL, and a f
   const seeded = s => () => ((s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296);
   const rules = stages.find(stage => stage.id === 21).rules;
   const original = Math.random;
-  Math.random = seeded(101);
   try {
-    const game = createGame({ withCpu: true, rules });
-    game.restart(0, 5, rules);
-    const play = makePlayer(seeded(77), rules);
+    // Any seeded match with a rival foul will do (the exact rally changes whenever the physics does).
     let rival;
-    for (let tick = 0, time = 0; tick < 120 * 240 && !rival; tick++, time += step) {
-      play(game, time);
-      game.simulate(step);
-      const view = game.view();
-      if (view.fault?.startsWith('right')) rival = view;
+    for (let seed = 101; seed < 121 && !rival; seed++) {
+      Math.random = seeded(seed);
+      const game = createGame({ withCpu: true, rules });
+      game.restart(0, 5, rules);
+      const play = makePlayer(seeded(77), rules);
+      for (let tick = 0, time = 0; tick < 120 * 240 && !rival; tick++, time += step) {
+        play(game, time);
+        game.simulate(step);
+        const view = game.view();
+        if (view.fault?.startsWith('right')) rival = view;
+      }
     }
-    assert.ok(rival, 'a rival foul happens in this seeded match');
+    assert.ok(rival, 'a rival foul happens in a seeded match');
     assert.equal(rival.eventText, 'THEIR FOUL');
   } finally { Math.random = original; }
 });
