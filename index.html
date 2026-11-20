@@ -88,6 +88,7 @@
     html[data-pad] #pad-menu #teaser-name { color: var(--court); }
     html[data-pad] #pad-menu #daily-button { background: color-mix(in srgb, var(--court) 20%, var(--page)); color: var(--court); width: 100%; display: flex; align-items: center; justify-content: center;
       box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--court) 38%, transparent); }
+    html[data-pad] #pad-menu #daily-button:disabled:hover { background: color-mix(in srgb, var(--court) 20%, var(--page)); }
     html[data-pad] #pad-menu #daily-button:hover:not(:disabled) { background: color-mix(in srgb, var(--court) 28%, var(--page)); }
     html[data-pad] #pad-menu #teaser-board li:nth-child(n+4) { display: flex; }
     html[data-pad] #pad-menu #menu-modes > button, html[data-pad] #pad-menu #menu-modes #cpu { height: 56px; font-size: 16px; letter-spacing: .1em; }
@@ -234,6 +235,7 @@
     [data-portal="reddit"] #daily-icon:not([hidden]) { display: block; width: 2.4cqw; height: 2.4cqw; }
     [data-portal="reddit"] #daily-button:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 82%, var(--court)); }
     [data-portal="reddit"] #daily-button:disabled { opacity: .55; cursor: default; }
+    [data-portal="reddit"] #menu #daily-button:disabled:hover { background: var(--ink); }
     /* Small frames (a phone held upright) show the first three only. */
     @container (max-width: 420px) { [data-portal="reddit"] #teaser-board li:nth-child(n+4) { display: none; } }
     [data-portal="reddit"] #stage-intro { position: absolute; inset: 0; z-index: 3; display: grid; place-content: center;
