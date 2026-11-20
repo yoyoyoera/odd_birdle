@@ -54,6 +54,14 @@
     #sound-toggle .muted, #sound-toggle[aria-pressed="true"] .on { display: none; }
     #sound-toggle[aria-pressed="true"] .muted { display: inline; }
     #studio-links a:focus-visible { outline: 2px solid currentColor; outline-offset: -3px; }
+    /* On a phone, in the feed: the game itself opens full screen (the feed would scroll under a thumb). */
+    #expand-gate { display: none; }
+    [data-portal="reddit"] #expand-gate:not([hidden]) { position: absolute; inset: 0; z-index: 8; display: grid; place-content: center; justify-items: center; gap: 10px;
+      background: var(--court); color: var(--ink); text-align: center; }
+    [data-portal="reddit"] #expand-gate p { margin: 0; font-size: clamp(26px, 9vw, 52px); font-weight: 650; letter-spacing: -.03em; }
+    [data-portal="reddit"] #expand-gate button { min-height: 44px; padding: 0 22px; border: 0; background: var(--ink); color: var(--court); font: inherit; font-weight: 650; letter-spacing: .14em; cursor: pointer; }
+    [data-portal="reddit"] #expand-gate span { font-size: 12px; opacity: .7; }
+    [data-portal="reddit"] html, [data-portal="reddit"] body, html[data-portal="reddit"] body { overscroll-behavior: none; }
     /* Thumb pad (Reddit, touch, portrait): the court stays on top and the rest of the page is where the thumb moves. */
     html[data-pad] body { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; place-items: initial; }
     html[data-pad] main { width: 100%; padding-block: 0; }
@@ -354,6 +362,11 @@
       <div id="stage-list" aria-label="Available stages"></div>
       <button id="stage-prev" type="button" aria-label="Earlier stages" title="Earlier stages"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button id="stage-next" type="button" aria-label="Later stages" title="Later stages"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     </section>
+    <div id="expand-gate" hidden>
+      <p>ODD BIRDLE</p>
+      <button type="button">TAP TO PLAY</button>
+      <span>Opens full screen, so your thumb can slide</span>
+    </div>
     <section id="stage-intro" role="status" aria-live="polite" hidden>
       <p id="stage-intro-number"></p><h2 id="stage-intro-name"></h2><p id="stage-intro-description"></p><p id="stage-intro-goal"></p>
     </section>

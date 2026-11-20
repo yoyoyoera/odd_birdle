@@ -162,3 +162,5 @@ npx devvit install oddbirdle   # r/oddbirdle 에 새 버전 설치
 - 보스 판(10·16·20)은 목록에서 어두운 카드·금색 가장자리·BOSS 표시로 구분하고, CPU 라켓이 1.5배(`cpuRacketScale: 1.5`: 그림과 충돌 반경 둘 다). 복식 판에는 적용하지 않았다.
 
 - 엄지 패드(터치+세로 화면, Reddit 빌드만): 코트는 위, 그 아래 빈 공간이 패드. 손가락이 닿은 위치가 아니라 **움직인 만큼** 라켓이 따라간다(`padGain` 1.5배, 반전 코트 반영, 손가락 속도가 스윙 세기). 처음 한 번 안내 그림, 패드 높이가 110px 미만(짧은 인라인 게시물)이면 기존 터치 조작으로 돌아간다. PC·가로 화면은 그대로.
+
+- 폰(터치)에서 Reddit 피드 안의 인라인 게시물은 위아래로 끌면 피드가 스크롤돼서 엄지 패드가 안 된다. 그래서 터치 기기에서 인라인으로 열리면 `TAP TO PLAY` 화면이 뜨고, 누르면 `requestExpandedMode(event, 'game')`으로 전체 화면(expanded)에서 게임이 열린다(`portal.js`의 `redditViewMode`, `expandRedditView`, 클라이언트 `#expand-gate`). 패드에서는 `touchstart/touchmove` 기본 동작도 막는다. PC(마우스)는 인라인 그대로 바로 시작.

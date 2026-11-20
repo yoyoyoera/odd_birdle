@@ -26,7 +26,7 @@ import {
 } from './juice.js';
 import {
   initPortal, isInstantMultiplayer, loadingStart, loadingStop, matchBreak, matchEnded, onJoinRoom, onPortalMute, onPortalPause,
-  canPostCard, closedPortal, coordinatedBreak, portal, redditName, redditIdentity, portalInviteLink, portalInviteRoom, portalMuted, roomFull, roomLeft, roomOpen, serverBase, setPlaying, siteUrl
+  canPostCard, closedPortal, coordinatedBreak, expandRedditView, onRedditViewMode, portal, redditName, redditViewMode, redditIdentity, portalInviteLink, portalInviteRoom, portalMuted, roomFull, roomLeft, roomOpen, serverBase, setPlaying, siteUrl
 } from './portal.js';
 
 const court = document.querySelector('#court');
@@ -666,6 +666,9 @@ function padPush(time) {
   setRacket({ x: padRacket.x, y: padRacket.y, time });
 }
 
+// A drag on the pad is the game's, never a scroll of the page or of Reddit's feed.
+for (const type of ['touchstart', 'touchmove']) pad.addEventListener(type, event => event.preventDefault(), { passive: false });
+
 pad.addEventListener('pointerdown', event => {
   if (!event.isPrimary || gamePaused) return;
   event.preventDefault();
@@ -697,6 +700,15 @@ for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
     setRacket(null);
   });
 }
+
+// ---- Phone in Reddit's feed: open the full-screen view first (the feed would scroll under a thumb in an inline post). ----
+const expandGate = document.querySelector('#expand-gate');
+function updateGate() {
+  expandGate.hidden = !(portal === 'reddit' && padQuery.matches && redditViewMode() === 'inline');
+  layoutPad();
+}
+expandGate.querySelector('button').addEventListener('click', event => expandRedditView(event));
+onRedditViewMode?.(updateGate);
 
 function drawRacket(position, fill, stroke, side) {
   ctx.beginPath();
