@@ -71,15 +71,35 @@
       #studio-links .link b { position: static; transform: none; width: 44px; white-space: normal; text-align: center;
         font-size: .6rem; line-height: 1.15; letter-spacing: 0; }
     }
-    /* Full screen: the page colour all round, the court as big as fits (9:5 kept) with the button row under it. */
-    main:fullscreen { box-sizing: border-box; width: 100vw; height: 100vh; padding: 0; display: flex; flex-direction: column;
+    /* Full screen (main[data-fullscreen], set by client.js): the page colour all round, the court as big as fits (9:5 kept)
+       with the button row under it. Text and spacing then follow the court's width (cqw, the same way the Reddit build
+       does it) so they grow with the court; each value is the size they reach on the usual ~940px court, as a share of it. */
+    main[data-fullscreen] { box-sizing: border-box; width: 100vw; height: 100vh; padding: 0; display: flex; flex-direction: column;
       align-items: center; justify-content: center; background: var(--page); }
-    main:-webkit-full-screen { box-sizing: border-box; width: 100vw; height: 100vh; padding: 0; display: flex; flex-direction: column;
-      align-items: center; justify-content: center; background: var(--page); }
-    main:fullscreen #stage { width: min(100vw, (100vh - 52px) * 1.8); }
-    main:-webkit-full-screen #stage { width: min(100vw, (100vh - 52px) * 1.8); }
-    main:fullscreen #studio-links { flex-direction: row; margin-top: 8px; }
-    main:-webkit-full-screen #studio-links { flex-direction: row; margin-top: 8px; }
+    main[data-fullscreen] #stage { width: min(100vw, (100vh - 52px) * 1.8); container-type: inline-size; }
+    main[data-fullscreen] #studio-links { flex-direction: row; margin-top: 8px; }
+    main[data-fullscreen] h1 { font-size: 8.5cqw; }
+    main[data-fullscreen] #pause-title { font-size: 3.4cqw; }
+    main[data-fullscreen] #pause-detail { font-size: 1.7cqw; }
+    main[data-fullscreen] #score { font-size: 6cqw; }
+    main[data-fullscreen] #side-label, main[data-fullscreen] #cpu-label, main[data-fullscreen] #record { font-size: 1.5cqw; }
+    main[data-fullscreen] #you-flag { font-size: 6.8cqw; }
+    main[data-fullscreen] #winner { font-size: 3cqw; bottom: calc(50% + 2.4cqw); }
+    main[data-fullscreen] #record { bottom: calc(50% + 5.3cqw); }
+    main[data-fullscreen] #rematch-status { font-size: 1.55cqw; top: calc(50% + 4.25cqw + 5.5cqw); }
+    main[data-fullscreen] #event-banner { font-size: 5.5cqw; }
+    main[data-fullscreen] #event-banner[data-wind] { font-size: 6.1cqw; }
+    main[data-fullscreen] #stage[data-phase="ready"] #event-banner { font-size: 3.2cqw; }
+    main[data-fullscreen] #stage[data-phase="ready"] #game-control { top: calc(50% + 4.25cqw); }
+    main[data-fullscreen] #menu, main[data-fullscreen] #join-form, main[data-fullscreen] #result-actions { font-size: 1.7cqw; }
+    main[data-fullscreen] #menu button, main[data-fullscreen] #join-form button, main[data-fullscreen] #result-actions button,
+    main[data-fullscreen] #copy-link { min-height: 4.7cqw; padding: 0 1.2cqw; }
+    main[data-fullscreen] #result-actions { top: calc(50% + 4.25cqw); }
+    main[data-fullscreen] #room-display > span { font-size: 1.7cqw; }
+    main[data-fullscreen] #room-code { font-size: 6.8cqw; }
+    main[data-fullscreen] #queue-status { font-size: 2cqw; }
+    main[data-fullscreen] #queue-status[data-found] { font-size: 3cqw; }
+    main[data-fullscreen] #lobby-message { font-size: 1.5cqw; }
     canvas { display: block; width: 100%; aspect-ratio: 9 / 5; background: var(--court);
       touch-action: none; cursor: none; }
     #stage[data-phase="ready"] canvas, #stage[data-phase="finished"] canvas { cursor: default; }

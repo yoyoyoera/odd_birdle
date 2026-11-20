@@ -1591,6 +1591,7 @@ showSoundState();
 if (!portal && fullscreenSupported()) {
   const showFullscreenState = () => {
     const on = Boolean(fullscreenElement());
+    document.querySelector('main').toggleAttribute('data-fullscreen', on);
     fullscreenToggle.setAttribute('aria-pressed', String(on));
     fullscreenToggle.setAttribute('aria-label', on ? 'Leave full screen' : 'Full screen');
     fullscreenToggle.title = on ? 'Leave full screen' : 'Full screen';
