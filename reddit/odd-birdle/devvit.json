@@ -66,5 +66,8 @@
         "cron": "0 0 * * *"
       }
     }
+  },
+  "marketingAssets": {
+    "icon": "public/icon.png"
   }
 }
