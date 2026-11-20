@@ -5,6 +5,7 @@ import { trpcServer } from '@hono/trpc-server';
 import { createServer, getServerPort } from '@devvit/web/server';
 import { menu } from './routes/menu';
 import { triggers } from './routes/triggers';
+import { scheduler } from './routes/scheduler';
 import { card } from './routes/card';
 import { daily } from './routes/daily';
 import { prefs } from './routes/prefs';
@@ -32,6 +33,7 @@ api.route('/stages', stages);
 const internal = new Hono();
 internal.route('/menu', menu);
 internal.route('/triggers', triggers);
+internal.route('/scheduler', scheduler);
 
 app.route('/api', api);
 app.route('/internal', internal);

@@ -28,6 +28,13 @@
         "location": "subreddit",
         "forUserType": "moderator",
         "endpoint": "/internal/menu/post-create"
+      },
+      {
+        "label": "Post today's daily",
+        "description": "The daily challenge post",
+        "location": "subreddit",
+        "forUserType": "moderator",
+        "endpoint": "/internal/menu/post-daily"
       }
     ]
   },
@@ -51,5 +58,13 @@
   },
   "dev": {
     "subreddit": "odd_birdle_dev"
+  },
+  "scheduler": {
+    "tasks": {
+      "daily-post": {
+        "endpoint": "/internal/scheduler/daily-post",
+        "cron": "0 0 * * *"
+      }
+    }
   }
 }

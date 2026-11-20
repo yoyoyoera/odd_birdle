@@ -168,3 +168,5 @@ npx devvit install oddbirdle   # r/oddbirdle 에 새 버전 설치
 - 폰 세로: 메뉴는 코트 아래 어두운 바탕 위에 은은한 타일 + 밝은 글씨(`#pad-menu`), 스테이지 목록은 화면 전체에 2열로 위아래 스크롤, 경기 중에는 코트와 패드 사이에 SENSITIVITY 막대(0.8~3.0×, 기억됨, 게임 스타일의 얇은 선과 네모 손잡이). 메뉴의 데모(코트에서 라켓 둘이 치는 장면)는 폰에서 조금 더 진하게.
 
 - 엄지 패드 감도는 계정별로 서버(Redis `prefs:v1:user:{id}`, 180일, `/api/prefs`)에 저장하고 기기(localStorage)에도 둔다. Five in a Row 는 스테이지 12·하루 도전 모두 CPU Lv.3 고정.
+
+- 매일 게시물: 스케줄러가 매일 00:00 UTC(한국 09:00)에 `/internal/scheduler/daily-post` 를 불러 `Daily #N · 도전 이름 (날짜)` 게시물을 올린다(`daily-post` 작업, `core/dailyPost.ts`). 하루에 하나만(Redis `daily:v1:posts` 의 날짜 선점, 실패하면 반납). 모더레이터 메뉴의 "Post today's daily"로 수동으로도 올릴 수 있다.
