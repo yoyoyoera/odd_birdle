@@ -29,3 +29,13 @@ test('the month grid starts on the right weekday and marks the cleared days', ()
   assert.equal(offset, 1, '1 December 2026 is a Tuesday (Monday = 0)');
   assert.deepEqual(days.filter(entry => entry.cleared).map(entry => entry.day), [2, 25]);
 });
+
+test('streakOf counts the days cleared in a row back from a date', async () => {
+  const { streakOf } = await import('../daily-client.js');
+  assert.equal(streakOf([], '2026-11-20'), 0);
+  assert.equal(streakOf(['2026-11-20'], '2026-11-20'), 1);
+  assert.equal(streakOf(['2026-11-18', '2026-11-19', '2026-11-20'], '2026-11-20'), 3);
+  assert.equal(streakOf(['2026-11-17', '2026-11-19', '2026-11-20'], '2026-11-20'), 2);
+  assert.equal(streakOf(['2026-11-30', '2026-12-01'], '2026-12-01'), 2);
+  assert.equal(streakOf(['2026-11-19'], '2026-11-20'), 0);
+});

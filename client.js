@@ -6,7 +6,7 @@ import { visibleStages } from './stages.js';
 import { createStageProgress } from './stage-progress.js';
 import { verdictFor } from './card-lines.js';
 import { createMatchStats } from './match-stats.js';
-import { createDailyClient } from './daily-client.js';
+import { createDailyClient, streakOf } from './daily-client.js';
 import { playableDaily } from './daily.js';
 import { dayLabel } from './card-rank.js';
 import { createLinkQuality } from './link-quality.js';
@@ -1322,7 +1322,8 @@ cardButton.addEventListener('click', async () => {
     try { await document.fonts.load('650 40px "Space Grotesk"'); } catch { /* the card falls back to the system font */ }
     const dailyCard = cardStage?.daily && dailyResult ? {
       number: cardStage.number, key: cardStage.key, title: cardStage.name, seconds: dailyResult.seconds, attempt: dailyResult.attempt,
-      attempts: cardStage.attempts, rank: dailyResult.rank, date: dailyResult.date
+      attempts: cardStage.attempts, rank: dailyResult.rank, date: dailyResult.date,
+      streak: streakOf([...(dailyState?.calendar ?? []), dailyResult.date], dailyResult.date)
     } : undefined;
     drawCard(canvas.getContext('2d'), { ...summary, palette, stage: cardStage?.daily ? undefined : cardStage?.id,
       stageName: cardStage?.daily ? undefined : cardStage?.name, daily: dailyCard, line, seed, name: user ? 'u/' + user : '' });
@@ -1497,14 +1498,26 @@ function dailyCanRetry() {
 }
 
 // The main menu's daily card: today's challenge, the tries left, the first five to clear it, and one button.
+// The run of days cleared in a row: through today once today is cleared, otherwise through yesterday (still alive).
+function currentStreak(state) {
+  const calendar = state.calendar ?? [];
+  if (state.cleared) return streakOf(calendar, state.plan.date);
+  const yesterday = new Date(state.plan.date + 'T00:00:00Z');
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+  return streakOf(calendar, yesterday.toISOString().slice(0, 10));
+}
+
 function renderTeaser() {
   const state = dailyState;
   const button = dailyButton;
   dailyEl('teaser-day').textContent = state ? `DAILY #${state.plan.number} · ${dayLabel(state.plan.date)}` : 'DAILY';
-  dailyEl('teaser-name').textContent = state ? playableDaily(state.plan).name : (dailyMessage || '…');
+  dailyEl('teaser-title').textContent = state ? playableDaily(state.plan).name : (dailyMessage || '…');
   dailyEl('teaser-rule').textContent = state ? `${goalText(playableDaily(state.plan))} · CPU LV.${state.plan.cpuLevel}` : '';
   const left = dailyTriesLeft();
-  dailyEl('teaser-tries').textContent = !state ? '' : state.cleared ? 'CLEARED ✓' : left === 0 ? 'NO TRIES LEFT' : `${left} ${left === 1 ? 'TRY' : 'TRIES'} LEFT`;
+  const streak = state ? currentStreak(state) : 0;
+  dailyEl('teaser-streak').textContent = streak >= 2 ? `${streak}-DAY STREAK` : '';
+  dailyEl('teaser-streak').hidden = streak < 2;
+  dailyEl('teaser-tries').textContent = !state ? '' : (state.cleared ? 'CLEARED ✓' : left === 0 ? 'NO TRIES LEFT' : `${left} ${left === 1 ? 'TRY' : 'TRIES'} LEFT`);
   const board = state?.board ?? [];
   dailyEl('teaser-board').replaceChildren(...Array.from({ length: 5 }, (_, index) => {
     const entry = board.find(item => item.rank === index + 1);
@@ -1605,7 +1618,8 @@ async function postDailyPanelCard() {
     canvas.width = cardWidth; canvas.height = cardHeight;
     try { await document.fonts.load('650 40px "Space Grotesk"'); } catch { /* system font */ }
     const daily = { number: challenge.number, key: challenge.key, title: challenge.name, seconds: record.seconds, attempt: record.attempt,
-      attempts: challenge.attempts, rank: record.rank, date: record.date };
+      attempts: challenge.attempts, rank: record.rank, date: record.date,
+      streak: streakOf([...(dailyState.calendar ?? []), record.date], record.date) };
     drawCard(canvas.getContext('2d'), { ...summary, palette, daily, line, seed, name: user ? 'u/' + user : '' });
     const response = await fetch('/api/card', { method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ image: canvas.toDataURL('image/jpeg', 0.9), daily: true }) });

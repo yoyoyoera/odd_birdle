@@ -130,7 +130,9 @@ export function drawCard(ctx, match) {
   ctx.fillStyle = daily?.rank <= 3 ? rankAccent(daily.rank) : won ? gold : palette.line;
   ctx.fillRect(inner, panelY + 52, 44, 8);
   ctx.fillStyle = palette.court; ctx.font = font(34); ctx.textAlign = 'left';
-  ctx.fillText(daily ? `DAILY #${daily.number}` : 'FULL-TIME', inner + 62, panelY + 66);
+  const dailyHead = daily ? `DAILY #${daily.number}` : 'FULL-TIME';
+  const streakTag = daily?.streak >= 2 ? ` · ${daily.streak}-DAY STREAK` : '';
+  ctx.fillText(dailyHead + streakTag, inner + 62, panelY + 66);
   ctx.textAlign = 'right';
   if (daily?.rank && daily.rank > 3) {
     // Everyone's card carries their place of the day, small; the top three get a big tab instead (card-rank.js).

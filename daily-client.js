@@ -31,6 +31,16 @@ export function createDailyClient({ request = (...args) => fetch(...args) } = {}
   };
 }
 
+// Days in a row the player has cleared, counting back from `date` (which counts as cleared when it is `date`'s own clear:
+// pass today after a clear, or yesterday when today is still open).
+export function streakOf(clearedDates, date) {
+  const set = new Set(clearedDates);
+  let streak = 0;
+  const day = new Date(date + 'T00:00:00Z');
+  while (set.has(day.toISOString().slice(0, 10))) { streak++; day.setUTCDate(day.getUTCDate() - 1); }
+  return streak;
+}
+
 // A month of days for the calendar: [{ day, cleared }] starting from day 1 of the month the date is in, with the weekday
 // (0 = Monday) of the first, so the grid can be laid out.
 export function monthDays(date, clearedDates) {

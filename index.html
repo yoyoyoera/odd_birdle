@@ -219,6 +219,8 @@
     [data-portal="reddit"] #daily-teaser[hidden] { display: none; }
     [data-portal="reddit"] #teaser-head { display: flex; justify-content: space-between; gap: 1cqw; margin: 0; font-size: max(8px, 1.5cqw); font-weight: 650; letter-spacing: .08em; }
     [data-portal="reddit"] #teaser-day { opacity: .7; }
+    [data-portal="reddit"] #teaser-name { display: flex; justify-content: space-between; align-items: baseline; gap: 1cqw; }
+    [data-portal="reddit"] #teaser-streak { font-size: max(8px, 1.5cqw); font-weight: 650; letter-spacing: .08em; white-space: nowrap; color: #8a6a12; }
     [data-portal="reddit"] #teaser-name { margin: .3cqw 0 .2cqw; font-size: max(13px, 3.4cqw); line-height: 1.05; color: var(--ink); }
     [data-portal="reddit"] #teaser-rule { margin: 0 0 .9cqw; font-size: max(8px, 1.5cqw); font-weight: 650; letter-spacing: .1em; opacity: .75; }
     [data-portal="reddit"] #teaser-board { list-style: none; margin: 0 0 auto; padding: 0; display: grid; gap: .1cqw; }
@@ -396,7 +398,7 @@
       </span>
       <section id="daily-teaser" aria-label="Daily challenge" hidden>
         <p id="teaser-head"><span id="teaser-day">DAILY</span><span id="teaser-tries"></span></p>
-        <h3 id="teaser-name">…</h3>
+        <h3 id="teaser-name"><span id="teaser-title">…</span><span id="teaser-streak" hidden></span></h3>
         <p id="teaser-rule"></p>
         <ol id="teaser-board" aria-label="First to clear today"></ol>
         <button id="daily-button" type="button"><svg id="daily-icon" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5M5 14v5.5h14V14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="daily-label">CHALLENGE</span></button>

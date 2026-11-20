@@ -16,7 +16,7 @@ const args = process.argv.slice(2);
 const option = (name, fallback) => { const at = args.indexOf('--' + name); return at >= 0 ? args[at + 1] : fallback; };
 const out = path.resolve(option('out', 'card.png'));
 const params = new URLSearchParams();
-for (const name of ['twist', 'rank', 'won', 'mine', 'theirs', 'palette', 'seed', 'time', 'attempt', 'number', 'name', 'line', 'level', 'players', 'date']) {
+for (const name of ['twist', 'rank', 'won', 'mine', 'theirs', 'palette', 'seed', 'time', 'attempt', 'number', 'name', 'line', 'level', 'players', 'date', 'streak']) {
   if (option(name) !== undefined) params.set(name, option(name));
 }
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.woff2': 'font/woff2', '.json': 'application/json' };
