@@ -1,4 +1,4 @@
-import { center, clamp, createGame, floor, height, leftLine, netTop, racketRadius, rightLine, setMirroredShapes, shuttleOutline, step, width, contactMotion, isSwing, projectStrike, forceAt, effectIds, shapeCount, shuttleSizeOptions, racketTouches, supportedShuttleY, swingMotion, trialEffectIds, trialEffectLabels, trampolineLift, trampolineDent } from './game.js';
+import { center, clamp, createGame, floor, height, leftLine, netTop, racketRadius, rightLine, setMirroredShapes, shuttleOutline, step, width, contactMotion, isSwing, projectStrike, forceAt, effectIds, shapeCount, shuttleSizeOptions, racketTouches, posesBetween, sweptTouch, supportedShuttleY, swingMotion, trialEffectIds, trialEffectLabels, trampolineLift, trampolineDent } from './game.js';
 import { makeStands, drawStands } from './stands.js';
 import { createCrowd } from './crowd.js';
 import { createLinkQuality } from './link-quality.js';
@@ -225,6 +225,7 @@ function resetPrediction() {
   predictedFlight = undefined;
   localOverlap = false;
   lastHold = -Infinity;
+  lastShown = undefined;
 }
 
 // stay: keep the current screen (quick match going back to its CPU game).
@@ -424,6 +425,10 @@ function currentView() {
   return mode === 'solo' ? solo.view() : onlineView ?? ready;
 }
 
+// The shuttle as shown on the previous frame and when (playback time), so a fast smash is checked along its whole path
+// between frames, not only where it is drawn now.
+let lastShown;
+let hitSeenTime;
 function predictContact(from, to, motion, time, moving = false) {
   const shuttle = displayedShuttle;
   if (!shuttle || (shuttle.x < center ? 'left' : 'right') !== localSide) {
@@ -435,12 +440,18 @@ function predictContact(from, to, motion, time, moving = false) {
     if (!overlaps) localOverlap = false;
     return false;
   }
-  if (!shuttle.canHit || prediction || predictedFlight === shuttle.flight ||
-      (!overlaps && !racketTouches(shuttle, from, to))) return false;
+  if (!shuttle.canHit || prediction || predictedFlight === shuttle.flight) return false;
+  const earlier = lastShown?.shuttle.flight === shuttle.flight && Number.isFinite(lastShown.time) ? lastShown : undefined;
+  const path = earlier ? posesBetween(earlier.shuttle, shuttle) : [shuttle];
+  const meet = sweptTouch(path, from, to);
+  if (meet < 0) return false;
+  // Tell the server the moment on the path where they met, so it checks the same pose.
+  const now = playback.displayedTime;
+  hitSeenTime = earlier && Number.isFinite(now) ? earlier.time + (now - earlier.time) * path[meet].fraction : now;
   localOverlap = overlaps;
   predictedFlight = shuttle.flight;
   // A wind or balloon in progress shapes the flight the same way on the server.
-  prediction = { shuttle, motion, started: time, force: onlineView?.force };
+  prediction = { shuttle: path[meet], motion, started: time, force: onlineView?.force };
   return true;
 }
 
@@ -957,9 +968,10 @@ function advanceFrame(time) {
     const hit = predictContact(localRacket, localRacket, contactMotion(localRacket, time), time);
     if (hit || time - lastHold >= 45) {
       lastHold = time;
-      send({ type: 'hold', seenTime: playback.displayedTime, time });
+      send({ type: 'hold', seenTime: hit ? hitSeenTime : playback.displayedTime, time });
     }
   }
+  lastShown = mode === 'online' && displayedShuttle ? { shuttle: displayedShuttle, time: playback.displayedTime } : undefined;
   noteFinish(view);
   if (quick.on) {
     if (mode === 'online' && view.phase === 'finished') quick.finished = true;

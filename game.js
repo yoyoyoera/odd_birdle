@@ -296,6 +296,33 @@ export function racketTouches(shuttle, from, to = from) {
   return outlineContact(from, to, racketRadius, shuttle.x, shuttle.y, shuttleOutline(shuttle));
 }
 
+// How far back an online contact check looks along the shuttle's path (ms): about three frames, and never further back
+// than the racket's previous check, so a racket that has just arrived is not met by a shuttle that had already gone.
+export const sweepMs = 60;
+// Between two checks a fast smash can move further than the racket is wide (2000 units/s is 33 units a frame), so the
+// racket and the shuttle are both moved along their paths in small steps and the first step where they meet counts.
+// `path` is the shuttle's poses, oldest first, ending with the pose now; the racket goes from `from` to `to` over the same
+// time. Returns the index of the first pose that touches, or -1.
+export function sweptTouch(path, from, to) {
+  const last = path.length - 1;
+  for (let i = 0; i <= last; i++) {
+    const pose = path[i];
+    const k = last === 0 ? 1 : i / last;
+    const before = last === 0 ? from : lerpPoint(from, to, Math.max(0, i - 1) / last);
+    const at = lerpPoint(from, to, k);
+    if (outlineContact(before, at, racketRadius, pose.x, pose.y, pose.rings ?? shuttleOutline(pose))) return i;
+  }
+  return -1;
+}
+
+const lerpPoint = (a, b, k) => ({ x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k });
+
+// The shuttle's poses from a to b (same shape and turn), every few units, for sweptTouch.
+export function posesBetween(a, b, spacing = 4) {
+  const count = clamp(Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / spacing), 1, 60);
+  return Array.from({ length: count + 1 }, (_, i) => ({ ...b, ...lerpPoint(a, b, i / count), fraction: i / count }));
+}
+
 export function supportedShuttleY(pose, from, to) {
   if (pose.y > from.y || to.y > from.y) return undefined;
   const rings = shuttleOutline(pose);
@@ -892,11 +919,19 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     return outlineContact(from, to, racketRadius, shuttle.x, shuttle.y, outline);
   }
 
-  function checkContact(side, from, to, swingX, swingY) {
+  // `previous`: where the shuttle was at the last check (one game step ago); the path from there is checked too.
+  function checkContact(side, from, to, swingX, swingY, previous) {
     const onCourt = onSide(side);
     const overlap = onCourt && racketContact(to, to);
+    const path = previous ? posesBetween(previous, { x: shuttle.x, y: shuttle.y, rings: outline }) : undefined;
+    const meet = path ? sweptTouch(path, from, to) : racketContact(from, to) ? 0 : -1;
     if (phase === 'live' && !trampolineHold && onCourt && hitCooldown <= 0 &&
-        (!touching[side] || (support === side && isSwing({ vx: swingX, vy: swingY }))) && racketContact(from, to)) {
+        (!touching[side] || (support === side && isSwing({ vx: swingX, vy: swingY }))) && meet >= 0) {
+      // Hit from the point on its path where it first met the racket.
+      if (path) {
+        shuttle.x = path[meet].x;
+        shuttle.y = path[meet].y;
+      }
       playerHit(side, swingX, swingY);
       touching[side] = overlap;
     } else if (!overlap) {
@@ -909,19 +944,34 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     return { ...shuttlePose(), flight, canHit: hitCooldown <= 0 };
   }
 
-  function onlineContact(side, from, to, frame, hold = false) {
-    if (phase !== 'live' || trampolineHold || activeEffect?.id === 'freeze' || !frame || frame.flight !== flight) return;
-    if ((frame.x < center ? 'left' : 'right') !== side) {
+  // `sample(time)`: the shuttle as the server had it at an earlier moment (rooms.js), so the path since the racket's last
+  // check (`since`, at most sweepMs back) is swept, not only the pose the player saw last.
+  function onlineContact(side, from, to, seen, hold = false, sample, since) {
+    if (phase !== 'live' || trampolineHold || activeEffect?.id === 'freeze' || !seen || seen.flight !== flight) return;
+    if ((seen.x < center ? 'left' : 'right') !== side) {
       touching[side] = false;
       return;
     }
-    const rings = shuttleOutline(frame);
-    const overlaps = outlineContact(to, to, racketRadius, frame.x, frame.y, rings);
+    const rings = shuttleOutline(seen);
+    const overlaps = outlineContact(to, to, racketRadius, seen.x, seen.y, rings);
     if (touching[side] && !(support === side && !hold && isSwing(to))) {
       if (!overlaps) touching[side] = false;
       return;
     }
-    if (!frame.canHit || !outlineContact(from, to, racketRadius, frame.x, frame.y, rings)) {
+    const path = [];
+    if (sample && Number.isFinite(seen.time)) {
+      const start = Math.max(seen.time - sweepMs, Number.isFinite(since) ? since : -Infinity);
+      // About every 4 ms (8 units of a 2000 units/s smash), on this flight and this side of the net only.
+      const count = Math.min(15, Math.floor((seen.time - start) / 4));
+      for (let i = count; i >= 1; i--) {
+        const earlier = sample(seen.time - (seen.time - start) * i / count);
+        if (earlier?.flight === seen.flight && earlier.canHit && (earlier.x < center ? 'left' : 'right') === side) path.push(earlier);
+      }
+    }
+    path.push(seen);
+    const meet = sweptTouch(path, from, to);
+    const frame = path[meet];
+    if (meet < 0 || !frame.canHit) {
       return;
     }
     // Start at the same contact pose the striker saw, then catch up to the server clock.
@@ -948,11 +998,12 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     return force && { ...force, elapsed: Math.max(0, force.elapsed - age) };
   }
 
-  function holdRacket(side, frame, time) {
+  function holdRacket(side, frame, time, sample) {
     const racket = rackets[side];
     if (racket) {
+      const since = racket.seenTime;
       if (Number.isFinite(frame?.time)) racket.seenTime = frame.time;
-      onlineContact(side, racket, { ...racket, ...contactMotion(racket, time) }, frame, true);
+      onlineContact(side, racket, { ...racket, ...contactMotion(racket, time) }, frame, true, sample, since);
     }
   }
 
@@ -971,7 +1022,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     return true;
   }
 
-  function moveRacket(side, input, frame) {
+  function moveRacket(side, input, frame, sample) {
     if (phase !== 'live' && phase !== 'between' && phase !== 'starting') return;
     if (!input) {
       rackets[side] = undefined;
@@ -996,7 +1047,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     Object.assign(next, swingMotion(previous, next));
     if (next.vy < 0 && !isSwing(next) && supportShuttle(side, previous, next)) return;
     if (withCpu) checkContact(side, previous, next, next.vx, next.vy);
-    else onlineContact(side, previous, next, frame);
+    else onlineContact(side, previous, next, frame, false, sample, previous === next ? undefined : previous.seenTime);
   }
 
   // canHit is off while the shuttle is frozen: the CPU may walk to it but cannot strike it.
@@ -1267,6 +1318,8 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
       if (withCpu) moveCpu(dt, false);
       return;
     }
+    const before = shuttle && { x: shuttle.x, y: shuttle.y };
+    const flightBefore = flight;
     advanceShuttle(dt);
     if (decoys.length) advanceDecoys(dt);
     if (support) {
@@ -1284,7 +1337,8 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
       if (racket) {
         racket.age += dt;
         const motion = contactMotion(racket, racket.time + racket.age * 1000);
-        checkContact(side, racket, racket, motion.vx, motion.vy);
+        // Same flight only: a bounce or a hit in this step moved it somewhere it did not fly to.
+        checkContact(side, racket, racket, motion.vx, motion.vy, flightBefore === flight ? before : undefined);
       }
       moveCpu(dt);
       if (decoys.length && cpu) racketPopsDecoys(cpu, cpu);
@@ -1389,10 +1443,26 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     return true;
   }
 
+  // Tests only: put the shuttle somewhere, flying, as if `hitter` had just hit it.
+  function testShot({ x, y, vx, vy, hitter = 'right' }) {
+    if (phase !== 'live' || !shuttle) return false;
+    Object.assign(shuttle, { x, y, vx, vy });
+    clearEffect();
+    lastHitter = hitter;
+    cordTouches = 0;
+    hitCooldown = 0;
+    touching.left = touching.right = false;
+    flight++;
+    strike = undefined;
+    support = undefined;
+    updateOutline();
+    return true;
+  }
+
   // Test page only: pick the next HIGH NET / LOW NET size.
   function setNetScale(id, scale) {
     if (id in netScales && Number.isFinite(scale) && scale > 0 && scale < 4) netScales[id] = scale;
   }
 
-  return { restart, moveRacket, holdRacket, contactFrame, simulate, view, triggerEffect, testNetCord, setNetScale, setEffectSeconds, setShuttle, setEffects, setOnlyEffect };
+  return { restart, moveRacket, holdRacket, contactFrame, simulate, view, triggerEffect, testNetCord, testShot, setNetScale, setEffectSeconds, setShuttle, setEffects, setOnlyEffect };
 }

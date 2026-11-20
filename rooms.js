@@ -201,11 +201,12 @@ export function createRooms(randomIndex) {
         if (message.type === 'racket') {
           const input = message.input;
           if (input === null || (input && [input.x, input.y, input.time].every(Number.isFinite))) {
-            room.game.moveRacket(side, input, frameAt(room, message.seenTime));
+            room.game.moveRacket(side, input, frameAt(room, message.seenTime), time => frameAt(room, time));
           }
         }
         if (message.type === 'hold') {
-          room.game.holdRacket(side, frameAt(room, message.seenTime), message.time);
+          // The sampler lets the game sweep the shuttle's path since this racket's last check, not just one pose.
+          room.game.holdRacket(side, frameAt(room, message.seenTime), message.time, time => frameAt(room, time));
         }
         const state = room.game.view();
         if (state.strike && state.strike.flight !== previousStrike) {
