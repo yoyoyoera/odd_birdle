@@ -627,29 +627,45 @@ function moveRacket(event) {
 // thumb moves is how hard the swing is. The court's left and right are as before. Everything else (mouse, a phone on its
 // side) keeps the old controls. ----
 const pad = document.querySelector('#pad');
-const padGain = 1.5; // how many times further the racket moves than the thumb, on screen
+let padGain = 1.5; // how many times further the racket moves than the thumb, on screen (the SENSITIVITY bar sets it)
+const padGainKey = 'oddbirdle-pad-gain';
+try { const saved = Number(localStorage.getItem(padGainKey)); if (saved >= 0.8 && saved <= 3) padGain = saved; } catch { /* the default */ }
 const padHintKey = 'oddbirdle-pad-hint-done';
 let padActive = false;
 let padThumb;   // { id, x, y } of the finger on the pad
 let padRacket;  // where the racket is, in court coordinates (kept between touches)
 const padQuery = window.matchMedia('(pointer: coarse)');
 
+const padMenu = document.querySelector('#pad-menu');
+const padTune = document.querySelector('#pad-tune');
+const menuParts = [document.querySelector('#menu-modes'), document.querySelector('#daily-teaser')];
+
 function layoutPad() {
+  const html = document.documentElement;
   const wants = portal === 'reddit' && padQuery.matches && window.innerHeight > window.innerWidth * 1.05;
   let space = 0;
   if (wants) {
-    // Measure with the pad layout on (the court at the top), whatever screen this is.
-    document.documentElement.toggleAttribute?.('data-pad', true);
+    // Measure with the phone layout on and the tall parts out of the way: the pad gets what is left under the court.
+    html.toggleAttribute?.('data-pad', true);
+    html.dataset.padView = 'solo';
     pad.hidden = false;
+    padTune.hidden = false;
     pad.style.height = '0px';
-    space = window.innerHeight - stage.getBoundingClientRect().bottom - 24;
+    space = window.innerHeight - pad.getBoundingClientRect().top - 24;
     pad.style.height = Math.max(0, space) + 'px';
   }
   // Too little room under the court (a short inline post): the old touch controls are better than a sliver of a pad.
   padActive = wants && space >= 110;
-  // The menus keep their centred layout; the court moves to the top only while a match is on.
-  document.documentElement.toggleAttribute?.('data-pad', padActive && mode === 'solo');
+  html.toggleAttribute?.('data-pad', padActive);
+  html.dataset.padView = mode;
+  // On a phone the title demo is the only court in view: let it show a little stronger.
+  demoAlpha.racket = padActive ? 0.6 : 0.4;
+  demoAlpha.bird = padActive ? 0.95 : 0.75;
   pad.hidden = !(padActive && mode === 'solo');
+  padTune.hidden = !(padActive && mode === 'solo');
+  // On the menu the space under the court is used too: the buttons and the daily card move down into it.
+  (padActive ? padMenu : menu).append?.(...menuParts);
+  padMenu.hidden = !(padActive && mode === 'menu');
   try { if (localStorage.getItem(padHintKey)) pad.dataset.used = ''; } catch { /* the hint shows every time */ }
 }
 window.addEventListener?.('resize', layoutPad);
@@ -657,6 +673,19 @@ padQuery.addEventListener?.('change', layoutPad);
 window.addEventListener?.('orientationchange', () => setTimeout(layoutPad, 250));
 
 const padScale = () => width / court.getBoundingClientRect().width * padGain;
+
+const padGainInput = document.querySelector('#pad-gain');
+const padGainValue = document.querySelector('#pad-gain-value');
+function showPadGain() {
+  padGainInput.value = String(padGain);
+  padGainValue.textContent = padGain.toFixed(1) + '×';
+}
+padGainInput.addEventListener('input', () => {
+  padGain = Number(padGainInput.value);
+  padGainValue.textContent = padGain.toFixed(1) + '×';
+  try { localStorage.setItem(padGainKey, String(padGain)); } catch { /* until this page closes */ }
+});
+showPadGain();
 
 function padPush(time) {
   const phase = currentView().phase;

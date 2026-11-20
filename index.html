@@ -62,6 +62,51 @@
     [data-portal="reddit"] #expand-gate button { min-height: 44px; padding: 0 22px; border: 0; background: var(--ink); color: var(--court); font: inherit; font-weight: 650; letter-spacing: .14em; cursor: pointer; }
     [data-portal="reddit"] #expand-gate span { font-size: 12px; opacity: .7; }
     [data-portal="reddit"] html, [data-portal="reddit"] body, html[data-portal="reddit"] body { overscroll-behavior: none; }
+    /* Phone held upright: the court is always at the top. On the menu, the two ways to play and the daily card (with the
+       leaderboard) fill the space under it; in a match it holds the sensitivity bar and the thumb pad; the stage list
+       takes the whole screen. */
+    html[data-pad] #stage-panel { position: fixed; inset: 0; }
+    /* The stage list on a phone: two cards across, scrolling up and down (the arrows are for the sideways list). */
+    html[data-pad] #stage-list { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: none; grid-auto-rows: 132px; grid-auto-columns: auto;
+      align-content: start; overflow-x: hidden; overflow-y: auto; touch-action: pan-y; padding: 4px 4px 24px; }
+    html[data-pad] #stage-prev, html[data-pad] #stage-next { display: none; }
+    html[data-pad] #stage-panel { padding-top: 12px; }
+    #pad-menu, #pad-tune { display: none; }
+    html[data-pad][data-pad-view="menu"] #pad-menu { display: flex; flex-direction: column; gap: 12px; box-sizing: border-box; width: calc(100% - 24px); margin: 12px; flex: 1; min-height: 0;
+      container-type: inline-size; }
+    html[data-pad][data-pad-view="menu"] #pad-menu #menu-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: start; }
+    /* On the phone menu the buttons sit on the dark page: quiet tiles only a little lighter than it, with bright words. */
+    html[data-pad] #pad-menu button { border: 0; color: var(--court); font: inherit; font-weight: 650; cursor: pointer; min-height: 0; padding: 0; }
+    html[data-pad] #pad-menu #menu-modes > button, html[data-pad] #pad-menu #menu-modes #cpu { background: color-mix(in srgb, var(--court) 13%, var(--page)); width: 100%; }
+    html[data-pad] #pad-menu #menu-modes > button:hover, html[data-pad] #pad-menu #menu-modes #cpu:hover { background: color-mix(in srgb, var(--court) 22%, var(--page)); }
+    html[data-pad] #pad-menu #menu-modes #cpu-level { width: 100%; background: transparent; color: var(--court); opacity: .85; }
+    html[data-pad] #pad-menu #daily-teaser { background: color-mix(in srgb, var(--court) 8%, var(--page)); color: var(--court); }
+    html[data-pad] #pad-menu #teaser-name { color: var(--court); }
+    html[data-pad] #pad-menu #daily-button { background: color-mix(in srgb, var(--court) 20%, var(--page)); color: var(--court); width: 100%; display: flex; align-items: center; justify-content: center;
+      box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--court) 38%, transparent); }
+    html[data-pad] #pad-menu #daily-button:hover:not(:disabled) { background: color-mix(in srgb, var(--court) 28%, var(--page)); }
+    html[data-pad] #pad-menu #teaser-board li:nth-child(n+4) { display: flex; }
+    html[data-pad] #pad-menu #menu-modes > button, html[data-pad] #pad-menu #menu-modes #cpu { height: 56px; font-size: 16px; letter-spacing: .1em; }
+    html[data-pad] #pad-menu #menu-modes #cpu-level { font-size: 12px; margin-top: 4px; }
+    html[data-pad] #pad-menu #daily-teaser { flex: 1; min-height: 0; padding: 16px 18px 16px; }
+    html[data-pad] #pad-menu #teaser-head { font-size: 12px; }
+    html[data-pad] #pad-menu #teaser-name { font-size: 30px; margin: 6px 0 2px; }
+    html[data-pad] #pad-menu #teaser-rule { font-size: 12px; margin-bottom: 12px; }
+    html[data-pad] #pad-menu #teaser-board { gap: 4px; }
+    html[data-pad] #pad-menu #teaser-board li { font-size: 15px; gap: 10px; }
+    html[data-pad] #pad-menu #teaser-board .place { width: 28px; }
+    html[data-pad] #pad-menu #daily-button { height: 52px; font-size: 16px; margin-top: 14px; gap: 8px; }
+    html[data-pad][data-pad-view="solo"] #pad-tune { display: flex; align-items: center; gap: 10px; box-sizing: border-box; width: calc(100% - 24px); margin: 8px 12px 0;
+      color: var(--court); font-size: 11px; font-weight: 650; letter-spacing: .12em; }
+    /* The sensitivity bar in the game's own flat style: a thin line and a square handle, no system look. */
+    #pad-tune input { -webkit-appearance: none; appearance: none; flex: 1; min-width: 0; height: 32px; margin: 0; background: transparent; cursor: pointer; touch-action: pan-x; }
+    #pad-tune input::-webkit-slider-runnable-track { height: 4px; background: color-mix(in srgb, var(--court) 40%, transparent); border-radius: 0; }
+    #pad-tune input::-moz-range-track { height: 4px; background: color-mix(in srgb, var(--court) 40%, transparent); border-radius: 0; }
+    #pad-tune input::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 28px; margin-top: -12px; border: 0; border-radius: 0; background: var(--court); }
+    #pad-tune input::-moz-range-thumb { width: 16px; height: 28px; border: 0; border-radius: 0; background: var(--court); }
+    #pad-tune input:focus-visible { outline: 2px solid var(--court); outline-offset: 2px; }
+
+    #pad-tune output { min-width: 3.2em; text-align: right; font-variant-numeric: tabular-nums; opacity: .8; }
     /* Thumb pad (Reddit, touch, portrait): the court stays on top and the rest of the page is where the thumb moves. */
     html[data-pad] body { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; place-items: initial; }
     html[data-pad] main { width: 100%; padding-block: 0; }
@@ -432,6 +477,12 @@
   </nav>
 </main>
 <!-- A phone held upright (Reddit): the space under the court is a thumb pad; the racket follows the thumb's movement. -->
+<div id="pad-menu" hidden></div>
+<div id="pad-tune" hidden>
+  <label for="pad-gain">SENSITIVITY</label>
+  <input id="pad-gain" type="range" min="0.8" max="3" step="0.05" value="1.5" aria-label="Thumb pad sensitivity">
+  <output id="pad-gain-value" for="pad-gain">1.5×</output>
+</div>
 <div id="pad" hidden aria-label="Thumb pad: slide to move your racket">
   <svg id="pad-icon" width="64" height="64" viewBox="0 0 64 64" aria-hidden="true">
     <circle cx="32" cy="32" r="9" fill="currentColor" opacity=".9"/>
