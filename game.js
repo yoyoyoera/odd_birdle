@@ -1133,6 +1133,12 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     const travel = speed * dt;
     bot.x += clamp(courtX(targetX) - bot.x, -290 * travel, 290 * travel);
     bot.y += clamp(targetY - bot.y, -340 * travel, 340 * travel);
+    if (!doubles && bot === cpu) {
+      // A bigger boss racket must not sink into the net, the floor or the side wall.
+      const extra = cpuRadius() - racketRadius;
+      bot.x = courtX(clamp(courtX(bot.x), center + racketRadius + extra, width - extra));
+      bot.y = Math.min(bot.y, floor - extra);
+    }
     const inReach = defending && tracked.x <= rightLine && birdX <= rightLine;
     if (canHit && cpuThaw <= 0 && (inReach || leavingOut) && birdX >= center &&
         (doubles || lastHitter !== team || cpuFollowUps > 0 || afterBounce) && hitCooldown <= 0 &&
