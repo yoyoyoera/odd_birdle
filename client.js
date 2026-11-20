@@ -26,7 +26,7 @@ import {
 } from './juice.js';
 import {
   initPortal, isInstantMultiplayer, loadingStart, loadingStop, matchBreak, matchEnded, onJoinRoom, onPortalMute, onPortalPause,
-  canPostCard, closedPortal, coordinatedBreak, expandRedditView, onRedditViewMode, portal, redditName, redditViewMode, redditIdentity, portalInviteLink, portalInviteRoom, portalMuted, roomFull, roomLeft, roomOpen, serverBase, setPlaying, siteUrl
+  canPostCard, closedPortal, coordinatedBreak, expandRedditView, exitRedditExpanded, onRedditViewMode, portal, redditName, redditViewMode, redditIdentity, portalInviteLink, portalInviteRoom, portalMuted, roomFull, roomLeft, roomOpen, serverBase, setPlaying, siteUrl
 } from './portal.js';
 
 const court = document.querySelector('#court');
@@ -241,6 +241,7 @@ function setMode(next, message = '') {
   joinForm.hidden = next !== 'join';
   back.hidden = next === 'menu';
   if (typeof layoutPad === 'function') layoutPad();
+  if (typeof updateViewToggle === 'function') updateViewToggle();
   lobbyMessage.hidden = !message;
   setText(lobbyMessage, message);
   showPauseState();
@@ -748,12 +749,23 @@ for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
 
 // ---- Phone in Reddit's feed: open the full-screen view first (the feed would scroll under a thumb in an inline post). ----
 const expandGate = document.querySelector('#expand-gate');
+// PC, in Reddit, main menu only (opening the bigger window starts the page afresh, so never in the middle of a match).
+function updateViewToggle() {
+  const viewToggle = document.querySelector('#view-toggle');
+  const expanded = redditViewMode() === 'expanded';
+  viewToggle.hidden = !(portal === 'reddit' && !window.matchMedia('(pointer: coarse)').matches && mode === 'menu');
+  viewToggle.textContent = expanded ? '⤡ SMALLER' : '⛶ EXPAND';
+  viewToggle.setAttribute('aria-label', expanded ? 'Back to the small view' : 'Open bigger');
+}
+document.querySelector('#view-toggle').addEventListener('click', event => (redditViewMode() === 'expanded' ? exitRedditExpanded(event) : expandRedditView(event)));
 function updateGate() {
+  updateViewToggle();
   expandGate.hidden = !(portal === 'reddit' && padQuery.matches && redditViewMode() === 'inline');
   layoutPad();
 }
 expandGate.querySelector('button').addEventListener('click', event => expandRedditView(event));
 onRedditViewMode?.(updateGate);
+updateViewToggle();
 
 function drawRacket(position, fill, stroke, side) {
   ctx.beginPath();

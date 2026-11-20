@@ -24,6 +24,7 @@ const redditIdentityReady = portal === 'reddit'
 export const redditViewMode = () => redditClient?.getWebViewMode?.() ?? 'expanded';
 export const onRedditViewMode = listener => { viewListeners.push(listener); };
 export const expandRedditView = event => redditClient?.requestExpandedMode?.(event, 'game');
+export const exitRedditExpanded = event => redditClient?.exitExpandedMode?.(event);
 export const redditIdentity = () => redditIdentityReady;
 export const redditName = () => redditUser;
 // Whether this build can post a card to Reddit.

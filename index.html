@@ -202,6 +202,11 @@
     [data-portal="reddit"] #stage-prev:hover, [data-portal="reddit"] #stage-next:hover { opacity: 1; }
     [data-portal="reddit"] #stage-prev:disabled, [data-portal="reddit"] #stage-next:disabled { opacity: 0; pointer-events: none; }
     [data-portal="reddit"] #back { z-index: 4; }
+    /* PC in Reddit: a corner button on the main menu opens the bigger window (and brings it back). */
+    #view-toggle { position: absolute; top: 8px; right: 8px; z-index: 4; min-width: 44px; height: 32px; padding: 0 10px; font-size: 11px; font-weight: 650; letter-spacing: .12em; border: 0; color: var(--ink);
+      background: color-mix(in srgb, var(--court) 60%, transparent); opacity: .85; cursor: pointer; transition: opacity .15s; }
+    #view-toggle:hover { opacity: 1; background: color-mix(in srgb, var(--court) 60%, transparent); }
+    #view-toggle[hidden] { display: none; }
     /* Reddit's main menu: the two ways to play on the left, stacked; today's daily challenge on the right with the first
        five to clear it and a button. Sizes follow the court's width (cqw), so it scales with the frame. */
     #menu-modes { display: contents; }
@@ -436,6 +441,7 @@
     </form>
     <p id="lobby-message" role="status" hidden></p>
     <button id="back" type="button" aria-label="Main menu" title="Main menu" hidden>←</button>
+    <button id="view-toggle" type="button" hidden></button>
     <button id="game-control" type="button" aria-label="Restart" title="Restart" hidden>
       <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
         <path d="M4 5v5h5M4.7 10a7.5 7.5 0 1 1 .7 7" fill="none" stroke="currentColor"
