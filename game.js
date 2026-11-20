@@ -36,6 +36,12 @@ export const center = width / 2;
 export const floor = 448;
 export const netTop = 342;
 const netEnd = { x: center, y: floor };
+// NET CORD: a shuttle that only clips the tape at the top of the net (its lowest point at most this far below the tape)
+// is slowed and popped up instead of ending the rally, as in real badminton. It plays on if it falls over, and it is
+// the hitter's point lost if it drops back on their own side. Deeper into the net is still 'Net'.
+export const netCordBand = 12;
+const netCordLimit = 4;
+const netCordSeconds = 0.35;
 export const leftLine = 64;
 export const rightLine = width - leftLine;
 export const racketRadius = 22;
@@ -354,6 +360,11 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
   // True from a bounce off the post or the swollen floor until the next hit: the shuttle is a fresh chance for
   // whoever it comes to, even the side that hit it last (the CPU may then hit it twice in a row).
   let afterBounce = false;
+  // NET CORD: tape touches in this flight (reset at each hit and serve), how many in the match (for sounds), the last one.
+  let cordTouches = 0;
+  let cordCount = 0;
+  let cordFlash = 0;
+  let cordX = center;
   let cpuPlan;
   let cpuPlanWait = 0;
 
@@ -384,6 +395,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     cpu = withCpu ? { x: 660, y: 300 } : undefined;
     phase = 'live';
     lastHitter = undefined;
+    cordTouches = 0;
     hitCooldown = 0;
     touching.left = touching.right = false;
     flash = 0;
@@ -395,6 +407,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     winner = undefined;
     score = { left: 0, right: 0 };
     pointsToWin = 5 + Math.floor(Math.random() * 11);
+    cordFlash = 0;
     matchNetTop = Math.round(floor - (floor - netTop) * [1, 1.2, 1.4][Math.floor(Math.random() * 3)]);
     baseNetTop = matchNetTop;
     netStart.y = matchNetTop;
@@ -685,6 +698,17 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
   // Where the shuttle goes from `from`, flown forward the way the game will fly it: with the push of a running
   // GUST or BALLOON, held still by FREEZE, thrown back by the TRAMPOLINE floor and the BUMPER post. The CPU uses this
   // to see where a shuttle that has been pushed off its path is really going.
+  // How a shuttle that clipped the tape comes off it. `forward` is the way it was crossing; a first touch mostly rolls
+  // on over (sometimes it drops back), later ones slide off whichever side it sits on, so it never hangs on the tape.
+  // `reach` is the shuttle's size: a big one has further to roll before it drops off, so it comes off faster.
+  function cordBounce(body, forward, touches, random, reach) {
+    const side = Math.sign(body.x - center) || forward;
+    const dir = touches > 1 ? side : random() < 0.72 ? forward : -forward;
+    const least = 70 + reach * 2 + (touches > 1 ? 40 : 0);
+    body.vx = dir * clamp(Math.abs(body.vx) * 0.3, least, least + 60);
+    body.vy = -clamp(Math.abs(body.vy) * 0.12 + 40, 40, 130);
+  }
+
   function flyForward(from, seconds = 3.5, watchPost = false) {
     const dt = 1 / 60;
     const bottom = Math.max(...outlinePoints.map(point => point.y));
@@ -698,11 +722,20 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     let floorUsed = activeEffect?.id !== 'trampoline' || Boolean(activeEffect.used);
     let postWait = 0;
     let hitPost = false;
+    let netTouches = cordTouches;
     const path = [];
     for (let t = 0; t < seconds; t += dt) {
       if (t < frozenFor) { path.push({ t, x: body.x, y: body.y, vy: 0 }); continue; }
       const push = forceAt(force, t);
+      const beforeX = body.x;
       advanceFlight(body, dt, flightScale(dt, airDrag), Math.exp(-airDrag * dt), gravity * push.gravity / airDrag + push.y, push.x);
+      // The net: a clip of the tape pops the shuttle up (as the game does, taking the likely roll over), deeper ends there.
+      if (lastHitter && body.y + bottom > matchNetTop && ((beforeX - center) * (body.x - center) <= 0 || Math.abs(body.x - center) < reach * 0.5)) {
+        if (body.y + bottom - matchNetTop > netCordBand || netTouches >= netCordLimit) return { path, landing: { t, x: body.x, y: body.y, net: true }, hitPost };
+        netTouches++;
+        body.y = matchNetTop - bottom - 0.5;
+        cordBounce(body, Math.sign(body.x - beforeX) || (lastHitter === 'left' ? 1 : -1), netTouches, () => 0, reach);
+      }
       postWait -= dt;
       if (activeEffect?.id === 'bumper' && left - t > 0 && postWait <= 0) {
         const size = smooth(Math.min((clock + t) / bumperGrow, (left - t) / bumperGrow));
@@ -774,6 +807,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     shuttle.vy = vy;
     shuttle.spin = vx / 92 + 1.4;
     lastHitter = hitter;
+    cordTouches = 0;
     hitCooldown = 0.14;
     flash = 0.22;
     message = 'Rally in progress';
@@ -1023,6 +1057,30 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     }
   }
 
+  // NET CORD: true when the shuttle only clipped the tape and plays on (see netCordBand).
+  function netCord(previousX, bottom) {
+    const depth = shuttle.y + bottom - matchNetTop;
+    if (depth > netCordBand || cordTouches >= netCordLimit || support) return false;
+    cordTouches++;
+    cordCount++;
+    cordFlash = netCordSeconds;
+    cordX = shuttle.x;
+    // Sit on the tape, clear of the net, then come off it slowly.
+    shuttle.y = matchNetTop - bottom - 0.5;
+    const forward = Math.sign(shuttle.x - previousX) || (lastHitter === 'left' ? 1 : -1);
+    cordBounce(shuttle, forward, cordTouches, Math.random, Math.max(...outlinePoints.map(point => Math.hypot(point.x, point.y))));
+    shuttle.spin *= 0.4;
+    flight++;
+    strike = undefined;
+    updateOutline();
+    // Still touching (a shape that hooks over the tape): lift until clear.
+    for (let i = 0; i < 20 && outlineContact(netStart, netEnd, 2, shuttle.x, shuttle.y, outline); i++) {
+      shuttle.y -= 1.5;
+      updateOutline();
+    }
+    return true;
+  }
+
   function advanceShuttle(dt) {
     hitCooldown = Math.max(0, hitCooldown - dt);
     flash = Math.max(0, flash - dt);
@@ -1044,6 +1102,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     updateOutline();
     bumperCooldown = Math.max(0, bumperCooldown - dt);
     bumperFlash = Math.max(0, bumperFlash - dt);
+    cordFlash = Math.max(0, cordFlash - dt);
     if (activeEffect?.id === 'bumper') bumperBounce();
     const left = Math.min(...outlinePoints.map(point => point.x));
     const right = Math.max(...outlinePoints.map(point => point.x));
@@ -1053,8 +1112,10 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     const crossesNet = crossesCenter && outlineContact(netStart, netEnd, 2, center,
       previousY + (shuttle.y - previousY) * (center - previousX) / (shuttle.x - previousX), outline);
     if (lastHitter && (crossesNet || outlineContact(netStart, netEnd, 2, shuttle.x, shuttle.y, outline))) {
-      finishPoint(opponent(lastHitter), 'Net');
-      return;
+      if (!netCord(previousX, bottom)) {
+        finishPoint(opponent(lastHitter), 'Net');
+        return;
+      }
     }
     if (lastHitter && (shuttle.x + right < 0 || shuttle.x + left > width)) {
       shuttle.x = clamp(shuttle.x, -left, width - right);
@@ -1214,6 +1275,8 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
       pops: pops.length ? pops.map(pop => ({ ...pop, progress: pop.age / decoyPopSeconds })) : undefined,
       trampoline: activeEffect?.id === 'trampoline' || press
         ? { swell: trampolineSwell(), press: press ? { x: press.x, age: press.age } : undefined } : undefined,
+      // NET CORD: how many tape clips so far (a new one is a sound and an "ooh") and the tape's wobble.
+      cord: { count: cordCount, x: cordX, wobble: cordFlash / netCordSeconds },
       shuttle: visible ? { ...shuttlePose(), flight, baseSize: shuttle.size, canHit: hitCooldown <= 0 && !pendingLanding && !frozen } : undefined,
       left: position(rackets.left),
       right: position(cpu ?? rackets.right)
@@ -1251,10 +1314,44 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     onlyEffect = effectIds.includes(id) || trialEffectIds.includes(id) ? id : undefined;
   }
 
+  // Test page only (?test=netcord): the player's side sends the shuttle at the tape, its lowest point crossing the net
+  // `depth` units below the top (default: anywhere from just over to just past the cord band).
+  function testNetCord(depth = -4 + Math.random() * (netCordBand + 10)) {
+    if (phase !== 'live' || !shuttle || pendingLanding || trampolineHold) return false;
+    const bottom = Math.max(...outlinePoints.map(point => point.y));
+    const from = { x: center - 150, y: matchNetTop - 140 };
+    const target = matchNetTop + depth - bottom;
+    const vx = 330;
+    const crossing = vy => {
+      const body = { x: from.x, y: from.y, vx, vy };
+      const { gravity, airDrag } = shuttle;
+      for (let t = 0; t < 3 && body.x < center; t += step) {
+        advanceFlight(body, step, flightScale(step, airDrag), Math.exp(-airDrag * step), gravity / airDrag);
+      }
+      return body.y;
+    };
+    let low = -900;
+    let high = 300;
+    for (let i = 0; i < 40; i++) {
+      const mid = (low + high) / 2;
+      if (crossing(mid) < target) low = mid; else high = mid;
+    }
+    Object.assign(shuttle, from, { vx, vy: (low + high) / 2, spin: 1.2 });
+    clearEffect();
+    lastHitter = 'left';
+    cordTouches = 0;
+    hitCooldown = 0.14;
+    flight++;
+    strike = undefined;
+    support = undefined;
+    updateOutline();
+    return true;
+  }
+
   // Test page only: pick the next HIGH NET / LOW NET size.
   function setNetScale(id, scale) {
     if (id in netScales && Number.isFinite(scale) && scale > 0 && scale < 4) netScales[id] = scale;
   }
 
-  return { restart, moveRacket, holdRacket, contactFrame, simulate, view, triggerEffect, setNetScale, setEffectSeconds, setShuttle, setEffects, setOnlyEffect };
+  return { restart, moveRacket, holdRacket, contactFrame, simulate, view, triggerEffect, testNetCord, setNetScale, setEffectSeconds, setShuttle, setEffects, setOnlyEffect };
 }

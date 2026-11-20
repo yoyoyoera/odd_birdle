@@ -586,8 +586,11 @@ function drawCourt(view) {
   if (view.trampoline) drawTrampoline(view.trampoline);
 
   ctx.fillStyle = palette.net;
-  ctx.fillRect(center - 2, top, 4, floor - top);
-  ctx.fillRect(center - 9, top, 18, 4);
+  // NET CORD: the tape dips and shivers for a moment where the shuttle clipped it.
+  const wobble = reduceMotion.matches ? 0 : view.cord?.wobble ?? 0;
+  const dip = wobble * Math.abs(Math.sin(wobble * 26)) * 5;
+  ctx.fillRect(center - 2, top + dip, 4, floor - top - dip);
+  ctx.fillRect(center - 9, top + dip, 18, 4);
   ctx.fillStyle = '#f7f6e9';
   for (const x of [leftLine, center, rightLine]) ctx.fillRect(x - 2, floor, 4, 8);
 }
@@ -1330,6 +1333,29 @@ if (onlyEffectTest) {
   selectedCpuLevel = 4;
   showCpuLevel();
   solo.setOnlyEffect(onlyEffectTest);
+  startCpu();
+}
+
+// ?test=netcord: a CPU Lv.3 match without effects, and a button (or N) that sends the shuttle from your side at the tape.
+if (testParams.get('test') === 'netcord') {
+  selectedCpuLevel = 3;
+  showCpuLevel();
+  solo.setEffects(false);
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = 'N  SHOT AT THE TAPE';
+  button.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:5;padding:8px 12px;border:0;cursor:pointer;' +
+    'background:var(--court);color:var(--ink);font:650 13px "Space Grotesk",system-ui,sans-serif';
+  const note = document.createElement('span');
+  note.style.cssText = 'position:fixed;left:8px;bottom:44px;z-index:5;color:var(--court);font:12px "Space Grotesk",system-ui,sans-serif';
+  const shoot = () => {
+    const sent = mode === 'solo' && solo.testNetCord();
+    note.textContent = sent ? '' : 'wait for a live rally';
+    button.blur();
+  };
+  button.addEventListener('click', shoot);
+  document.addEventListener('keydown', event => { if (event.key.toLowerCase() === 'n' && !event.repeat) shoot(); });
+  document.body.append(button, note);
   startCpu();
 }
 
