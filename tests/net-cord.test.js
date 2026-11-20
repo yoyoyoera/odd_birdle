@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createGame, netCordBand, step } from '../game.js';
+import { center, createGame, netCordBand, netPart, step, tapeDepth, tapeHalfWidth } from '../game.js';
 import { createCueTracker } from '../sound-cues.js';
 import { createCrowd } from '../crowd.js';
 
@@ -27,10 +27,24 @@ function shot(depth, roll) {
   }
 }
 
-test('a shuttle buried in the net is still a fault', () => {
-  const { message, touches } = shot(netCordBand + 40);
-  assert.equal(message, 'Net');
-  assert.equal(touches, 0);
+// A small square shuttle (10 x 10) with its middle at x, y.
+const square = [[{ x: -5, y: -5 }, { x: 5, y: -5 }, { x: 5, y: 5 }, { x: -5, y: 5 }]];
+
+test('the net is hit where it is drawn: the tape bar across the top, the thin post under it', () => {
+  const top = 342;
+  // Just over the tape, and just off its end: nothing.
+  assert.equal(netPart(top, center, top - 6, square), undefined);
+  assert.equal(netPart(top, center - tapeHalfWidth - 6, top + 2, square), undefined);
+  // On the tape, including the part that sticks out past the post.
+  assert.equal(netPart(top, center, top - 4, square), 'tape');
+  assert.equal(netPart(top, center - tapeHalfWidth - 4, top + 2, square), 'tape');
+  // Below the tape: the post, and only the post's own width.
+  assert.equal(netPart(top, center - 6, top + tapeDepth + 20, square), 'post');
+  assert.equal(netPart(top, center - 8, top + tapeDepth + 20, square), undefined);
+});
+
+test('a shuttle driven into the net below the tape is still a fault', () => {
+  for (let k = 0; k < 10; k++) assert.equal(shot(netCordBand + 70).message, 'Net');
 });
 
 test('clipping the tape plays on: over, it is the other side\'s shuttle (the CPU goes for it)', () => {
@@ -46,7 +60,7 @@ test('a clip that drops back loses the point for the hitter, and a shuttle never
   // A roll of 0.9 sends a first touch back towards the hitter.
   const { game, touches, message } = shot(4, 0.9);
   assert.ok(touches >= 1 && touches <= 4, `touches ${touches}`);
-  assert.equal(message, 'own court');
+  assert.equal(message, 'Net', 'back on its own side off the net');
   assert.deepEqual(game.view().score, { left: 0, right: 1 });
 });
 
