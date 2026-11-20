@@ -3,6 +3,7 @@ import { makeStands, drawStands } from './stands.js';
 import { createCrowd } from './crowd.js';
 import { createLinkQuality } from './link-quality.js';
 import { createFrameMeter } from './frame-meter.js';
+import { fullscreenElement, fullscreenSupported, toggleFullscreen } from './fullscreen.js';
 import { launchConfetti, confettiAt } from './confetti.js';
 import { createPlayback, followStrikeClock, legacyTuning } from './playback.js';
 import { createRacketSender } from './net-send.js';
@@ -118,6 +119,7 @@ const demo = createDemo();
 const sound = createSound();
 const soundCues = createCueTracker();
 const soundToggle = document.querySelector('#sound-toggle');
+const fullscreenToggle = document.querySelector('#fullscreen-toggle');
 // Two CPUs rally quietly behind the menus; the court stays still for reduced motion.
 // A first-time visitor sees the plain main screen: a silent match running behind the menu would
 // look like a game without sound. The demo starts once they have made their first hit.
@@ -1585,6 +1587,18 @@ soundToggle.addEventListener('click', () => {
   showSoundState();
 });
 showSoundState();
+// Full screen: the main site's own page only (portals have their own, and an embed frame may not allow it).
+if (!portal && fullscreenSupported()) {
+  const showFullscreenState = () => {
+    const on = Boolean(fullscreenElement());
+    fullscreenToggle.setAttribute('aria-pressed', String(on));
+    fullscreenToggle.setAttribute('aria-label', on ? 'Leave full screen' : 'Full screen');
+    fullscreenToggle.title = on ? 'Leave full screen' : 'Full screen';
+  };
+  fullscreenToggle.hidden = false;
+  fullscreenToggle.addEventListener('click', () => { toggleFullscreen(document.querySelector('main')); fullscreenToggle.blur(); });
+  for (const type of ['fullscreenchange', 'webkitfullscreenchange']) document.addEventListener(type, showFullscreenState);
+}
 function playAgain() {
   if (gamePaused || breakPending || rematchReady) return;
   const rematch = currentView().phase === 'finished' || onlineView?.phase === 'finished';

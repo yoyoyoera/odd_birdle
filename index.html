@@ -47,10 +47,14 @@
     #pause-detail { margin: 12px 0 0; font-size: clamp(.75rem, 1.9vw, 1rem); line-height: 1.4; }
     #stage:not([data-phase="ready"]) h1 { display: none; }
     #studio-links { display: flex; justify-content: center; margin-top: 8px; }
-    #studio-links a, #sound-toggle { display: grid; place-items: center; width: 44px; height: 44px; color: var(--court); }
-    #sound-toggle { border: 0; padding: 0; background: transparent; cursor: pointer; }
-    #studio-links a:hover, #sound-toggle:hover { background: var(--page-hover); }
-    #sound-toggle:focus-visible { outline: 2px solid currentColor; outline-offset: -3px; }
+    #studio-links a, #sound-toggle, #fullscreen-toggle { display: grid; place-items: center; width: 44px; height: 44px; color: var(--court); }
+    #sound-toggle, #fullscreen-toggle { border: 0; padding: 0; background: transparent; cursor: pointer; }
+    /* Full screen is for the main site's own page only (it is hidden until the browser says it can, and portals never show it). */
+    #fullscreen-toggle[hidden] { display: none; }
+    #fullscreen-toggle .leave, #fullscreen-toggle[aria-pressed="true"] .enter { display: none; }
+    #fullscreen-toggle[aria-pressed="true"] .leave { display: inline; }
+    #studio-links a:hover, #sound-toggle:hover, #fullscreen-toggle:hover { background: var(--page-hover); }
+    #sound-toggle:focus-visible, #fullscreen-toggle:focus-visible { outline: 2px solid currentColor; outline-offset: -3px; }
     #sound-toggle .muted, #sound-toggle[aria-pressed="true"] .on { display: none; }
     #sound-toggle[aria-pressed="true"] .muted { display: inline; }
     #studio-links a:focus-visible { outline: 2px solid currentColor; outline-offset: -3px; }
@@ -67,6 +71,15 @@
       #studio-links .link b { position: static; transform: none; width: 44px; white-space: normal; text-align: center;
         font-size: .6rem; line-height: 1.15; letter-spacing: 0; }
     }
+    /* Full screen: the page colour all round, the court as big as fits (9:5 kept) with the button row under it. */
+    main:fullscreen { box-sizing: border-box; width: 100vw; height: 100vh; padding: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; background: var(--page); }
+    main:-webkit-full-screen { box-sizing: border-box; width: 100vw; height: 100vh; padding: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; background: var(--page); }
+    main:fullscreen #stage { width: min(100vw, (100vh - 52px) * 1.8); }
+    main:-webkit-full-screen #stage { width: min(100vw, (100vh - 52px) * 1.8); }
+    main:fullscreen #studio-links { flex-direction: row; margin-top: 8px; }
+    main:-webkit-full-screen #studio-links { flex-direction: row; margin-top: 8px; }
     canvas { display: block; width: 100%; aspect-ratio: 9 / 5; background: var(--court);
       touch-action: none; cursor: none; }
     #stage[data-phase="ready"] canvas, #stage[data-phase="finished"] canvas { cursor: default; }
@@ -238,6 +251,13 @@
       </svg>
     </a>
     <div id="link-own" class="link"><span class="bars"><i></i><i></i><i></i></span><b></b></div>
+    <button id="fullscreen-toggle" type="button" aria-pressed="false" aria-label="Full screen" title="Full screen" hidden>
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path class="enter" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>
+        <path class="leave" d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/>
+      </svg>
+    </button>
     <button id="sound-toggle" type="button" aria-pressed="false" aria-label="Mute sound" title="Mute sound">
       <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor"
         stroke-width="1.6" stroke-linejoin="round" aria-hidden="true">
