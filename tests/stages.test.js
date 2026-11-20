@@ -22,6 +22,7 @@ test('stage variants preserve prescribed handicaps and doubles and their singles
   const stage = id => stages.find(entry => entry.id === id);
   assert.deepEqual(stage(12).rules.startScore, { left: 0, right: 4 });
   assert.equal(stage(12).rules.points, 5);
+  assert.equal(stage(12).rules.cpuLevel, 3);
   assert.equal(stage(4).rules.permanent, 'balloon');
   assert.equal(stage(4).rules.points, 3);
   assert.equal(stage(5).rules.permanent, 'wind');

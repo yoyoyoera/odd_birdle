@@ -28,6 +28,7 @@ test('levels are 3 to 5, targets 5 to 10 (5 to 7 at level 5), Sudden Death one p
   for (let day = 0; day < 60; day++) {
     const plan = dailyFor(addDays('2026-11-19', day));
     assert.ok(plan.cpuLevel >= 3 && plan.cpuLevel <= 5);
+    if (plan.key === 'five') assert.equal(plan.cpuLevel, 3);
     if (plan.key === 'sudden') assert.equal(plan.points, 1);
     else if (plan.key === 'five') assert.equal(plan.points, 5);
     else {

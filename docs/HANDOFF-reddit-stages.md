@@ -92,7 +92,7 @@ npx devvit install oddbirdle   # r/oddbirdle 에 새 버전 설치
 | 9 | Take the L | The shuttle is always an L. Random effects join in. | Lv.3 | 5점, 모양 고정 L, 랜덤 효과 |
 | 10 | Boss: Chaos | Effects come twice as often. | Lv.3 | 7점, 랜덤 효과 빈도 2배 |
 | 11 | Smash Fest | The CPU sets it up high, then smashes. | Lv.4 | 5점, CPU 가 셔틀콕을 높이 띄우고(`cpuLift: 1`) 네트 위에서 기다렸다가 스매시(`cpuSpike: 1`), 효과 없음 |
-| 12 | Five in a Row | You start 0:4 down. Win five straight. | Lv.4 | 시작 0:4, 상대는 5점에서 끝나므로 5연승 필요 |
+| 12 | Five in a Row | You start 0:4 down. Win five straight. | Lv.3 | 시작 0:4, 상대는 5점에서 끝나므로 5연승 필요 |
 | 13 | Doubles II | Take turns through random effects. | 2v2 | 5점, 파트너 Lv.3·상대 Lv.3+3, 랜덤 효과 |
 | 14 | The Post | A bumper stays up all match. | Lv.2(서툴게 0.7) | 5점, 범퍼 상시 |
 | 15 | Moving Net | The net swings from very low to very high. | Lv.4 | 7점, 네트가 4.5초 주기로 0.3~2.0배 높이를 오르내림(`netSway`, `swayMid/Amp/Period`), 효과 없음 |
@@ -166,3 +166,5 @@ npx devvit install oddbirdle   # r/oddbirdle 에 새 버전 설치
 - 폰(터치)에서 Reddit 피드 안의 인라인 게시물은 위아래로 끌면 피드가 스크롤돼서 엄지 패드가 안 된다. 그래서 터치 기기에서 인라인으로 열리면 `TAP TO PLAY` 화면이 뜨고, 누르면 `requestExpandedMode(event, 'game')`으로 전체 화면(expanded)에서 게임이 열린다(`portal.js`의 `redditViewMode`, `expandRedditView`, 클라이언트 `#expand-gate`). 패드에서는 `touchstart/touchmove` 기본 동작도 막는다. PC(마우스)는 인라인 그대로 바로 시작.
 
 - 폰 세로: 메뉴는 코트 아래 어두운 바탕 위에 은은한 타일 + 밝은 글씨(`#pad-menu`), 스테이지 목록은 화면 전체에 2열로 위아래 스크롤, 경기 중에는 코트와 패드 사이에 SENSITIVITY 막대(0.8~3.0×, 기억됨, 게임 스타일의 얇은 선과 네모 손잡이). 메뉴의 데모(코트에서 라켓 둘이 치는 장면)는 폰에서 조금 더 진하게.
+
+- 엄지 패드 감도는 계정별로 서버(Redis `prefs:v1:user:{id}`, 180일, `/api/prefs`)에 저장하고 기기(localStorage)에도 둔다. Five in a Row 는 스테이지 12·하루 도전 모두 CPU Lv.3 고정.

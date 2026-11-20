@@ -680,12 +680,28 @@ function showPadGain() {
   padGainInput.value = String(padGain);
   padGainValue.textContent = padGain.toFixed(1) + '×';
 }
+// The sensitivity is kept for the Reddit account (so it is the same after leaving the game and on another phone), and on
+// this device as a fallback.
+let padGainSave;
 padGainInput.addEventListener('input', () => {
   padGain = Number(padGainInput.value);
   padGainValue.textContent = padGain.toFixed(1) + '×';
   try { localStorage.setItem(padGainKey, String(padGain)); } catch { /* until this page closes */ }
+  clearTimeout(padGainSave);
+  padGainSave = setTimeout(() => {
+    fetch('/api/prefs', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ padGain }) }).catch(() => {});
+  }, 600);
 });
 showPadGain();
+if (portal === 'reddit') {
+  fetch('/api/prefs').then(response => response.ok ? response.json() : {}).then(prefs => {
+    if (Number.isFinite(prefs?.padGain) && prefs.padGain >= 0.8 && prefs.padGain <= 3) {
+      padGain = prefs.padGain;
+      showPadGain();
+      try { localStorage.setItem(padGainKey, String(padGain)); } catch { /* fine */ }
+    }
+  }).catch(() => {});
+}
 
 function padPush(time) {
   const phase = currentView().phase;
