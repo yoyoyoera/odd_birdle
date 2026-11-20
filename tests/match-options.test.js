@@ -45,6 +45,6 @@ test('the same low shot passes the original net and hits a higher net', t => {
     results.push([game.view().message, game.view().cord.count > 0]);
     t.mock.restoreAll();
   }
-  // Over the original net it flies long; the higher net catches it on the tape (a NET CORD) and it drops over short.
-  assert.deepEqual(results, [['out', false], ['Landed', true]]);
+  // Over the original net it flies long; the higher net stops it: it meets the end of the tape and drops back (Net).
+  assert.deepEqual(results, [['out', false], ['Net', true]]);
 });

@@ -36,11 +36,41 @@ export const center = width / 2;
 export const floor = 448;
 export const netTop = 342;
 const netEnd = { x: center, y: floor };
-// NET CORD: a shuttle that only clips the tape at the top of the net (its lowest point at most this far below the tape)
-// is slowed and popped up instead of ending the rally, as in real badminton. It plays on if it falls over, and it is
-// the hitter's point lost if it drops back on their own side. Deeper into the net is still 'Net'.
+// NET CORD: the net is hit where it is drawn. The tape is the bar across the top (18 wide, 4 deep); the post is the
+// thin upright under it. A shuttle whose first touch is the tape is slowed and popped up instead of ending the rally, as
+// in real badminton: it plays on if it falls over, and it is the hitter's point lost if it drops back on their own side.
+// A first touch on the post is still 'Net'.
+export const tapeHalfWidth = 9;
+export const tapeDepth = 4;
+// Kept for the test page: how far below the tape top a shot aims, at most.
 export const netCordBand = 12;
 const netCordLimit = 4;
+
+// Which part of the net (top at `top`) an outline at x, y touches: 'tape', 'post' or undefined. The tape is checked
+// first, so a shuttle that meets both at once is on the tape.
+export function netPart(top, x, y, rings) {
+  const half = tapeDepth / 2;
+  if (outlineContact({ x: center - tapeHalfWidth + half, y: top + half }, { x: center + tapeHalfWidth - half, y: top + half }, half, x, y, rings)) {
+    return 'tape';
+  }
+  if (outlineContact({ x: center, y: top + tapeDepth }, netEnd, 2, x, y, rings)) return 'post';
+  return undefined;
+}
+
+// The first place between two positions where an outline meets the net, checked every few units along the way so a
+// fast shuttle cannot skip the thin tape: { part, x, y } or undefined.
+export function firstNetTouch(top, fromX, fromY, toX, toY, rings, reach) {
+  if (Math.min(fromX, toX) - reach > center + tapeHalfWidth || Math.max(fromX, toX) + reach < center - tapeHalfWidth) return undefined;
+  if (Math.max(fromY, toY) + reach < top) return undefined;
+  const steps = clamp(Math.ceil(Math.hypot(toX - fromX, toY - fromY) / 2), 1, 40);
+  for (let i = 1; i <= steps; i++) {
+    const x = fromX + (toX - fromX) * i / steps;
+    const y = fromY + (toY - fromY) * i / steps;
+    const part = netPart(top, x, y, rings);
+    if (part) return { part, x, y };
+  }
+  return undefined;
+}
 const netCordSeconds = 0.35;
 export const leftLine = 64;
 export const rightLine = width - leftLine;
@@ -744,10 +774,7 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
       decoy.angle += decoy.spin * dt;
       const rings = shuttleOutline(decoyPose(decoy));
       const bottom = Math.max(...rings.flat().map(point => point.y));
-      const crossesCenter = (previousX - center) * (decoy.x - center) < 0;
-      const hitsNet = (crossesCenter && outlineContact(netStart, netEnd, 2, center,
-        previousY + (decoy.y - previousY) * (center - previousX) / (decoy.x - previousX), rings)) ||
-        outlineContact(netStart, netEnd, 2, decoy.x, decoy.y, rings);
+      const hitsNet = Boolean(firstNetTouch(matchNetTop, previousX, previousY, decoy.x, decoy.y, rings, decoy.size * 2));
       if (decoy.y + bottom >= floor || decoy.x < -40 || decoy.x > width + 40 || hitsNet) popDecoy(decoy);
     }
     decoys = decoys.filter(decoy => !decoy.gone);
@@ -798,6 +825,22 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     body.vy = -clamp(Math.abs(body.vy) * 0.12 + 40, 40, 130);
   }
 
+  // A shuttle whose first touch on the net is the tape. From above (its middle higher than the tape) it pops up off it
+  // (cordBounce) and is lifted clear; into the end of the tape from the side it comes back off it and drops, as it would
+  // off a real net, without being lifted over. Either way it then plays on.
+  function cordTouch(body, forward, touches, random, reach, rings) {
+    if (body.y < matchNetTop) {
+      cordBounce(body, forward, touches, random, reach);
+      for (let i = 0; i < 40 && netPart(matchNetTop, body.x, body.y, rings); i++) body.y -= 1;
+    } else {
+      // Away from the net on the side its middle is on (never pushed through to the other side).
+      const away = Math.sign(body.x - center) || -forward;
+      body.vx = away * clamp(Math.abs(body.vx) * 0.25, 40, 140);
+      body.vy = clamp(body.vy * 0.3, -40, 220);
+      for (let i = 0; i < 60 && netPart(matchNetTop, body.x, body.y, rings); i++) body.x += away;
+    }
+  }
+
   function flyForward(from, seconds = 3.5, watchPost = false) {
     const dt = 1 / 60;
     const bottom = Math.max(...outlinePoints.map(point => point.y));
@@ -817,13 +860,16 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
       if (t < frozenFor) { path.push({ t, x: body.x, y: body.y, vy: 0 }); continue; }
       const push = forceAt(force, t);
       const beforeX = body.x;
+      const beforeY = body.y;
       advanceFlight(body, dt, flightScale(dt, airDrag), Math.exp(-airDrag * dt), gravity * push.gravity / airDrag + push.y, push.x);
-      // The net: a clip of the tape pops the shuttle up (as the game does, taking the likely roll over), deeper ends there.
-      if (lastHitter && body.y + bottom > matchNetTop && ((beforeX - center) * (body.x - center) <= 0 || Math.abs(body.x - center) < reach * 0.5)) {
-        if (body.y + bottom - matchNetTop > netCordBand || netTouches >= netCordLimit) return { path, landing: { t, x: body.x, y: body.y, net: true }, hitPost };
+      // The net, as the game sees it: the tape pops the shuttle up (taking the likely roll over), the post ends it there.
+      const touch = lastHitter && firstNetTouch(matchNetTop, beforeX, beforeY, body.x, body.y, outline, reach);
+      if (touch) {
+        if (touch.part !== 'tape' || netTouches >= netCordLimit) return { path, landing: { t, x: touch.x, y: touch.y, net: true }, hitPost };
         netTouches++;
-        body.y = matchNetTop - bottom - 0.5;
-        cordBounce(body, Math.sign(body.x - beforeX) || (lastHitter === 'left' ? 1 : -1), netTouches, () => 0, reach);
+        body.x = touch.x;
+        body.y = touch.y;
+        cordTouch(body, Math.sign(body.x - beforeX) || (lastHitter === 'left' ? 1 : -1), netTouches, () => 0, reach, outline);
       }
       postWait -= dt;
       if (hasBumper() && (hasPermanentBumper() || left - t > 0) && postWait <= 0) {
@@ -1262,27 +1308,19 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     }
   }
 
-  // NET CORD: true when the shuttle only clipped the tape and plays on (see netCordBand).
-  function netCord(previousX, bottom) {
-    const depth = shuttle.y + bottom - matchNetTop;
-    if (depth > netCordBand || cordTouches >= netCordLimit || support) return false;
+  // NET CORD: the shuttle's first touch was the tape. True when it plays on (see tapeHalfWidth).
+  function netCord(previousX) {
+    if (cordTouches >= netCordLimit || support) return false;
     cordTouches++;
     cordCount++;
     cordFlash = netCordSeconds;
     cordX = shuttle.x;
-    // Sit on the tape, clear of the net, then come off it slowly.
-    shuttle.y = matchNetTop - bottom - 0.5;
     const forward = Math.sign(shuttle.x - previousX) || (lastHitter === 'left' ? 1 : -1);
-    cordBounce(shuttle, forward, cordTouches, Math.random, Math.max(...outlinePoints.map(point => Math.hypot(point.x, point.y))));
+    cordTouch(shuttle, forward, cordTouches, Math.random, Math.max(...outlinePoints.map(point => Math.hypot(point.x, point.y))), outline);
     shuttle.spin *= 0.4;
     flight++;
     strike = undefined;
     updateOutline();
-    // Still touching (a shape that hooks over the tape): lift until clear.
-    for (let i = 0; i < 20 && outlineContact(netStart, netEnd, 2, shuttle.x, shuttle.y, outline); i++) {
-      shuttle.y -= 1.5;
-      updateOutline();
-    }
     return true;
   }
 
@@ -1312,12 +1350,14 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     const left = Math.min(...outlinePoints.map(point => point.x));
     const right = Math.max(...outlinePoints.map(point => point.x));
     const bottom = Math.max(...outlinePoints.map(point => point.y));
+    const top = Math.min(...outlinePoints.map(point => point.y));
 
-    const crossesCenter = (previousX - center) * (shuttle.x - center) < 0;
-    const crossesNet = crossesCenter && outlineContact(netStart, netEnd, 2, center,
-      previousY + (shuttle.y - previousY) * (center - previousX) / (shuttle.x - previousX), outline);
-    if (lastHitter && (crossesNet || outlineContact(netStart, netEnd, 2, shuttle.x, shuttle.y, outline))) {
-      if (!netCord(previousX, bottom)) {
+    const touch = lastHitter && firstNetTouch(matchNetTop, previousX, previousY, shuttle.x, shuttle.y, outline,
+      Math.max(-left, right, -top, bottom));
+    if (touch) {
+      shuttle.x = touch.x;
+      shuttle.y = touch.y;
+      if (touch.part !== 'tape' || !netCord(previousX)) {
         finishPoint(opponent(lastHitter), 'Net');
         return;
       }
@@ -1350,7 +1390,8 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
       let reason = 'Landed';
       if (out) reason = 'out';
       else if (!lastHitter) reason = 'missed serve';
-      else if (landingSide === lastHitter) reason = 'own court';
+      // Back on the hitter's own side off the net: say so.
+      else if (landingSide === lastHitter) reason = cordTouches ? 'Net' : 'own court';
       if (withCpu) finishPoint(winner, reason);
       else pendingLanding = { winner, reason, remaining: 0.24 };
       return;
