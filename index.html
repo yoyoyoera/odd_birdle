@@ -66,7 +66,9 @@
        leaderboard) fill the space under it; in a match it holds the sensitivity bar and the thumb pad; the stage list
        takes the whole screen. */
     /* The title is the first thing on a phone: bigger than on a wide screen. */
-    html[data-pad] h1 { top: 22%; font-size: clamp(2.6rem, 14.5vw, 4.6rem); }
+    html[data-pad] h1 { top: 22%; font-size: clamp(2.35rem, 13vw, 4.15rem); }
+    /* The effect names the title-screen demo shows (GUST, BUMPER...) sit lower and a little bigger, to balance the title. */
+    html[data-pad] #stage[data-phase="ready"] #event-banner { top: 46%; font-size: clamp(1rem, 5.8vw, 2.2rem); }
     html[data-pad] #stage-panel { position: fixed; inset: 0; }
     /* The stage list on a phone: two cards across, scrolling up and down (the arrows are for the sideways list). */
     html[data-pad] #stage-list { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: none; grid-auto-rows: 132px; grid-auto-columns: auto;
