@@ -221,4 +221,34 @@ test('after a match there are buttons (and keys) to play again or go back to the
   frames();
   assert.equal(element('#you-flag').dataset.side, 'right');
   assert.equal(element('#side-label').dataset.side, 'right');
+
+  // Touch: the racket moves by how far the finger slides (times the touch speed, 1.5 by default), never to the finger.
+  await element('#back').click();
+  await element('#create').click();
+  const touchRoom = sockets.at(-1);
+  touchRoom.open();
+  const touchGame = createGame();
+  touchGame.restart(0);
+  touchRoom.receive({ type: 'start', side: 'left', round: 1, time: 1000, state: touchGame.view() });
+  touchRoom.receive({ type: 'state', time: 1016, state: { ...touchGame.view(), phase: 'live' } });
+  frames(3);
+  const finger = (type, x, y) => {
+    clock += 40;
+    for (const listener of element('#court').listeners[type] ?? []) {
+      listener.fn({ type, pointerType: 'touch', isPrimary: true, pointerId: 7, buttons: type === 'pointerup' ? 0 : 1,
+        clientX: x, clientY: y, timeStamp: clock });
+    }
+  };
+  const lastRacket = () => touchRoom.sent.filter(m => m.type === 'racket').at(-1)?.input;
+  finger('pointerdown', 120, 400);
+  const start = lastRacket();
+  assert.ok(start, 'the racket comes up');
+  assert.notEqual(Math.round(start.x), 120, 'not under the finger');
+  assert.equal(Math.round(start.x), 225, 'it starts in the middle of your half');
+  finger('pointermove', 140, 390);
+  const moved = lastRacket();
+  assert.equal(Math.round(moved.x - start.x), 30, '20 px of finger is 30 court units at 1.5');
+  assert.equal(Math.round(moved.y - start.y), -15);
+  finger('pointerup', 140, 390);
+  assert.equal(lastRacket(), null, 'lifting the finger takes the racket away');
 });

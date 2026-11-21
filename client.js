@@ -217,6 +217,7 @@ function setMode(next, message = '') {
   lobbyMessage.hidden = !message;
   setText(lobbyMessage, message);
   showPauseState();
+  if (touchReady) layoutTouch();
 }
 
 function send(message) {
@@ -559,6 +560,11 @@ function showPauseState() {
 
 function moveRacket(event) {
   if (gamePaused) return;
+  // A finger moves the racket by how far it slides, not to where it is (touchDrag below).
+  if (event.pointerType !== 'mouse') {
+    if (!padActive) touchDrag(event, court);
+    return;
+  }
   const phase = currentView().phase;
   if ((phase !== 'live' && phase !== 'between' && phase !== 'starting') || !event.isPrimary ||
       (event.pointerType !== 'mouse' && event.buttons === 0)) return;
@@ -572,6 +578,119 @@ function moveRacket(event) {
     time: event.timeStamp
   });
 }
+
+// ---- Touch: a finger never sits on the racket. Wherever it lands, the racket moves by how far the finger slides (times
+// the sensitivity), so it never jumps under the finger and the finger never hides it; how fast it slides is how hard the
+// swing is. On a phone held upright the space under the court is a thumb pad for this (the court stays clear); on its
+// side the whole court is. The mouse keeps the racket under the pointer as before. ----
+// var: setMode() can run before this part of the file has (the test pages), and only lays out touch once it has.
+var touchReady = false;
+const touchGainKey = 'oddbirdle-pad-gain';
+let touchGain = 1.5;
+try {
+  const saved = Number(localStorage.getItem(touchGainKey));
+  if (saved >= 0.8 && saved <= 3) touchGain = saved;
+} catch {
+  // The default.
+}
+const coarsePointer = window.matchMedia?.('(pointer: coarse)') ?? { matches: false };
+const pad = document.querySelector('#pad');
+const touchTune = document.querySelector('#touch-tune');
+const touchGainInput = document.querySelector('#touch-gain');
+const touchGainValue = document.querySelector('#touch-gain-value');
+const padHintKey = 'oddbirdle-pad-hint-done';
+let padActive = false;
+let thumb;          // the finger being followed: { id, x, y }
+let touchRacket;    // where the racket is on screen, in court units of the half it is shown on
+
+function layoutTouch() {
+  const playing = mode === 'solo' || mode === 'online';
+  const upright = coarsePointer.matches && window.innerHeight > window.innerWidth * 1.05;
+  let space = 0;
+  if (upright && playing) {
+    document.documentElement.toggleAttribute?.('data-pad', true);
+    pad.hidden = false;
+    pad.style.height = '0px';
+    space = window.innerHeight - document.querySelector('main').getBoundingClientRect().bottom - 24;
+    pad.style.height = Math.max(0, space) + 'px';
+  }
+  // Too little room under the court: dragging on the court itself is better than a sliver of a pad.
+  padActive = upright && playing && space >= 110;
+  document.documentElement.toggleAttribute?.('data-pad', padActive);
+  pad.hidden = !padActive;
+  try { if (localStorage.getItem(padHintKey)) pad.dataset.used = ''; } catch { /* the hint shows every time */ }
+  // The sensitivity bar is on the menu of a touch screen.
+  touchTune.hidden = !(coarsePointer.matches && mode === 'menu');
+}
+window.addEventListener?.('resize', layoutTouch);
+coarsePointer.addEventListener?.('change', layoutTouch);
+window.addEventListener?.('orientationchange', () => setTimeout(layoutTouch, 250));
+
+function showTouchGain() {
+  touchGainInput.value = String(touchGain);
+  touchGainValue.textContent = touchGain.toFixed(1) + '×';
+}
+touchGainInput.addEventListener('input', () => {
+  touchGain = Number(touchGainInput.value);
+  touchGainValue.textContent = touchGain.toFixed(1) + '×';
+  try { localStorage.setItem(touchGainKey, String(touchGain)); } catch { /* until this page closes */ }
+});
+showTouchGain();
+touchReady = true;
+layoutTouch();
+
+function touchPush(time) {
+  const phase = currentView().phase;
+  if (gamePaused || (phase !== 'live' && phase !== 'between' && phase !== 'starting')) return;
+  const left = shownSide() === 'left';
+  touchRacket ??= { x: left ? center / 2 : center * 1.5, y: 280 };
+  racketIsTouch = true;
+  setRacket({ x: mirrored() ? width - touchRacket.x : touchRacket.x, y: touchRacket.y, time });
+}
+
+// Follows one finger on `surface` (the court or the pad).
+function touchDrag(event, surface) {
+  if (!event.isPrimary) return;
+  if (event.type === 'pointerdown' || !thumb || thumb.id !== event.pointerId) {
+    if (event.type !== 'pointerdown' && event.buttons === 0) return;
+    thumb = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    try { surface.setPointerCapture(event.pointerId); } catch { /* moves over the surface still arrive */ }
+    touchPush(event.timeStamp);
+    return;
+  }
+  const scale = width / court.getBoundingClientRect().width * touchGain;
+  const left = shownSide() === 'left';
+  touchRacket ??= { x: left ? center / 2 : center * 1.5, y: 280 };
+  touchRacket = {
+    x: left ? clamp(touchRacket.x + (event.clientX - thumb.x) * scale, 0, center - racketRadius)
+      : clamp(touchRacket.x + (event.clientX - thumb.x) * scale, center + racketRadius, width),
+    y: clamp(touchRacket.y + (event.clientY - thumb.y) * scale, 0, floor)
+  };
+  thumb.x = event.clientX;
+  thumb.y = event.clientY;
+  touchPush(event.timeStamp);
+}
+
+function touchEnd(event) {
+  if (!thumb || (event && event.pointerId !== thumb.id)) return;
+  thumb = undefined;
+  delete pad.dataset.held;
+  setRacket(null);
+}
+
+for (const type of ['pointerdown', 'pointermove']) {
+  pad.addEventListener(type, event => {
+    if (gamePaused) return;
+    event.preventDefault();
+    if (type === 'pointerdown') {
+      pad.dataset.held = '';
+      pad.dataset.used = '';
+      try { localStorage.setItem(padHintKey, '1'); } catch { /* shown again next time */ }
+    }
+    touchDrag(event, pad);
+  });
+}
+for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) pad.addEventListener(type, touchEnd);
 
 function drawRacket(position, fill, stroke, side) {
   ctx.beginPath();
@@ -765,7 +884,7 @@ function drawHint(view) {
   ctx.translate(localSide === 'left' ? center / 2 : center * 1.5, floor * 0.42);
   // Words read the right way round on a mirrored court.
   if (mirrored()) ctx.scale(-1, 1);
-  ctx.fillText('Move to hit', 0, 0);
+  ctx.fillText(coarsePointer.matches && !padActive ? 'Drag to move' : 'Move to hit', 0, 0);
   ctx.restore();
 }
 
@@ -1036,10 +1155,14 @@ court.addEventListener('pointerenter', event => {
 court.addEventListener('pointermove', moveRacket);
 court.addEventListener('pointerdown', moveRacket);
 for (const event of ['pointerleave', 'pointercancel', 'lostpointercapture']) {
-  court.addEventListener(event, () => setRacket(null));
+  court.addEventListener(event, ev => {
+    // A captured finger dragging past the court's edge keeps going; it lets go on pointerup.
+    if (ev.pointerType !== 'mouse' && thumb && ev.type === 'pointerleave') return;
+    if (ev.pointerType !== 'mouse') touchEnd(ev); else setRacket(null);
+  });
 }
 court.addEventListener('pointerup', event => {
-  if (event.pointerType !== 'mouse') setRacket(null);
+  if (event.pointerType !== 'mouse') touchEnd(event);
 });
 stage.addEventListener('click', event => {
   if (!gamePaused) return;
@@ -1078,6 +1201,7 @@ cpuLevelButton.addEventListener('click', () => {
 // Shows YOU over the player's half for a moment as a match starts.
 let youFlagTimer;
 function flagYou() {
+  touchRacket = undefined;
   youFlag.dataset.side = shownSide();
   youFlag.hidden = true;
   // Re-adding it restarts the fade.
