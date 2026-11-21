@@ -128,11 +128,32 @@
     #pad[data-used] #pad-icon { opacity: .22; }
     #pad[data-used] #pad-hint { opacity: .28; }
     #pad[data-held] { border-color: color-mix(in srgb, var(--court) 60%, transparent); }
+    /* The first-play guide: a dimmed screen with the words in the court's colour, a 5 s bar and SKIP. */
+    #guide { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 16px;
+      background: color-mix(in srgb, var(--page) 94%, transparent); color: var(--court); touch-action: none; }
+    #guide[hidden] { display: none; }
+    #guide-card { width: min(440px, 100%); display: grid; justify-items: center; gap: 14px; text-align: center; }
+    #guide-title { margin: 0; font-size: 22px; font-weight: 650; letter-spacing: .14em; }
+    #guide-icon { opacity: .85; }
+    #guide-move { margin: 0; font-size: 18px; font-weight: 650; line-height: 1.4; }
+    #guide-rule { margin: 0; font-size: 14px; line-height: 1.45; opacity: .75; }
+    #guide-bar { width: 100%; height: 3px; background: color-mix(in srgb, var(--court) 25%, transparent); }
+    #guide-bar i { display: block; height: 100%; width: 100%; background: var(--court); transform-origin: left; }
+    #guide-bar.run i { animation: guide-time 5s linear forwards; }
+    @keyframes guide-time { to { transform: scaleX(0); } }
+    #guide-skip { min-width: 120px; min-height: 48px; padding: 0 20px; border: 1.5px solid var(--court); background: transparent;
+      color: var(--court); font: 650 15px "Space Grotesk", system-ui, sans-serif; letter-spacing: .14em; cursor: pointer; }
+    #guide-skip:hover { background: color-mix(in srgb, var(--court) 14%, transparent); }
     /* The TOUCH SPEED bar (phone upright): right under the court's icon row, in the same place on the menu and in a match. */
     #touch-tune { display: none; }
     html[data-pad] #touch-tune { display: flex; align-items: center; gap: 10px; box-sizing: border-box; width: calc(100% - 24px);
       margin: 4px 12px 0; color: var(--court); font: 650 13px "Space Grotesk", system-ui, sans-serif; letter-spacing: .08em; }
     html[data-pad] #touch-tune[hidden] { display: none; }
+    html:not([data-pad]) #touch-tune:not([hidden]) { display: flex; align-items: center; gap: 10px; position: fixed; left: 50%;
+      bottom: max(4px, env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(380px, 100% - 32px); z-index: 4;
+      box-sizing: border-box; padding: 0 14px; background: color-mix(in srgb, var(--page) 88%, transparent); color: var(--court); font: 650 13px "Space Grotesk", system-ui, sans-serif; letter-spacing: .08em; }
+    /* A finger anywhere is the pad: no scrolling or zooming the page with it. */
+    @media (pointer: coarse) { body { touch-action: none; } }
     /* The menu buttons on the upright menu: quiet tiles a little lighter than the page, bright words, one per row. */
     #pad-menu { display: none; }
     html[data-pad][data-pad-view="menu"] #pad-menu { display: block; box-sizing: border-box; width: calc(100% - 24px); margin: 12px; }
@@ -345,6 +366,21 @@
     </button>
   </nav>
 </main>
+<!-- First play on this device: how to move, over a dimmed screen, for 5 s or until SKIP. -->
+<div id="guide" hidden role="dialog" aria-modal="true" aria-labelledby="guide-title">
+  <div id="guide-card">
+    <h2 id="guide-title">HOW TO PLAY</h2>
+    <svg id="guide-icon" width="56" height="56" viewBox="0 0 64 64" aria-hidden="true">
+      <circle cx="32" cy="32" r="9" fill="currentColor" opacity=".9"/>
+      <path d="M32 6v12M32 46v12M6 32h12M46 32h12M32 6l-5 6M32 6l5 6M32 58l-5-6M32 58l5-6M6 32l6-5M6 32l6 5M58 32l-6-5M58 32l-6 5"
+        fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity=".7"/>
+    </svg>
+    <p id="guide-move"></p>
+    <p id="guide-rule">Hit the shuttle back over the net. Every rally, something odd can happen.</p>
+    <div id="guide-bar"><i></i></div>
+    <button id="guide-skip" type="button">SKIP</button>
+  </div>
+</div>
 <!-- Phone held upright: how far the racket moves for a slide of the thumb on the pad. Saved on this device. -->
 <div id="touch-tune" hidden>
   <label for="touch-gain">TOUCH SPEED</label>

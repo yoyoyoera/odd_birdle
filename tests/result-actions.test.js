@@ -64,7 +64,7 @@ test('after a match there are buttons (and keys) to play again or go back to the
     receive(message) { this.emit('message', { data: JSON.stringify(message) }); }
     close() { this.readyState = 3; this.emit('close'); }
   }
-  const storage = new Map([['oddbirdle-hint-done', '1']]);
+  const storage = new Map([['oddbirdle-hint-done', '1'], ['oddbirdle-guide-mouse', '1']]);
   t.mock.method(performance, 'now', () => clock);
   t.mock.method(globalThis, 'setInterval', () => 1);
   globalThis.location = new URL('https://item-cdn.y8.com/test/index.html');
@@ -96,6 +96,19 @@ test('after a match there are buttons (and keys) to play again or go back to the
     assert.equal(stage.dataset.phase, 'finished');
   };
   const press = key => { for (const fn of documentEvents.keydown ?? []) fn({ key, target: {}, preventDefault() {} }); };
+
+  // The first game on this device shows the guide first; the match starts on SKIP (or after 5 s), and next time at once.
+  storage.delete('oddbirdle-guide-mouse');
+  await element('#cpu').click();
+  assert.equal(element('#guide').hidden, false, 'the guide is up');
+  assert.match(element('#guide-move').textContent, /mouse/);
+  assert.equal(element('#menu').hidden, false, 'no game behind it yet');
+  await element('#guide-skip').click();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(element('#guide').hidden, true);
+  assert.equal(element('#menu').hidden, true, 'SKIP starts the match');
+  assert.equal(storage.get('oddbirdle-guide-mouse'), '1');
+  await element('#back').click();
 
   // CPU, lost: PLAY AGAIN starts a fresh match.
   await element('#cpu').click();
@@ -222,8 +235,8 @@ test('after a match there are buttons (and keys) to play again or go back to the
   assert.equal(element('#you-flag').dataset.side, 'right');
   assert.equal(element('#side-label').dataset.side, 'right');
 
-  // Touch on the court (not a phone held upright): the racket follows the finger directly; online it floats 56 px above
-  // it so the finger does not hide it, and it keeps the usual size (no big flag goes to the server).
+  // Touch (not a phone held upright): the whole screen is the pad. Wherever the finger lands, the racket moves by how far
+  // it slides (times the touch speed, 1.5 by default), never to the finger.
   await element('#back').click();
   await element('#create').click();
   const touchRoom = sockets.at(-1);
@@ -233,21 +246,23 @@ test('after a match there are buttons (and keys) to play again or go back to the
   touchRoom.receive({ type: 'start', side: 'left', round: 1, time: 1000, state: touchGame.view() });
   touchRoom.receive({ type: 'state', time: 1016, state: { ...touchGame.view(), phase: 'live' } });
   frames(3);
+  const target = { closest: () => null, setPointerCapture() {} };
   const finger = (type, x, y) => {
     clock += 40;
-    for (const listener of element('#court').listeners[type] ?? []) {
-      listener.fn({ type, pointerType: 'touch', isPrimary: true, pointerId: 7, buttons: type === 'pointerup' ? 0 : 1,
-        clientX: x, clientY: y, timeStamp: clock });
+    for (const fn of documentEvents[type] ?? []) {
+      fn({ type, pointerType: 'touch', isPrimary: true, pointerId: 7, buttons: type === 'pointerup' ? 0 : 1,
+        clientX: x, clientY: y, timeStamp: clock, target, preventDefault() {} });
     }
   };
   const lastRacket = () => touchRoom.sent.filter(m => m.type === 'racket').at(-1)?.input;
   finger('pointerdown', 120, 400);
   const start = lastRacket();
-  assert.equal(Math.round(start.x), 120, 'right at the finger sideways');
-  assert.equal(Math.round(start.y), 400 - 56, 'and just above it');
-  assert.equal(start.big, undefined, 'online rackets stay the usual size');
+  assert.ok(start, 'the racket comes up');
+  assert.equal(Math.round(start.x), 225, 'in the middle of your half, not under the finger');
   finger('pointermove', 140, 390);
-  assert.equal(Math.round(lastRacket().x), 140);
+  const moved = lastRacket();
+  assert.equal(Math.round(moved.x - start.x), 30, '20 px of finger is 30 court units at 1.5');
+  assert.equal(Math.round(moved.y - start.y), -15);
   finger('pointerup', 140, 390);
   assert.equal(lastRacket(), null, 'lifting the finger takes the racket away');
 });

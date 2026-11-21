@@ -75,10 +75,7 @@ const netCordSeconds = 0.35;
 export const leftLine = 64;
 export const rightLine = width - leftLine;
 export const racketRadius = 22;
-// A touch player's racket in a CPU match grows while the finger is down, so it shows round the finger; it then also hits
-// as big as it looks. Online every racket keeps the same size.
-export const bigRacketScale = 1.4;
-// The racket's radius: its own when it has one (a big touch racket in a CPU match), else the usual.
+// The racket's radius (every racket is the same size today; a racket could carry its own `r`).
 export const radiusOf = racket => racket?.r ?? racketRadius;
 const baseGravity = 760;
 export const step = 1 / 120;
@@ -1035,10 +1032,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
       touching[side] = false;
       return;
     }
-    // Only a CPU match takes the big racket; the server never does.
-    const r = withCpu && input.big ? racketRadius * bigRacketScale : undefined;
     const next = {
-      r,
       x: side === 'left' ? clamp(input.x, 0, center - racketRadius)
         : clamp(input.x, center + racketRadius, width),
       y: clamp(input.y, 0, floor),

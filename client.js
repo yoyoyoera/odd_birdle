@@ -560,28 +560,22 @@ function showPauseState() {
 
 function moveRacket(event) {
   if (gamePaused) return;
-  // A phone held upright plays with the thumb pad below the court (touchDrag), not on the court itself.
-  if (event.pointerType !== 'mouse' && padActive) return;
+  // A finger moves the racket by how far it slides (touchDrag): on the thumb pad when the phone is upright, anywhere on
+  // the screen when it is on its side. Only the mouse puts the racket where the pointer is.
+  if (event.pointerType !== 'mouse') return;
   const phase = currentView().phase;
   if ((phase !== 'live' && phase !== 'between' && phase !== 'starting') || !event.isPrimary ||
       (event.pointerType !== 'mouse' && event.buttons === 0)) return;
   const bounds = court.getBoundingClientRect();
   const shownX = (event.clientX - bounds.left) * width / bounds.width;
   const x = mirrored() ? width - shownX : shownX;
-  const finger = event.pointerType !== 'mouse';
-  racketIsTouch = finger;
-  // A finger on the court: the racket follows it directly. In a CPU match it grows round the finger while it is down
-  // (and hits as big as it looks); online every racket is the same size, so there it floats just above the finger.
-  const lift = finger && mode === 'online' ? fingerLiftPx * height / bounds.height : 0;
+  racketIsTouch = false;
   setRacket({
     x: localSide === 'left' ? clamp(x, 0, center - racketRadius) : clamp(x, center + racketRadius, width),
-    y: clamp((event.clientY - bounds.top) * height / bounds.height - lift, 0, floor),
-    time: event.timeStamp,
-    ...(finger && mode === 'solo' ? { big: true } : {})
+    y: clamp((event.clientY - bounds.top) * height / bounds.height, 0, floor),
+    time: event.timeStamp
   });
 }
-// How far above the finger the racket floats in an online match, in screen pixels.
-const fingerLiftPx = 56;
 
 // ---- Touch: a finger never sits on the racket. Wherever it lands, the racket moves by how far the finger slides (times
 // the sensitivity), so it never jumps under the finger and the finger never hides it; how fast it slides is how hard the
@@ -617,7 +611,8 @@ function layoutTouch() {
   const view = upright && mode === 'menu' ? 'menu' : upright && playing ? 'play' : '';
   document.documentElement.toggleAttribute?.('data-pad', Boolean(view));
   if (document.documentElement.dataset) document.documentElement.dataset.padView = view;
-  touchTune.hidden = !view;
+  // TOUCH SPEED: upright under the icon row; on its side, on the menu only (low on the screen).
+  touchTune.hidden = !(view || (coarsePointer.matches && mode === 'menu'));
   // The menu buttons move under the court on the upright menu, and back into the court everywhere else.
   if (view === 'menu' && menu.parentNode !== padMenu) padMenu?.append(menu);
   if (view !== 'menu' && menu.parentNode !== menuHome.parent) menuHome.parent?.insertBefore(menu, menuHome.next);
@@ -703,6 +698,24 @@ for (const type of ['pointerdown', 'pointermove']) {
   });
 }
 for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) pad.addEventListener(type, touchEnd);
+
+// On its side (or with no room for the pad) the whole screen is the pad: a finger anywhere but on a button or the bar
+// moves the racket by how far it slides.
+const screenPadSkip = 'button, a, input, label, output, #pad, #touch-tune, #guide';
+document.addEventListener('pointerdown', event => {
+  if (event.pointerType === 'mouse' || padActive || gamePaused || (mode !== 'solo' && mode !== 'online')) return;
+  if (event.target?.closest?.(screenPadSkip)) return;
+  event.preventDefault?.();
+  touchDrag(event, event.target);
+});
+document.addEventListener('pointermove', event => {
+  if (!thumb || event.pointerId !== thumb.id || event.target?.closest?.('#pad')) return;
+  event.preventDefault?.();
+  touchDrag(event, event.target);
+});
+for (const type of ['pointerup', 'pointercancel']) {
+  document.addEventListener(type, event => { if (!event.target?.closest?.('#pad')) touchEnd(event); });
+}
 
 function drawRacket(position, fill, stroke, side) {
   ctx.beginPath();
@@ -1178,8 +1191,50 @@ stage.addEventListener('click', event => {
   event.preventDefault();
   event.stopImmediatePropagation();
 }, true);
-document.querySelector('#create').addEventListener('click', () =>
-  portal === 'gamedistribution' ? afterMatchBreak(() => connect({ type: 'create' })) : connect({ type: 'create' }));
+// ---- First play on this device (per way of playing: mouse, thumb pad, whole-screen pad): a short guide over a dimmed
+// screen before the first game starts, gone after guideSeconds or on SKIP. ----
+const guide = document.querySelector('#guide');
+const guideSeconds = 5;
+const guideLines = {
+  mouse: 'Move your mouse: the racket follows it. Swing through the shuttle, and a faster swing hits harder.',
+  pad: 'Slide your thumb on the pad under the court: the racket moves as far as your thumb does.',
+  screen: 'Slide your finger anywhere on the screen: the racket moves as far as your finger does.'
+};
+let guideOpen = false;
+let guideFinish;
+// SKIP is a click, so whatever starts next (a portal's ad) still has the player's tap behind it.
+document.querySelector('#guide-skip')?.addEventListener('click', () => guideFinish?.());
+function withGuide(action) {
+  const kind = !coarsePointer.matches ? 'mouse' : window.innerHeight > window.innerWidth * 1.05 ? 'pad' : 'screen';
+  const key = 'oddbirdle-guide-' + kind;
+  let seen = testParams.has('test') || !guide;
+  try { seen ||= Boolean(localStorage.getItem(key)); } catch { /* not remembered: show it */ }
+  if (seen) return action();
+  if (guideOpen) return;
+  guideOpen = true;
+  try { localStorage.setItem(key, '1'); } catch { /* shown again next visit */ }
+  document.querySelector('#guide-move').textContent = guideLines[kind];
+  document.querySelector('#guide-icon').hidden = kind === 'mouse';
+  guide.hidden = false;
+  // Restart the 5 s bar.
+  const bar = document.querySelector('#guide-bar');
+  bar.classList?.remove('run');
+  void bar.offsetWidth;
+  bar.classList?.add('run');
+  let timer;
+  const finish = () => {
+    if (!guideOpen) return;
+    guideOpen = false;
+    clearTimeout(timer);
+    guide.hidden = true;
+    action();
+  };
+  timer = setTimeout(finish, guideSeconds * 1000);
+  guideFinish = finish;
+}
+
+document.querySelector('#create').addEventListener('click', () => withGuide(() =>
+  portal === 'gamedistribution' ? afterMatchBreak(() => connect({ type: 'create' })) : connect({ type: 'create' })));
 document.querySelector('#join').addEventListener('click', () => {
   setMode('join');
   codeInput.focus();
@@ -1236,7 +1291,7 @@ function startCpu() {
   finishedNoted = false;
   track('game_start', { mode: 'cpu', level: String(selectedCpuLevel ?? 'random') });
 }
-document.querySelector('#cpu').addEventListener('click', () => afterMatchBreak(startCpu));
+document.querySelector('#cpu').addEventListener('click', () => withGuide(() => afterMatchBreak(startCpu)));
 
 // Declared before the test pages below, which start a CPU game (and so read it) while the file is still loading.
 const quick = { on: false, queued: false, found: undefined, finished: false };
@@ -1590,13 +1645,13 @@ function backToQuick(abortReason) {
   connect({ type: 'queue' }, 'quick');
 }
 
-document.querySelector('#quick').addEventListener('click', () => afterMatchBreak(() => {
+document.querySelector('#quick').addEventListener('click', () => withGuide(() => afterMatchBreak(() => {
   quick.on = true;
   track('quick_match_enter');
   startCpu();
   connect({ type: 'queue' }, 'quick');
   showQueueStatus();
-}));
+})));
 joinForm.addEventListener('submit', event => {
   event.preventDefault();
   const code = normalizeRoomCode(codeInput.value);
@@ -1605,8 +1660,10 @@ joinForm.addEventListener('submit', event => {
     codeInput.focus();
     return;
   }
-  if (coordinatedBreak) afterMatchBreak(() => connect({ type: 'join', code }));
-  else connect({ type: 'join', code });
+  withGuide(() => {
+    if (coordinatedBreak) afterMatchBreak(() => connect({ type: 'join', code }));
+    else connect({ type: 'join', code });
+  });
 });
 codeInput.addEventListener('input', () => {
   if (mode === 'join' && !socket) setMode('join');
