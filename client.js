@@ -565,8 +565,7 @@ function moveRacket(event) {
   // the screen when it is on its side. Only the mouse puts the racket where the pointer is.
   if (event.pointerType !== 'mouse') return;
   const phase = currentView().phase;
-  if ((phase !== 'live' && phase !== 'between' && phase !== 'starting') || !event.isPrimary ||
-      (event.pointerType !== 'mouse' && event.buttons === 0)) return;
+  if ((phase !== 'live' && phase !== 'between' && phase !== 'starting') || !event.isPrimary) return;
   const bounds = court.getBoundingClientRect();
   const shownX = (event.clientX - bounds.left) * width / bounds.width;
   const x = mirrored() ? width - shownX : shownX;
@@ -594,11 +593,13 @@ try {
 }
 const coarsePointer = window.matchMedia?.('(pointer: coarse)') ?? { matches: false };
 const pad = document.querySelector('#pad');
+const touchTuneToggle = document.querySelector('#touch-tune-toggle');
 const touchTune = document.querySelector('#touch-tune');
 const touchGainInput = document.querySelector('#touch-gain');
 const touchGainValue = document.querySelector('#touch-gain-value');
 const padHintKey = 'oddbirdle-pad-hint-done';
 let padActive = false;
+let touchTuneOpen = false;
 let thumb;          // the finger being followed: { id, x, y }
 let touchRacket;    // where the racket is on screen, in court units of the half it is shown on
 
@@ -609,11 +610,16 @@ const menuHome = { parent: menu.parentNode, next: menu.nextSibling };
 function layoutTouch() {
   const playing = mode === 'solo' || mode === 'online';
   const upright = coarsePointer.matches && window.innerHeight > window.innerWidth * 1.05;
+  const landscape = coarsePointer.matches && window.innerWidth > window.innerHeight;
   const view = upright && mode === 'menu' ? 'menu' : upright && playing ? 'play' : '';
   document.documentElement.toggleAttribute?.('data-pad', Boolean(view));
   if (document.documentElement.dataset) document.documentElement.dataset.padView = view;
-  // TOUCH SPEED: upright under the icon row; on its side, on the menu only (low on the screen).
-  touchTune.hidden = !(view || (coarsePointer.matches && mode === 'menu'));
+  if (!landscape) touchTuneOpen = false;
+  document.documentElement.toggleAttribute?.('data-landscape-touch', landscape);
+  document.documentElement.toggleAttribute?.('data-touch-tune-open', touchTuneOpen);
+  touchTuneToggle.hidden = !landscape;
+  touchTuneToggle.setAttribute('aria-expanded', String(touchTuneOpen));
+  touchTune.hidden = !(view || touchTuneOpen);
   // The menu buttons move under the court on the upright menu, and back into the court everywhere else.
   if (view === 'menu' && menu.parentNode !== padMenu) padMenu?.append(menu);
   if (view !== 'menu' && menu.parentNode !== menuHome.parent) menuHome.parent?.insertBefore(menu, menuHome.next);
@@ -633,6 +639,10 @@ function layoutTouch() {
 window.addEventListener?.('resize', layoutTouch);
 coarsePointer.addEventListener?.('change', layoutTouch);
 window.addEventListener?.('orientationchange', () => setTimeout(layoutTouch, 250));
+touchTuneToggle.addEventListener('click', () => {
+  touchTuneOpen = !touchTuneOpen;
+  layoutTouch();
+});
 
 function showTouchGain() {
   touchGainInput.value = String(touchGain);
@@ -683,7 +693,6 @@ function touchEnd(event) {
   if (!thumb || (event && event.pointerId !== thumb.id)) return;
   thumb = undefined;
   delete pad.dataset.held;
-  setRacket(null);
 }
 
 for (const type of ['pointerdown', 'pointermove']) {
@@ -714,7 +723,7 @@ document.addEventListener('pointermove', event => {
   event.preventDefault?.();
   touchDrag(event, event.target);
 });
-for (const type of ['pointerup', 'pointercancel']) {
+for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
   document.addEventListener(type, event => { if (!event.target?.closest?.('#pad')) touchEnd(event); });
 }
 
@@ -1181,12 +1190,11 @@ court.addEventListener('pointerenter', event => {
 });
 court.addEventListener('pointermove', moveRacket);
 court.addEventListener('pointerdown', moveRacket);
-for (const event of ['pointerleave', 'pointercancel', 'lostpointercapture']) {
-  court.addEventListener(event, () => { if (!thumb) setRacket(null); });
+for (const type of ['pointerleave', 'pointercancel', 'lostpointercapture']) {
+  court.addEventListener(type, event => {
+    if (event.pointerType === 'mouse' && !racketIsTouch) setRacket(null);
+  });
 }
-court.addEventListener('pointerup', event => {
-  if (event.pointerType !== 'mouse' && !thumb) setRacket(null);
-});
 stage.addEventListener('click', event => {
   if (!gamePaused) return;
   event.preventDefault();
@@ -1265,6 +1273,7 @@ cpuLevelButton.addEventListener('click', () => {
 // Shows YOU over the player's half for a moment as a match starts.
 let youFlagTimer;
 function flagYou() {
+  touchEnd();
   touchRacket = undefined;
   youFlag.dataset.side = shownSide();
   youFlag.hidden = true;

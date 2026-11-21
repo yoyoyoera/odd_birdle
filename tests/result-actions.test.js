@@ -260,5 +260,11 @@ test('after a match there are buttons (and keys) to play again or go back to the
   assert.equal(Math.round(moved.x - start.x), 30, '20 px of finger is 30 court units at 1.5');
   assert.equal(Math.round(moved.y - start.y), -15);
   finger('pointerup', 140, 390);
-  assert.equal(lastRacket(), null, 'lifting the finger takes the racket away');
+  assert.deepEqual(lastRacket(), moved, 'lifting leaves the racket at its last position on the server');
+  finger('pointerdown', 300, 200);
+  assert.equal(lastRacket().x, moved.x, 'a new touch does not move the racket');
+  assert.equal(lastRacket().y, moved.y);
+  finger('pointermove', 310, 210);
+  assert.equal(lastRacket().x, moved.x + 15, 'dragging again starts from that position');
+  assert.equal(lastRacket().y, moved.y + 15);
 });

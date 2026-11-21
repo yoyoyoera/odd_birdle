@@ -52,14 +52,14 @@
     #pause-detail { margin: 12px 0 0; font-size: clamp(.75rem, 1.9vw, calc(1rem * var(--grow, 1))); line-height: 1.4; }
     #stage:not([data-phase="ready"]) h1 { display: none; }
     #studio-links { display: flex; justify-content: center; margin-top: 8px; }
-    #studio-links a, #sound-toggle, #fullscreen-toggle { display: grid; place-items: center; width: 44px; height: 44px; color: var(--court); }
-    #sound-toggle, #fullscreen-toggle { border: 0; padding: 0; background: transparent; cursor: pointer; }
+    #studio-links a, #sound-toggle, #fullscreen-toggle, #touch-tune-toggle { display: grid; place-items: center; width: 44px; height: 44px; color: var(--court); }
+    #studio-links button { border: 0; padding: 0; background: transparent; cursor: pointer; }
     /* Full screen is for the main site's own page only (it is hidden until the browser says it can, and portals never show it). */
-    #fullscreen-toggle[hidden] { display: none; }
+    #studio-links button[hidden] { display: none; }
     #fullscreen-toggle .leave, #fullscreen-toggle[aria-pressed="true"] .enter { display: none; }
     #fullscreen-toggle[aria-pressed="true"] .leave { display: inline; }
-    #studio-links a:hover, #sound-toggle:hover, #fullscreen-toggle:hover { background: var(--page-hover); }
-    #sound-toggle:focus-visible, #fullscreen-toggle:focus-visible { outline: 2px solid currentColor; outline-offset: -3px; }
+    #studio-links a:hover, #studio-links button:hover, #touch-tune-toggle[aria-expanded="true"] { background: var(--page-hover); }
+    #studio-links button:focus-visible { outline: 2px solid currentColor; outline-offset: -3px; }
     #sound-toggle .muted, #sound-toggle[aria-pressed="true"] .on { display: none; }
     #sound-toggle[aria-pressed="true"] .muted { display: inline; }
     #studio-links a:focus-visible { outline: 2px solid currentColor; outline-offset: -3px; }
@@ -144,14 +144,20 @@
     #guide-skip { min-width: 120px; min-height: 48px; padding: 0 20px; border: 1.5px solid var(--court); background: transparent;
       color: var(--court); font: 650 15px "Space Grotesk", system-ui, sans-serif; letter-spacing: .14em; cursor: pointer; }
     #guide-skip:hover { background: color-mix(in srgb, var(--court) 14%, transparent); }
-    /* The TOUCH SPEED bar (phone upright): right under the court's icon row, in the same place on the menu and in a match. */
-    #touch-tune { display: none; }
-    html[data-pad] #touch-tune { display: flex; align-items: center; gap: 10px; box-sizing: border-box; width: calc(100% - 24px);
-      margin: 4px 12px 0; color: var(--court); font: 650 13px "Space Grotesk", system-ui, sans-serif; letter-spacing: .08em; }
-    html[data-pad] #touch-tune[hidden] { display: none; }
-    html:not([data-pad]) #touch-tune:not([hidden]) { display: flex; align-items: center; gap: 10px; position: fixed; left: 50%;
-      bottom: max(4px, env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(380px, 100% - 32px); z-index: 4;
-      box-sizing: border-box; padding: 0 14px; background: color-mix(in srgb, var(--page) 88%, transparent); color: var(--court); font: 650 13px "Space Grotesk", system-ui, sans-serif; letter-spacing: .08em; }
+    #touch-tune { display: flex; align-items: center; gap: 10px; color: var(--court);
+      font: 650 13px "Space Grotesk", system-ui, sans-serif; letter-spacing: .08em; }
+    #touch-tune[hidden] { display: none; }
+    html[data-pad] #touch-tune { margin: 4px 4px 0; }
+    /* On its side, the slider opens alongside the icon column and leaves the whole court visible. */
+    html[data-landscape-touch] #fullscreen-toggle { order: 1; }
+    html[data-touch-tune-open] main { grid-template-columns: minmax(0, 1fr) 44px 64px;
+      width: min(1384px, 100% - 24px, calc((100svh - 12px) * 1.8 + 124px)); }
+    html[data-landscape-touch] main[data-fullscreen] { display: grid; grid-template-columns: minmax(0, 1fr) 44px;
+      justify-content: center; padding: 6px 12px; width: 100vw; }
+    html[data-touch-tune-open] main[data-fullscreen] { grid-template-columns: minmax(0, 1fr) 44px 64px; }
+    html[data-landscape-touch] main[data-fullscreen] #stage { width: min(100%, (100svh - 12px) * 1.8); justify-self: center; }
+    html[data-landscape-touch] main[data-fullscreen] #studio-links { position: static; flex-direction: column; }
+    html[data-touch-tune-open] #touch-tune { flex-direction: column; gap: 4px; text-align: center; }
     /* A finger anywhere is the pad: no scrolling or zooming the page with it. */
     @media (pointer: coarse) { body { touch-action: none; } }
     /* The menu buttons on the upright menu: quiet tiles a little lighter than the page, bright words, one per row. */
@@ -162,8 +168,8 @@
     #pad-menu #menu button { width: 100%; height: 56px; min-height: 0; padding: 0; border: 0; font: 650 16px "Space Grotesk", system-ui, sans-serif;
       letter-spacing: .12em; color: var(--court); background: color-mix(in srgb, var(--court) 13%, var(--page)); }
     #pad-menu #menu button:hover { background: color-mix(in srgb, var(--court) 22%, var(--page)); }
-    #pad-menu #cpu-group { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
-    #pad-menu #menu #cpu-level { position: static; transform: none; width: auto; padding: 0 16px; font-size: 13px; letter-spacing: .08em;
+    #pad-menu #cpu-group { display: grid; grid-template-columns: minmax(0, 1fr) 116px; gap: 10px; }
+    #pad-menu #menu #cpu-level { position: static; transform: none; width: 100%; padding: 0; font-size: 13px; letter-spacing: .08em;
       opacity: 1; background: transparent; border: 1.5px solid color-mix(in srgb, var(--court) 28%, var(--page)); }
     #touch-tune input { -webkit-appearance: none; appearance: none; flex: 1; min-width: 0; height: 44px; margin: 0;
       background: transparent; cursor: pointer; touch-action: pan-x; }
@@ -173,6 +179,13 @@
       border-radius: 0; background: var(--court); }
     #touch-tune input::-moz-range-thumb { width: 18px; height: 32px; border: 0; border-radius: 0; background: var(--court); }
     #touch-tune output { min-width: 3.2em; text-align: right; font-variant-numeric: tabular-nums; opacity: .8; }
+    html[data-touch-tune-open] #touch-tune input { flex: none; writing-mode: vertical-lr; direction: rtl;
+      width: 44px; height: clamp(76px, 35svh, 160px); touch-action: none; }
+    html[data-touch-tune-open] #touch-tune input::-webkit-slider-runnable-track { width: 4px; height: auto; }
+    html[data-touch-tune-open] #touch-tune input::-webkit-slider-thumb { width: 32px; height: 18px; margin: 0 0 0 -14px; }
+    html[data-touch-tune-open] #touch-tune input::-moz-range-track { width: 4px; height: auto; }
+    html[data-touch-tune-open] #touch-tune input::-moz-range-thumb { width: 32px; height: 18px; }
+    html[data-touch-tune-open] #touch-tune output { text-align: center; }
     /* Fingers: every button at least 44 px tall, the after-match buttons bigger. */
     @media (pointer: coarse) {
       #menu #cpu-level { min-height: 44px; }
@@ -364,7 +377,18 @@
         <path class="muted" d="M16 9.5l5 5M21 9.5l-5 5" stroke-linecap="round"/>
       </svg>
     </button>
+    <button id="touch-tune-toggle" type="button" aria-controls="touch-tune" aria-expanded="false" aria-label="Touch speed" title="Touch speed" hidden>
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 10V4m0 16v-6m8-8V4m0 16V10m8 2V4m0 16v-4M2 12h4m4-4h4m4 6h4"/>
+      </svg>
+    </button>
   </nav>
+  <div id="touch-tune" hidden>
+    <label for="touch-gain">TOUCH SPEED</label>
+    <input id="touch-gain" type="range" min="0.8" max="3" step="0.05" value="1.5" aria-label="Touch speed">
+    <output id="touch-gain-value" for="touch-gain">1.5×</output>
+  </div>
 </main>
 <!-- First game on a phone on its side: how to move, on a dimmed screen over the court, before the countdown (5 s or SKIP). -->
 <div id="guide" hidden role="dialog" aria-modal="true" aria-labelledby="guide-title">
@@ -380,12 +404,6 @@
     <div id="guide-bar"><i></i></div>
     <button id="guide-skip" type="button">SKIP</button>
   </div>
-</div>
-<!-- Phone held upright: how far the racket moves for a slide of the thumb on the pad. Saved on this device. -->
-<div id="touch-tune" hidden>
-  <label for="touch-gain">TOUCH SPEED</label>
-  <input id="touch-gain" type="range" min="0.8" max="3" step="0.05" value="1.5" aria-label="Touch speed">
-  <output id="touch-gain-value" for="touch-gain">1.5×</output>
 </div>
 <!-- Phone held upright, on the menu: the menu buttons, stacked under the court (moved here by client.js). -->
 <div id="pad-menu" hidden></div>
