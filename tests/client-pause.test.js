@@ -61,7 +61,7 @@ test('real client pauses CPU/search, rejects a late match, and resumes online fr
     receive(message) { this.emit('message', { data: JSON.stringify(message) }); }
     close() { this.readyState = 3; this.emit('close'); }
   }
-  const storage = new Map([['oddbirdle-hint-done', '1'], ['oddbirdle-guide-mouse', '1']]);
+  const storage = new Map([['oddbirdle-hint-done', '1']]);
   t.mock.method(performance, 'now', () => clock);
   t.mock.method(globalThis, 'setInterval', () => 1);
   globalThis.location = new URL('https://h5.gamepix.com/test/index.html');

@@ -252,6 +252,7 @@ function leave(message = '', stay = false) {
   localRacket = undefined;
   localSide = 'left';
   if (stay) return;
+  if (guideOpen) closeGuide();
   youFlag.hidden = true;
   quick.on = false;
   showQueueStatus();
@@ -1097,7 +1098,7 @@ function advanceFrame(time) {
   if (debugNet) netDebug.frames.push(time);
   if (mode === 'online') netMeter.frame(time);
   const scenery = demoShowing();
-  if ((mode === 'solo' || scenery) && lastFrame !== undefined && !gamePaused) {
+  if ((mode === 'solo' || scenery) && lastFrame !== undefined && !gamePaused && !(guideHold && !scenery)) {
     accumulator += Math.min((time - lastFrame) / 1000, 0.05);
     while (accumulator >= step) {
       if (scenery) demo.advance(step);
@@ -1191,50 +1192,49 @@ stage.addEventListener('click', event => {
   event.preventDefault();
   event.stopImmediatePropagation();
 }, true);
-// ---- First play on this device (per way of playing: mouse, thumb pad, whole-screen pad): a short guide over a dimmed
-// screen before the first game starts, gone after guideSeconds or on SKIP. ----
+// ---- First game on a phone held on its side (the whole screen is the pad, nothing on screen says so): a short guide on a
+// dimmed screen over the court, before the countdown. The countdown waits for it (5 s or SKIP). Upright phones have the
+// pad with its own words, and the mouse needs none. ----
 const guide = document.querySelector('#guide');
 const guideSeconds = 5;
-const guideLines = {
-  mouse: 'Move your mouse: the racket follows it. Swing through the shuttle, and a faster swing hits harder.',
-  pad: 'Slide your thumb on the pad under the court: the racket moves as far as your thumb does.',
-  screen: 'Slide your finger anywhere on the screen: the racket moves as far as your finger does.'
-};
+const guideKey = 'oddbirdle-guide-screen';
 let guideOpen = false;
+let guideHold = false;
 let guideFinish;
-// SKIP is a click, so whatever starts next (a portal's ad) still has the player's tap behind it.
 document.querySelector('#guide-skip')?.addEventListener('click', () => guideFinish?.());
-function withGuide(action) {
-  const kind = !coarsePointer.matches ? 'mouse' : window.innerHeight > window.innerWidth * 1.05 ? 'pad' : 'screen';
-  const key = 'oddbirdle-guide-' + kind;
-  let seen = testParams.has('test') || !guide;
-  try { seen ||= Boolean(localStorage.getItem(key)); } catch { /* not remembered: show it */ }
-  if (seen) return action();
-  if (guideOpen) return;
+function closeGuide() {
+  guideOpen = false;
+  guideHold = false;
+  if (guide) guide.hidden = true;
+}
+function guideBeforeCountdown(after) {
+  const sideways = coarsePointer.matches && !(window.innerHeight > window.innerWidth * 1.05);
+  let seen = !sideways || testParams.has('test') || !guide;
+  try { seen ||= Boolean(localStorage.getItem(guideKey)); } catch { /* not remembered: show it */ }
+  if (seen || guideOpen) return after?.();
+  try { localStorage.setItem(guideKey, '1'); } catch { /* shown again next visit */ }
   guideOpen = true;
-  try { localStorage.setItem(key, '1'); } catch { /* shown again next visit */ }
-  document.querySelector('#guide-move').textContent = guideLines[kind];
-  document.querySelector('#guide-icon').hidden = kind === 'mouse';
+  guideHold = true;
   guide.hidden = false;
   // Restart the 5 s bar.
   const bar = document.querySelector('#guide-bar');
   bar.classList?.remove('run');
   void bar.offsetWidth;
   bar.classList?.add('run');
-  let timer;
-  const finish = () => {
+  const timer = setTimeout(() => guideFinish?.(), guideSeconds * 1000);
+  guideFinish = () => {
     if (!guideOpen) return;
-    guideOpen = false;
     clearTimeout(timer);
-    guide.hidden = true;
-    action();
+    closeGuide();
+    // The countdown starts from where it stood.
+    lastFrame = undefined;
+    accumulator = 0;
+    after?.();
   };
-  timer = setTimeout(finish, guideSeconds * 1000);
-  guideFinish = finish;
 }
 
-document.querySelector('#create').addEventListener('click', () => withGuide(() =>
-  portal === 'gamedistribution' ? afterMatchBreak(() => connect({ type: 'create' })) : connect({ type: 'create' })));
+document.querySelector('#create').addEventListener('click', () =>
+  portal === 'gamedistribution' ? afterMatchBreak(() => connect({ type: 'create' })) : connect({ type: 'create' }));
 document.querySelector('#join').addEventListener('click', () => {
   setMode('join');
   codeInput.focus();
@@ -1291,7 +1291,10 @@ function startCpu() {
   finishedNoted = false;
   track('game_start', { mode: 'cpu', level: String(selectedCpuLevel ?? 'random') });
 }
-document.querySelector('#cpu').addEventListener('click', () => withGuide(() => afterMatchBreak(startCpu)));
+document.querySelector('#cpu').addEventListener('click', () => afterMatchBreak(() => {
+  startCpu();
+  guideBeforeCountdown();
+}));
 
 // Declared before the test pages below, which start a CPU game (and so read it) while the file is still loading.
 const quick = { on: false, queued: false, found: undefined, finished: false };
@@ -1645,13 +1648,14 @@ function backToQuick(abortReason) {
   connect({ type: 'queue' }, 'quick');
 }
 
-document.querySelector('#quick').addEventListener('click', () => withGuide(() => afterMatchBreak(() => {
+document.querySelector('#quick').addEventListener('click', () => afterMatchBreak(() => {
   quick.on = true;
   track('quick_match_enter');
   startCpu();
-  connect({ type: 'queue' }, 'quick');
+  // Looking for a player starts once the guide (if any) is gone, so nobody is matched while reading it.
+  guideBeforeCountdown(() => { if (quick.on && mode === 'solo' && !socket) connect({ type: 'queue' }, 'quick'); });
   showQueueStatus();
-})));
+}));
 joinForm.addEventListener('submit', event => {
   event.preventDefault();
   const code = normalizeRoomCode(codeInput.value);
@@ -1660,10 +1664,8 @@ joinForm.addEventListener('submit', event => {
     codeInput.focus();
     return;
   }
-  withGuide(() => {
-    if (coordinatedBreak) afterMatchBreak(() => connect({ type: 'join', code }));
-    else connect({ type: 'join', code });
-  });
+  if (coordinatedBreak) afterMatchBreak(() => connect({ type: 'join', code }));
+  else connect({ type: 'join', code });
 });
 codeInput.addEventListener('input', () => {
   if (mode === 'join' && !socket) setMode('join');

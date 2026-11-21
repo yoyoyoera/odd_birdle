@@ -64,7 +64,7 @@ test('after a match there are buttons (and keys) to play again or go back to the
     receive(message) { this.emit('message', { data: JSON.stringify(message) }); }
     close() { this.readyState = 3; this.emit('close'); }
   }
-  const storage = new Map([['oddbirdle-hint-done', '1'], ['oddbirdle-guide-mouse', '1']]);
+  const storage = new Map([['oddbirdle-hint-done', '1']]);
   t.mock.method(performance, 'now', () => clock);
   t.mock.method(globalThis, 'setInterval', () => 1);
   globalThis.location = new URL('https://item-cdn.y8.com/test/index.html');
@@ -97,17 +97,13 @@ test('after a match there are buttons (and keys) to play again or go back to the
   };
   const press = key => { for (const fn of documentEvents.keydown ?? []) fn({ key, target: {}, preventDefault() {} }); };
 
-  // The first game on this device shows the guide first; the match starts on SKIP (or after 5 s), and next time at once.
-  storage.delete('oddbirdle-guide-mouse');
+  // The how-to guide is for phones on their side only: with a mouse the match starts straight away.
+  storage.delete('oddbirdle-guide-screen');
+  element('#guide').hidden = true;
   await element('#cpu').click();
-  assert.equal(element('#guide').hidden, false, 'the guide is up');
-  assert.match(element('#guide-move').textContent, /mouse/);
-  assert.equal(element('#menu').hidden, false, 'no game behind it yet');
-  await element('#guide-skip').click();
   await new Promise(resolve => setImmediate(resolve));
-  assert.equal(element('#guide').hidden, true);
-  assert.equal(element('#menu').hidden, true, 'SKIP starts the match');
-  assert.equal(storage.get('oddbirdle-guide-mouse'), '1');
+  assert.equal(element('#guide').hidden, true, 'no guide with a mouse');
+  assert.equal(element('#menu').hidden, true);
   await element('#back').click();
 
   // CPU, lost: PLAY AGAIN starts a fresh match.
