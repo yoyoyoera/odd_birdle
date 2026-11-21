@@ -4,7 +4,7 @@ const [build, mode, after, mobile] = process.argv.slice(2);
 const tap = mobile === 'mobile';
 const browser = await launch();
 // GD's ad frames make Chrome swap the cross-origin game frame mid-match (Puppeteer: 'detached Frame'), so GD runs same-origin.
-const { page, frame, logs } = await open(browser, build, { ...(tap ? { width: 812, height: 375, mobile: true } : {}), sameOrigin: build.startsWith('gd') });
+const { page, frame, logs } = await open(browser, build, { ...(tap ? { width: 812, height: 375, mobile: true } : {}), sameOrigin: build.startsWith('gd') || build.startsWith('gp') });
 const log = (...a) => console.log(`[${build} ${mode} ${after}${tap ? ' mobile' : ''}]`, ...a);
 try {
   await clickIn(page, frame, mode === 'cpu' ? '#cpu' : '#quick', { tap });

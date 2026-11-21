@@ -15,8 +15,8 @@ export async function open(browser, build, { width = 900, height = 520, mobile =
   let frame;
   for (let i = 0; i < 50 && !frame; i++) { frame = page.frames().find(f => f.url().includes('/' + build + '/index.html')); if (!frame) await sleep(100); }
   await frame.waitForSelector('#menu');
-  // GD keeps the menu locked (inert) until its SDK is ready, up to 6 s.
-  await sleep(build.startsWith('gd') ? 7000 : 1500);
+  // GD and GamePix keep the menu locked (inert) until their SDK is ready.
+  await sleep(build.startsWith('gd') || build.startsWith('gp') ? 7000 : 1500);
   return { page, frame, logs };
 }
 export const state = frame => frame.evaluate(() => {

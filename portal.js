@@ -120,11 +120,37 @@ export async function matchBreak({ rematch = false } = {}) {
   if (!gamepix || !ready || paused || matchesSinceAd < adEveryMatches || Date.now() - lastAd < adGapMs) return;
   matchesSinceAd = 0;
   lastAd = Date.now();
-  try {
-    await gamepix.ads.interstitial();
-  } catch {
-    // No ad is fine.
-  }
+  await gamepixBreak();
+}
+
+// GamePix's interstitial: the next match waits for it, but never for good. The SDK pauses the game itself while an ad
+// is on (sdkPaused), so letting the match go ahead early never plays under an ad. Goes on when the ad's Promise settles;
+// when an ad that had paused the game hands it back; when nothing has started after gamepixAdStartMs (an SDK that never
+// answers would otherwise leave PLAY AGAIN dead, the way Y8 saw it); and after gamepixAdLimitMs whatever happens.
+export const gamepixLoadedMs = 10000;
+export const gamepixAdStartMs = 5000;
+export const gamepixAdLimitMs = 120000;
+function gamepixBreak() {
+  return new Promise(resolve => {
+    let waited = 0;
+    let started = false;
+    const finish = () => {
+      clearInterval(watch);
+      resolve();
+    };
+    const watch = setInterval(() => {
+      waited += 250;
+      if (sdkPaused) started = true;
+      else if (started || waited >= gamepixAdStartMs) finish();
+      if (waited >= gamepixAdLimitMs) finish();
+    }, 250);
+    try {
+      Promise.resolve(gamepix.ads.interstitial()).then(finish, finish);
+    } catch {
+      // No ad is fine.
+      finish();
+    }
+  });
 }
 
 // Y8: an interstitial between matches, never during one, as rarely as for GamePix (Y8 also caps them itself).
@@ -224,8 +250,13 @@ export async function loadingStop() {
   try {
     if (gamepix) {
       gamepixCall(g => g.lifecycle.loading(100));
-      await gamepix.lifecycle.loaded();
-      ready = true;
+      // The cover and the locked menu wait for GamePix's answer, but not for good (10 s), so the game can always start.
+      let timer;
+      const answered = await Promise.race([
+        Promise.resolve(gamepix.lifecycle.loaded()).then(() => true),
+        new Promise(resolve => { timer = setTimeout(() => resolve(false), gamepixLoadedMs); })
+      ]).finally(() => clearTimeout(timer));
+      ready = answered;
     }
   } catch {
     // Carry on without it.

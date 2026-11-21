@@ -157,3 +157,54 @@ test('an unavailable SDK releases the loading cover and controls without an ad',
     assert.equal(fallback.isPaused(), false);
   } finally { window.GamePix = sdk; }
 });
+
+test('an interstitial that never starts or answers cannot leave PLAY AGAIN dead', async t => {
+  t.mock.timers.enable({ apis: ['setInterval', 'setTimeout'] });
+  t.mock.method(Date, 'now', () => 19999999999999);
+  t.mock.method(window.GamePix.ads, 'interstitial', () => new Promise(() => {}));
+  portal.matchEnded(false); portal.matchEnded(false); portal.matchEnded(false);
+  let ready = false;
+  const pending = portal.matchBreak({ rematch: true }).then(() => { ready = true; });
+  t.mock.timers.tick(portal.gamepixAdStartMs - 500);
+  await Promise.resolve();
+  assert.equal(ready, false, 'still giving it a moment');
+  t.mock.timers.tick(1000);
+  await pending;
+  assert.equal(ready, true);
+  assert.equal(portal.isPaused(), false);
+});
+
+test('an ad that paused the game and handed it back goes on even if its Promise never settles', async t => {
+  t.mock.timers.enable({ apis: ['setInterval', 'setTimeout'] });
+  t.mock.method(Date, 'now', () => 29999999999999);
+  t.mock.method(window.GamePix.ads, 'interstitial', () => { handlers.pause(); return new Promise(() => {}); });
+  portal.matchEnded(false); portal.matchEnded(false); portal.matchEnded(false);
+  let ready = false;
+  const pending = portal.matchBreak({ rematch: true }).then(() => { ready = true; });
+  t.mock.timers.tick(30000);
+  await Promise.resolve();
+  assert.equal(ready, false, 'the ad is still on: wait for it');
+  assert.equal(portal.isPaused(), true);
+  handlers.resume();
+  t.mock.timers.tick(500);
+  await pending;
+  assert.equal(ready, true);
+  assert.equal(portal.isPaused(), false);
+});
+
+test('a GamePix loading answer that never comes still unlocks the game', async t => {
+  const original = window.GamePix.lifecycle.loaded;
+  window.GamePix.lifecycle.loaded = () => new Promise(() => {});
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  try {
+    const hung = await import('../portal.js?gamepix-loaded-hangs');
+    await hung.initPortal();
+    assert.equal(stage.inert, true);
+    const done = hung.loadingStop();
+    t.mock.timers.tick(hung.gamepixLoadedMs);
+    await done;
+    assert.equal(stage.inert, false);
+  } finally {
+    window.GamePix.lifecycle.loaded = original;
+  }
+});
