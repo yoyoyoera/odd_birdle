@@ -537,7 +537,7 @@ function setRacket(input) {
     } else if (input) {
       predictContact(previous ?? input, input, localRacket, performance.now(), true);
     }
-    racketSender.push({ type: 'racket', input, seenTime: playback.displayedTime });
+    racketSender.push({ type: 'racket', input: input && { x: input.x, y: input.y, time: input.time }, seenTime: playback.displayedTime });
   }
 }
 
@@ -560,24 +560,28 @@ function showPauseState() {
 
 function moveRacket(event) {
   if (gamePaused) return;
-  // A finger moves the racket by how far it slides, not to where it is (touchDrag below).
-  if (event.pointerType !== 'mouse') {
-    if (!padActive) touchDrag(event, court);
-    return;
-  }
+  // A phone held upright plays with the thumb pad below the court (touchDrag), not on the court itself.
+  if (event.pointerType !== 'mouse' && padActive) return;
   const phase = currentView().phase;
   if ((phase !== 'live' && phase !== 'between' && phase !== 'starting') || !event.isPrimary ||
       (event.pointerType !== 'mouse' && event.buttons === 0)) return;
   const bounds = court.getBoundingClientRect();
   const shownX = (event.clientX - bounds.left) * width / bounds.width;
   const x = mirrored() ? width - shownX : shownX;
-  racketIsTouch = event.pointerType !== 'mouse';
+  const finger = event.pointerType !== 'mouse';
+  racketIsTouch = finger;
+  // A finger on the court: the racket follows it directly. In a CPU match it grows round the finger while it is down
+  // (and hits as big as it looks); online every racket is the same size, so there it floats just above the finger.
+  const lift = finger && mode === 'online' ? fingerLiftPx * height / bounds.height : 0;
   setRacket({
     x: localSide === 'left' ? clamp(x, 0, center - racketRadius) : clamp(x, center + racketRadius, width),
-    y: clamp((event.clientY - bounds.top) * height / bounds.height, 0, floor),
-    time: event.timeStamp
+    y: clamp((event.clientY - bounds.top) * height / bounds.height - lift, 0, floor),
+    time: event.timeStamp,
+    ...(finger && mode === 'solo' ? { big: true } : {})
   });
 }
+// How far above the finger the racket floats in an online match, in screen pixels.
+const fingerLiftPx = 56;
 
 // ---- Touch: a finger never sits on the racket. Wherever it lands, the racket moves by how far the finger slides (times
 // the sensitivity), so it never jumps under the finger and the finger never hides it; how fast it slides is how hard the
@@ -603,24 +607,32 @@ let padActive = false;
 let thumb;          // the finger being followed: { id, x, y }
 let touchRacket;    // where the racket is on screen, in court units of the half it is shown on
 
+// A phone held upright (touch, taller than wide): the court at the top, the TOUCH SPEED bar right under its icon row (the
+// same place on the menu and in a match), and under that the menu buttons stacked, or in a match the thumb pad.
+const padMenu = document.querySelector('#pad-menu');
+const menuHome = { parent: menu.parentNode, next: menu.nextSibling };
 function layoutTouch() {
   const playing = mode === 'solo' || mode === 'online';
   const upright = coarsePointer.matches && window.innerHeight > window.innerWidth * 1.05;
+  const view = upright && mode === 'menu' ? 'menu' : upright && playing ? 'play' : '';
+  document.documentElement.toggleAttribute?.('data-pad', Boolean(view));
+  if (document.documentElement.dataset) document.documentElement.dataset.padView = view;
+  touchTune.hidden = !view;
+  // The menu buttons move under the court on the upright menu, and back into the court everywhere else.
+  if (view === 'menu' && menu.parentNode !== padMenu) padMenu?.append(menu);
+  if (view !== 'menu' && menu.parentNode !== menuHome.parent) menuHome.parent?.insertBefore(menu, menuHome.next);
+  if (padMenu) padMenu.hidden = view !== 'menu';
   let space = 0;
-  if (upright && playing) {
-    document.documentElement.toggleAttribute?.('data-pad', true);
+  if (view === 'play') {
     pad.hidden = false;
     pad.style.height = '0px';
-    space = window.innerHeight - document.querySelector('main').getBoundingClientRect().bottom - 24;
+    space = window.innerHeight - touchTune.getBoundingClientRect().bottom - 24;
     pad.style.height = Math.max(0, space) + 'px';
   }
-  // Too little room under the court: dragging on the court itself is better than a sliver of a pad.
-  padActive = upright && playing && space >= 110;
-  document.documentElement.toggleAttribute?.('data-pad', padActive);
+  // Too little room under the court: then the finger plays on the court itself.
+  padActive = view === 'play' && space >= 110;
   pad.hidden = !padActive;
   try { if (localStorage.getItem(padHintKey)) pad.dataset.used = ''; } catch { /* the hint shows every time */ }
-  // The sensitivity bar is on the menu of a touch screen.
-  touchTune.hidden = !(coarsePointer.matches && mode === 'menu');
 }
 window.addEventListener?.('resize', layoutTouch);
 coarsePointer.addEventListener?.('change', layoutTouch);
@@ -697,8 +709,9 @@ function drawRacket(position, fill, stroke, side) {
   const squash = squashes[side];
   const amount = squash && juice.squash && !reduceMotion.matches ? squashAmount(performance.now() - squash.start) : 0;
   // Squash: a little flatter along the way the shuttle was sent, a little wider across it.
-  if (amount) ctx.ellipse(position.x, position.y, racketRadius * (1 - amount), racketRadius * (1 + amount * 0.6), squash.angle, 0, Math.PI * 2);
-  else ctx.arc(position.x, position.y, racketRadius, 0, Math.PI * 2);
+  const r = position.r ?? racketRadius;
+  if (amount) ctx.ellipse(position.x, position.y, r * (1 - amount), r * (1 + amount * 0.6), squash.angle, 0, Math.PI * 2);
+  else ctx.arc(position.x, position.y, r, 0, Math.PI * 2);
   ctx.fillStyle = fill;
   ctx.fill();
   ctx.lineWidth = 2;
@@ -884,7 +897,7 @@ function drawHint(view) {
   ctx.translate(localSide === 'left' ? center / 2 : center * 1.5, floor * 0.42);
   // Words read the right way round on a mirrored court.
   if (mirrored()) ctx.scale(-1, 1);
-  ctx.fillText(coarsePointer.matches && !padActive ? 'Drag to move' : 'Move to hit', 0, 0);
+  ctx.fillText('Move to hit', 0, 0);
   ctx.restore();
 }
 
@@ -1155,14 +1168,10 @@ court.addEventListener('pointerenter', event => {
 court.addEventListener('pointermove', moveRacket);
 court.addEventListener('pointerdown', moveRacket);
 for (const event of ['pointerleave', 'pointercancel', 'lostpointercapture']) {
-  court.addEventListener(event, ev => {
-    // A captured finger dragging past the court's edge keeps going; it lets go on pointerup.
-    if (ev.pointerType !== 'mouse' && thumb && ev.type === 'pointerleave') return;
-    if (ev.pointerType !== 'mouse') touchEnd(ev); else setRacket(null);
-  });
+  court.addEventListener(event, () => { if (!thumb) setRacket(null); });
 }
 court.addEventListener('pointerup', event => {
-  if (event.pointerType !== 'mouse') touchEnd(event);
+  if (event.pointerType !== 'mouse' && !thumb) setRacket(null);
 });
 stage.addEventListener('click', event => {
   if (!gamePaused) return;

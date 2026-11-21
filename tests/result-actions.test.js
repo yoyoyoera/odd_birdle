@@ -222,7 +222,8 @@ test('after a match there are buttons (and keys) to play again or go back to the
   assert.equal(element('#you-flag').dataset.side, 'right');
   assert.equal(element('#side-label').dataset.side, 'right');
 
-  // Touch: the racket moves by how far the finger slides (times the touch speed, 1.5 by default), never to the finger.
+  // Touch on the court (not a phone held upright): the racket follows the finger directly; online it floats 56 px above
+  // it so the finger does not hide it, and it keeps the usual size (no big flag goes to the server).
   await element('#back').click();
   await element('#create').click();
   const touchRoom = sockets.at(-1);
@@ -242,13 +243,11 @@ test('after a match there are buttons (and keys) to play again or go back to the
   const lastRacket = () => touchRoom.sent.filter(m => m.type === 'racket').at(-1)?.input;
   finger('pointerdown', 120, 400);
   const start = lastRacket();
-  assert.ok(start, 'the racket comes up');
-  assert.notEqual(Math.round(start.x), 120, 'not under the finger');
-  assert.equal(Math.round(start.x), 225, 'it starts in the middle of your half');
+  assert.equal(Math.round(start.x), 120, 'right at the finger sideways');
+  assert.equal(Math.round(start.y), 400 - 56, 'and just above it');
+  assert.equal(start.big, undefined, 'online rackets stay the usual size');
   finger('pointermove', 140, 390);
-  const moved = lastRacket();
-  assert.equal(Math.round(moved.x - start.x), 30, '20 px of finger is 30 court units at 1.5');
-  assert.equal(Math.round(moved.y - start.y), -15);
+  assert.equal(Math.round(lastRacket().x), 140);
   finger('pointerup', 140, 390);
   assert.equal(lastRacket(), null, 'lifting the finger takes the racket away');
 });

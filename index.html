@@ -128,11 +128,22 @@
     #pad[data-used] #pad-icon { opacity: .22; }
     #pad[data-used] #pad-hint { opacity: .28; }
     #pad[data-held] { border-color: color-mix(in srgb, var(--court) 60%, transparent); }
-    /* The touch speed bar, on the menu of a touch screen: low on the page, in the game's flat style. */
-    #touch-tune { position: fixed; left: 50%; bottom: max(8px, env(safe-area-inset-bottom)); transform: translateX(-50%);
-      display: flex; align-items: center; gap: 10px; width: min(360px, 100% - 32px); color: var(--court);
-      font: 650 13px "Space Grotesk", system-ui, sans-serif; letter-spacing: .08em; z-index: 4; }
-    #touch-tune[hidden] { display: none; }
+    /* The TOUCH SPEED bar (phone upright): right under the court's icon row, in the same place on the menu and in a match. */
+    #touch-tune { display: none; }
+    html[data-pad] #touch-tune { display: flex; align-items: center; gap: 10px; box-sizing: border-box; width: calc(100% - 24px);
+      margin: 4px 12px 0; color: var(--court); font: 650 13px "Space Grotesk", system-ui, sans-serif; letter-spacing: .08em; }
+    html[data-pad] #touch-tune[hidden] { display: none; }
+    /* The menu buttons on the upright menu: quiet tiles a little lighter than the page, bright words, one per row. */
+    #pad-menu { display: none; }
+    html[data-pad][data-pad-view="menu"] #pad-menu { display: block; box-sizing: border-box; width: calc(100% - 24px); margin: 12px; }
+    html[data-pad] #pad-menu[hidden] { display: none; }
+    #pad-menu #menu { position: static; transform: none; display: flex; flex-direction: column; align-items: stretch; gap: 10px; white-space: nowrap; }
+    #pad-menu #menu button { width: 100%; height: 56px; min-height: 0; padding: 0; border: 0; font: 650 16px "Space Grotesk", system-ui, sans-serif;
+      letter-spacing: .12em; color: var(--court); background: color-mix(in srgb, var(--court) 13%, var(--page)); }
+    #pad-menu #menu button:hover { background: color-mix(in srgb, var(--court) 22%, var(--page)); }
+    #pad-menu #cpu-group { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
+    #pad-menu #menu #cpu-level { position: static; transform: none; width: auto; padding: 0 16px; font-size: 13px; letter-spacing: .08em;
+      opacity: 1; background: transparent; border: 1.5px solid color-mix(in srgb, var(--court) 28%, var(--page)); }
     #touch-tune input { -webkit-appearance: none; appearance: none; flex: 1; min-width: 0; height: 44px; margin: 0;
       background: transparent; cursor: pointer; touch-action: pan-x; }
     #touch-tune input::-webkit-slider-runnable-track { height: 4px; background: color-mix(in srgb, var(--court) 40%, transparent); }
@@ -334,6 +345,14 @@
     </button>
   </nav>
 </main>
+<!-- Phone held upright: how far the racket moves for a slide of the thumb on the pad. Saved on this device. -->
+<div id="touch-tune" hidden>
+  <label for="touch-gain">TOUCH SPEED</label>
+  <input id="touch-gain" type="range" min="0.8" max="3" step="0.05" value="1.5" aria-label="Touch speed">
+  <output id="touch-gain-value" for="touch-gain">1.5×</output>
+</div>
+<!-- Phone held upright, on the menu: the menu buttons, stacked under the court (moved here by client.js). -->
+<div id="pad-menu" hidden></div>
 <!-- A phone held upright: the space under the court is a thumb pad; the racket follows how far the thumb slides. -->
 <div id="pad" hidden aria-label="Thumb pad: slide to move your racket">
   <svg id="pad-icon" width="64" height="64" viewBox="0 0 64 64" aria-hidden="true">
@@ -342,12 +361,6 @@
       fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity=".7"/>
   </svg>
   <p id="pad-hint">Slide your thumb here to move your racket</p>
-</div>
-<!-- Touch screens: how far the racket moves for a slide of the finger. Saved on this device. -->
-<div id="touch-tune" hidden>
-  <label for="touch-gain">TOUCH SPEED</label>
-  <input id="touch-gain" type="range" min="0.8" max="3" step="0.05" value="1.5" aria-label="Touch speed">
-  <output id="touch-gain-value" for="touch-gain">1.5×</output>
 </div>
 <script type="module" src="./client.js"></script>
 </body>

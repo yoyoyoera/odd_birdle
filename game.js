@@ -75,6 +75,11 @@ const netCordSeconds = 0.35;
 export const leftLine = 64;
 export const rightLine = width - leftLine;
 export const racketRadius = 22;
+// A touch player's racket in a CPU match grows while the finger is down, so it shows round the finger; it then also hits
+// as big as it looks. Online every racket keeps the same size.
+export const bigRacketScale = 1.4;
+// The racket's radius: its own when it has one (a big touch racket in a CPU match), else the usual.
+export const radiusOf = racket => racket?.r ?? racketRadius;
 const baseGravity = 760;
 export const step = 1 / 120;
 export const faultReactions = ['Pardon?', 'LOL', 'Oops!', 'Nice try.', 'Wrong way.'];
@@ -293,7 +298,7 @@ export function contactMotion(racket, time) {
 }
 
 export function racketTouches(shuttle, from, to = from) {
-  return outlineContact(from, to, racketRadius, shuttle.x, shuttle.y, shuttleOutline(shuttle));
+  return outlineContact(from, to, radiusOf(to), shuttle.x, shuttle.y, shuttleOutline(shuttle));
 }
 
 // How far back an online contact check looks along the shuttle's path (ms): about three frames, and never further back
@@ -310,7 +315,7 @@ export function sweptTouch(path, from, to) {
     const k = last === 0 ? 1 : i / last;
     const before = last === 0 ? from : lerpPoint(from, to, Math.max(0, i - 1) / last);
     const at = lerpPoint(from, to, k);
-    if (outlineContact(before, at, racketRadius, pose.x, pose.y, pose.rings ?? shuttleOutline(pose))) return i;
+    if (outlineContact(before, at, radiusOf(to), pose.x, pose.y, pose.rings ?? shuttleOutline(pose))) return i;
   }
   return -1;
 }
@@ -326,11 +331,11 @@ export function posesBetween(a, b, spacing = 4) {
 export function supportedShuttleY(pose, from, to) {
   if (pose.y > from.y || to.y > from.y) return undefined;
   const rings = shuttleOutline(pose);
-  const overlapsAt = y => outlineContact(to, to, racketRadius, pose.x, y, rings);
+  const overlapsAt = y => outlineContact(to, to, radiusOf(to), pose.x, y, rings);
   if (!overlapsAt(pose.y)) return undefined;
 
   // Move only as far up as needed for the racket and outline to separate.
-  let low = pose.y - pose.size * 2 - racketRadius * 2;
+  let low = pose.y - pose.size * 2 - radiusOf(to) * 2;
   let high = pose.y;
   for (let i = 0; i < 12; i++) {
     const y = (low + high) / 2;
@@ -721,7 +726,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
   // A racket that touches a fake bursts it.
   function racketPopsDecoys(from, to) {
     for (const decoy of decoys) {
-      if (!decoy.gone && outlineContact(from, to, racketRadius, decoy.x, decoy.y, shuttleOutline(decoyPose(decoy)))) {
+      if (!decoy.gone && outlineContact(from, to, radiusOf(to), decoy.x, decoy.y, shuttleOutline(decoyPose(decoy)))) {
         popDecoy(decoy);
       }
     }
@@ -916,7 +921,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
   }
 
   function racketContact(from, to) {
-    return outlineContact(from, to, racketRadius, shuttle.x, shuttle.y, outline);
+    return outlineContact(from, to, radiusOf(to), shuttle.x, shuttle.y, outline);
   }
 
   // `previous`: where the shuttle was at the last check (one game step ago); the path from there is checked too.
@@ -1030,7 +1035,10 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
       touching[side] = false;
       return;
     }
+    // Only a CPU match takes the big racket; the server never does.
+    const r = withCpu && input.big ? racketRadius * bigRacketScale : undefined;
     const next = {
+      r,
       x: side === 'left' ? clamp(input.x, 0, center - racketRadius)
         : clamp(input.x, center + racketRadius, width),
       y: clamp(input.y, 0, floor),
@@ -1326,7 +1334,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
       const racket = rackets[support];
       if (!racket || !supportShuttle(support, racket, { ...racket, vy: 0 })) {
         if (!racket || !onSide(support) || shuttle.y > racket.y ||
-            !outlineContact(racket, racket, racketRadius + 3, shuttle.x, shuttle.y, outline)) support = undefined;
+            !outlineContact(racket, racket, radiusOf(racket) + 3, shuttle.x, shuttle.y, outline)) support = undefined;
       }
     }
     if (phase !== 'live' || pendingLanding) return;
@@ -1349,7 +1357,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     const frozen = activeEffect?.id === 'freeze';
     const invisible = activeEffect?.id === 'invisible';
     const visible = shuttle && phase !== 'starting' && (!invisible || reveal > 0);
-    const position = (racket) => racket && { x: racket.x, y: racket.y, seenTime: racket.seenTime };
+    const position = (racket) => racket && { x: racket.x, y: racket.y, seenTime: racket.seenTime, r: racket.r };
     return {
       phase, score, message, winner, eventText, eventWind, flash, frozen, support, cpuLevel, netTop: matchNetTop,
       strike: strike?.flight === flight ? strike : undefined,
