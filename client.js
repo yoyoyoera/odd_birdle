@@ -745,7 +745,6 @@ for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
     if (!padThumb || event.pointerId !== padThumb.id) return;
     padThumb = undefined;
     delete pad.dataset.held;
-    setRacket(null);
   });
 }
 
@@ -1276,10 +1275,10 @@ court.addEventListener('pointerenter', event => {
 court.addEventListener('pointermove', moveRacket);
 court.addEventListener('pointerdown', moveRacket);
 for (const event of ['pointerleave', 'pointercancel', 'lostpointercapture']) {
-  court.addEventListener(event, () => setRacket(null));
+  court.addEventListener(event, () => { if (!padActive) setRacket(null); });
 }
 court.addEventListener('pointerup', event => {
-  if (event.pointerType !== 'mouse') setRacket(null);
+  if (!padActive && event.pointerType !== 'mouse') setRacket(null);
 });
 stage.addEventListener('click', event => {
   if (!gamePaused) return;
