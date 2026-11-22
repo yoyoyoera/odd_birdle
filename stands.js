@@ -136,7 +136,9 @@ function drawPerson(ctx, p, tones, look) {
       ctx.fill();
     }
   });
-  if (duck > 0.01) {
+  if (duck > 0.001) {
+    ctx.save();
+    ctx.globalAlpha *= Math.min(1, (duck - 0.001) * 6);
     ctx.strokeStyle = torso;
     ctx.fillStyle = face;
     ctx.lineWidth = 5 * s;
@@ -154,6 +156,7 @@ function drawPerson(ctx, p, tones, look) {
       ctx.arc(handX, handY, 3 * s, 0, Math.PI * 2);
       ctx.fill();
     }
+    ctx.restore();
   }
 }
 
@@ -174,13 +177,34 @@ export function cheerAmount(seconds, finale = false, timing = cheerTiming) {
 
 const noMood = { effect: undefined, effectAge: 0, wind: 0, standing: 0, surprise: 0, clock: 0 };
 
-export function bombDuckAmount(person, threat) {
-  if (!threat || (person.x < 450) !== (threat.x < 450)) return 0;
-  if (threat.burstAge !== undefined) {
-    return 1 - easeInOut(Math.max(0, Math.min(1, (threat.burstAge - 0.10) / 0.42)));
-  }
-  const progress = (0.78 - person.delay - threat.fuse) / 0.43;
-  return easeOut(Math.max(0, Math.min(1, progress)));
+// Ease toward each target in two passes so reversing direction carries the current motion through the turn.
+export function createBombCrowdMotion() {
+  const motion = { left: 0, right: 0 };
+  const duck = { left: 0, right: 0 };
+  let lastFrame;
+  return {
+    update(now, bombX) {
+      const elapsed = Math.max(0, Math.min(50, now - (lastFrame ?? now)));
+      lastFrame = now;
+      const bombSide = bombX === undefined ? undefined : bombX < 450 ? 'left' : 'right';
+      for (const side of ['left', 'right']) {
+        const target = side === bombSide ? 1 : 0;
+        const time = elapsed / (target ? 75 : 105);
+        const decay = Math.exp(-time);
+        const offset = motion[side] - target;
+        duck[side] = target + (duck[side] - target + offset * time) * decay;
+        motion[side] = target + offset * decay;
+      }
+      return duck;
+    }
+  };
+}
+
+export function bombDuckAmount(person, progress) {
+  const amount = progress?.[person.x < 450 ? 'left' : 'right'] ?? 0;
+  // Seats react at slightly different times and reverse smoothly from their current pose.
+  const delayed = Math.max(0, amount - person.delay) / (1 - person.delay);
+  return easeInOut(delayed);
 }
 
 // Draws the stands. `cheer` is { side, since, finale } for the side that just scored: that side's crowd cheers and
@@ -197,7 +221,7 @@ export function gazeTarget(person, now, count) {
   return Math.abs(Math.imul(slot + Math.round(person.x), 2654435761) >>> 0) % count;
 }
 
-export function drawStands(ctx, stands, { gaze, gazes, palette, cheer, now = 0, jolt = 0, mood = noMood, bombThreat }) {
+export function drawStands(ctx, stands, { gaze, gazes, palette, cheer, now = 0, jolt = 0, mood = noMood, bombDuck }) {
   let tones = toneCache.get(palette);
   if (!tones) toneCache.set(palette, tones = tonesFor(palette));
   const { effect, effectAge, wind, standing, surprise, clock } = mood;
@@ -216,7 +240,7 @@ export function drawStands(ctx, stands, { gaze, gazes, palette, cheer, now = 0, 
       if (p.row !== row) continue;
       const onCheerSide = cheer && (p.x < 450) === (cheer.side === 'left');
       const seconds = cheer ? (now - cheer.since) / 1000 - p.delay : 0;
-      const duck = bombDuckAmount(p, bombThreat);
+      const duck = bombDuckAmount(p, bombDuck);
       const raise = onCheerSide && (p.fan || cheer.finale) ? cheerAmount(seconds, cheer.finale) * (1 - duck) : 0;
       const droop = cheer && !onCheerSide ? cheerAmount(seconds, cheer.finale, droopTiming) : 0;
       let dx = 0, dy = Math.sin(clock / 650 + p.x * 0.05) * 0.8 * s;
