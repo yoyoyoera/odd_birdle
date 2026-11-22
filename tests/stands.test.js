@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bombDuckAmount, makeStands, mix, standsBottom } from '../stands.js';
+import { bombDuckAmount, createBombCrowdMotion, makeStands, mix, standsBottom } from '../stands.js';
 
 test('every match gets its own crowd, and the same seed gives the same one', () => {
   const sizes = new Set();
@@ -23,18 +23,34 @@ test('mix blends two colours', () => {
   assert.equal(mix('#102030', '#102030', 0.7), '#102030');
 });
 
-test('spectators near the bomb duck just before the blast and recover afterward', () => {
+test('spectators duck on the bomb side and rise smoothly as it crosses or disappears', () => {
+  const crowd = createBombCrowdMotion();
   const left = { x: 150, delay: 0 };
   const right = { x: 750, delay: 0 };
-  assert.equal(bombDuckAmount(left, { x: 210, fuse: 0.9 }), 0);
-  assert.ok(bombDuckAmount(left, { x: 210, fuse: 0.7 }) > 0);
-  assert.equal(bombDuckAmount({ ...left, delay: 0.16 }, { x: 210, fuse: 0.7 }), 0);
-  assert.equal(bombDuckAmount(left, { x: 210, fuse: 0.1 }), 1);
-  assert.equal(bombDuckAmount(right, { x: 210, fuse: 0.1 }), 0);
-  assert.equal(bombDuckAmount(right, { x: 620, fuse: 0.1 }), 1);
-  assert.equal(bombDuckAmount(right, { x: 620, burstAge: 0.05 }), 1);
-  assert.ok(bombDuckAmount(right, { x: 620, burstAge: 0.31 }) < 1);
-  assert.equal(bombDuckAmount(right, { x: 620, burstAge: 0.54 }), 0);
+  let now = 0;
+  let progress = crowd.update(now, 210);
+  const advance = (frames, x) => {
+    for (let frame = 0; frame < frames; frame++) progress = crowd.update(now += 16, x);
+    return [bombDuckAmount(left, progress), bombDuckAmount(right, progress)];
+  };
+
+  assert.equal(bombDuckAmount(left, progress), 0);
+  assert.ok(advance(4, 210)[0] > 0);
+  assert.ok(bombDuckAmount({ ...left, delay: 0.16 }, progress) < bombDuckAmount(left, progress));
+  const [crouched, resting] = advance(26, 210);
+  assert.ok(crouched > 0.95);
+  assert.equal(resting, 0);
+
+  const [leaving, entering] = advance(1, 620);
+  assert.ok(leaving > 0.95 && entering < 0.05);
+  const [rising, ducking] = advance(8, 620);
+  assert.ok(rising > 0 && rising < leaving && ducking > entering && ducking < 1);
+  const [reversedLeft, reversedRight] = advance(1, 210);
+  assert.ok(Math.abs(reversedLeft - rising) < 0.15 && Math.abs(reversedRight - ducking) < 0.15);
+
+  const [afterBurst, otherSide] = advance(1, undefined);
+  assert.ok(afterBurst > 0 && otherSide > 0);
+  assert.ok(advance(65, undefined).every(amount => amount < 0.001));
 });
 
 import { cheerAmount } from '../stands.js';

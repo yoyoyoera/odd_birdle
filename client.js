@@ -1,5 +1,5 @@
 import { center, clamp, createGame, createTwinShuttleGame, floor, height, leftLine, netTop, racketRadius, rightLine, setMirroredShapes, shuttleOutline, step, width, contactMotion, isSwing, projectStrike, forceAt, effectIds, shapeCount, shuttleSizeOptions, racketTouches, supportedShuttleY, swingMotion, trialEffectIds, trialEffectLabels, trampolineLift, trampolineDent } from './game.js';
-import { makeStands, drawStands } from './stands.js';
+import { makeStands, drawStands, createBombCrowdMotion } from './stands.js';
 import { createCrowd } from './crowd.js';
 import { drawCard, cardWidth, cardHeight } from './card.js';
 import { bonusUnlocked, visibleStages } from './stages.js';
@@ -845,11 +845,11 @@ function drawCourt(view) {
   ctx.fillStyle = palette.floor;
   ctx.fillRect(0, floor, width, height - floor);
   const liveBomb = view.bomb?.lit && view.shuttle;
-  const bombThreat = liveBomb ? { x: liveBomb.x, fuse: view.bomb.fuse }
-    : view.bombBurst && { x: view.bombBurst.x, burstAge: view.bombBurst.age };
+  const now = performance.now();
+  const bombDuck = bombCrowdMotion.update(now, reduceMotion.matches ? undefined : liveBomb?.x);
   drawStands(ctx, standsFor(view), {
-    gaze: view.gaze, gazes: view.gazes, palette, cheer: crowdNow.cheer, now: performance.now(), mood: crowdNow.mood,
-    jolt: reduceMotion.matches ? 0 : shockJolt(view.shake), bombThreat: reduceMotion.matches ? undefined : bombThreat
+    gaze: view.gaze, gazes: view.gazes, palette, cheer: crowdNow.cheer, now, mood: crowdNow.mood,
+    jolt: reduceMotion.matches ? 0 : shockJolt(view.shake), bombDuck: reduceMotion.matches ? undefined : bombDuck
   });
   if (liveBomb) {
     const left = liveBomb.x < center ? 0 : center;
@@ -1110,6 +1110,7 @@ function standsFor(view) {
 
 // The crowd as of this frame (crowd.js): who cheers, who is standing, how the effect running affects them.
 const crowd = createCrowd();
+const bombCrowdMotion = createBombCrowdMotion();
 let crowdNow = { cues: [], mood: undefined };
 
 // At the end of a match, confetti drifts down over the winner's side.
