@@ -453,7 +453,7 @@ function updateHud(view) {
   setText(status, message);
   rematchLabel.hidden = mode !== 'online' || phase !== 'finished' || !rematchStatus;
   setText(rematchLabel, rematchStatus);
-  const banner = view.bomb?.lit ? 'BOMB · ' + view.bomb.secondsLeft
+  const banner = view.bomb?.lit ? 'BOMB'
     : view.bomb && eventText === 'out' ? 'OUT' : eventText;
   eventBanner.hidden = !banner || stageIntroRemaining > 0;
   eventBanner.toggleAttribute('data-wind', eventWind);

@@ -19,7 +19,7 @@ export const stages = [
   { id: 4, name: 'Hot Air', description: 'A balloon floats the shuttle all match.', rules: { cpuLevel: 2, points: 3, permanent: 'balloon', effects: 'none' } },
   { id: 5, name: 'Windy Day', description: 'A steady wind blows one way, left or right.', rules: { cpuLevel: 2, points: 5, permanent: 'wind', windScale: 0.5, effects: 'none' } },
   { id: 6, name: 'Sudden Death', description: "One point. That's all.", rules: { cpuLevel: 3, points: 1, effects: 'none' } },
-  { id: 7, name: 'Bomb Rally', description: 'The bomb explodes after 3–7 seconds or on landing in court. Out shots lose the point.', rules: { bomb: true, cpuLevel: 3, points: 5, shuttleShape: 1, shuttleSize: 1, effects: 'none' } },
+  { id: 7, name: 'Bomb Rally', description: 'The bomb can explode mid-rally or when it lands in court. Out shots lose the point.', rules: { bomb: true, cpuLevel: 3, points: 5, shuttleShape: 1, shuttleSize: 1, effects: 'none' } },
   doublesStage({ id: 8, name: 'Doubles I', description: 'Take turns hitting with your partner.', doubles: { partner: 3, opponents: 2 }, rules: { cpuLevel: 3, points: 5, netScale: 'high', effects: 'none' } }, { effects: 'none' }),
   { id: 9, name: 'Moving Net', description: 'The net swings from very low to very high.', rules: { cpuLevel: 4, points: 7, netScale: 1, netSway: true, swayMid: 1.15, swayAmp: 0.85, swayPeriod: 4.5, effects: 'none' } },
   { id: 10, name: 'Boss: Chaos', boss: true, description: 'Effects come twice as often. The boss has a huge racket.', rules: { cpuRacketScale: 1.5, cpuLevel: 3, points: 7, effectRate: 2 } },
