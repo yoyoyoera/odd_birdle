@@ -28,6 +28,7 @@ export function createSound() {
   let context;
   let master;
   let buffers;
+  let nextShuttleCue = 0;
 
   function toBuffer(samples) {
     const buffer = context.createBuffer(1, samples.length, sampleRate);
@@ -61,7 +62,7 @@ export function createSound() {
     }
   }
 
-  function play(name) {
+  function play(name, sequence = false) {
     const sound = buffers?.[name];
     if (!audible() || !sound || context.state !== 'running') return;
     const source = context.createBufferSource();
@@ -71,7 +72,13 @@ export function createSound() {
     const gain = context.createGain();
     gain.gain.value = sound.gain;
     source.connect(gain).connect(master);
-    source.start();
+    if (sequence) {
+      const at = Math.max(context.currentTime, nextShuttleCue);
+      source.start(at);
+      nextShuttleCue = at + sound.buffer.duration + 0.025;
+    } else {
+      source.start();
+    }
   }
 
   // Background beds that run for a whole stage (wind). A bed fades in and out, starts at a random point of its loops

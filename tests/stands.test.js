@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { makeStands, mix, standsBottom } from '../stands.js';
+import { bombDuckAmount, makeStands, mix, standsBottom } from '../stands.js';
 
 test('every match gets its own crowd, and the same seed gives the same one', () => {
   const sizes = new Set();
@@ -21,6 +21,20 @@ test('the crowd stays inside the stands at the top and never sits in the middle 
 test('mix blends two colours', () => {
   assert.equal(mix('#000000', '#ffffff', 0.5), '#808080');
   assert.equal(mix('#102030', '#102030', 0.7), '#102030');
+});
+
+test('spectators near the bomb duck just before the blast and recover afterward', () => {
+  const left = { x: 150, delay: 0 };
+  const right = { x: 750, delay: 0 };
+  assert.equal(bombDuckAmount(left, { x: 210, fuse: 0.9 }), 0);
+  assert.ok(bombDuckAmount(left, { x: 210, fuse: 0.7 }) > 0);
+  assert.equal(bombDuckAmount({ ...left, delay: 0.16 }, { x: 210, fuse: 0.7 }), 0);
+  assert.equal(bombDuckAmount(left, { x: 210, fuse: 0.1 }), 1);
+  assert.equal(bombDuckAmount(right, { x: 210, fuse: 0.1 }), 0);
+  assert.equal(bombDuckAmount(right, { x: 620, fuse: 0.1 }), 1);
+  assert.equal(bombDuckAmount(right, { x: 620, burstAge: 0.05 }), 1);
+  assert.ok(bombDuckAmount(right, { x: 620, burstAge: 0.31 }) < 1);
+  assert.equal(bombDuckAmount(right, { x: 620, burstAge: 0.54 }), 0);
 });
 
 import { cheerAmount } from '../stands.js';

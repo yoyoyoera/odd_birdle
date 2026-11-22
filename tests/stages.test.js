@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { stages, visibleStages, validClears, bonusUnlocked } from '../stages.js';
 import { createStageProgress } from '../stage-progress.js';
-import { shapeCount, randomEffectIds } from '../game.js';
+import { randomEffectIds } from '../game.js';
+import { challengeByKey } from '../daily.js';
 
 const storageWith = entries => {
   const values = new Map(Object.entries(entries));
@@ -28,9 +29,12 @@ test('stage variants preserve prescribed handicaps and doubles and their singles
   assert.equal(stage(5).rules.permanent, 'wind');
   assert.equal(stage(14).rules.permanent, 'bumper');
   assert.equal(stage(19).rules.noCountdown, true);
-  assert.equal(stage(9).rules.shuttleShape, shapeCount - 1);
-  assert.equal(stage(7).rules.shuttleSize, 0);
-  assert.equal(stage(15).rules.netSway, true);
+  assert.equal(stage(7).rules.bomb, true);
+  assert.equal(stage(9).rules.netSway, true);
+  assert.equal(stage(9).rules.points, 7);
+  assert.deepEqual(challengeByKey('net').rules, stage(9).rules);
+  assert.equal(stage(15).rules.twinShuttles, true);
+  assert.equal(stage(15).rules.points, 5);
   assert.equal(stage(11).rules.cpuSpike, 1);
   assert.equal(stage(17).rules.shrink, 0.92);
   assert.equal(stage(17).rules.shuttleSize, 2);

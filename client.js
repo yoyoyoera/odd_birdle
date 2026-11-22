@@ -1,4 +1,4 @@
-import { center, clamp, createGame, floor, height, leftLine, netTop, racketRadius, rightLine, setMirroredShapes, shuttleOutline, step, width, contactMotion, isSwing, projectStrike, forceAt, effectIds, shapeCount, shuttleSizeOptions, racketTouches, supportedShuttleY, swingMotion, trialEffectIds, trialEffectLabels, trampolineLift, trampolineDent } from './game.js';
+import { center, clamp, createGame, createTwinShuttleGame, floor, height, leftLine, netTop, racketRadius, rightLine, setMirroredShapes, shuttleOutline, step, width, contactMotion, isSwing, projectStrike, forceAt, effectIds, shapeCount, shuttleSizeOptions, racketTouches, supportedShuttleY, swingMotion, trialEffectIds, trialEffectLabels, trampolineLift, trampolineDent } from './game.js';
 import { makeStands, drawStands } from './stands.js';
 import { createCrowd } from './crowd.js';
 import { drawCard, cardWidth, cardHeight } from './card.js';
@@ -47,6 +47,10 @@ const stage = document.querySelector('#stage');
 const scoreboard = document.querySelector('#score');
 const sideLabel = document.querySelector('#side-label');
 const cpuLabel = document.querySelector('#cpu-label');
+const shuttleLights = [
+  { element: document.querySelector('#you-shuttle-lights'), side: 'left', label: 'You' },
+  { element: document.querySelector('#cpu-shuttle-lights'), side: 'right', label: 'CPU' }
+];
 const doublesTurnLabel = document.querySelector('#doubles-turn');
 const youFlag = document.querySelector('#you-flag');
 const winnerLabel = document.querySelector('#winner');
@@ -57,6 +61,7 @@ const pauseTitle = document.querySelector('#pause-title');
 const pauseDetail = document.querySelector('#pause-detail');
 const status = document.querySelector('#status');
 const eventBanner = document.querySelector('#event-banner');
+const shuttleCallsLabel = document.querySelector('#shuttle-calls');
 const gameControl = document.querySelector('#game-control');
 const resultActions = document.querySelector('#result-actions');
 const playAgainButton = document.querySelector('#play-again');
@@ -141,7 +146,8 @@ let racketIsTouch = false;
 const racketSender = createRacketSender(message => send(message), { interval: () => (racketIsTouch && !oldNet ? 33 : 0) });
 // ?test=juice opens a CPU Lv.4 match with switches for each screen touch below.
 const testJuice = testParams.get('test') === 'juice';
-const solo = createGame({ withCpu: true, quickEvents: (testEffects || onlyEffectTest) && testParams.get('fast') === '1' });
+const singles = createGame({ withCpu: true, quickEvents: (testEffects || onlyEffectTest) && testParams.get('fast') === '1' });
+let solo = singles;
 const demo = createDemo();
 const sound = createSound();
 const soundCues = createCueTracker();
@@ -420,6 +426,15 @@ function updateHud(view) {
   sideLabel.textContent = redditUser ? 'u/' + (redditUser.length > 14 ? redditUser.slice(0, 13) + '…' : redditUser) : 'YOU';
   cpuLabel.hidden = mode !== 'solo' || !view.cpuLevel;
   setText(cpuLabel, view.doubles ? 'CPU TEAM' : view.cpuLevel ? 'CPU Lv. ' + view.cpuLevel : '');
+  for (const { element, side, label } of shuttleLights) {
+    element.hidden = !view.shuttleWins || stageIntroRemaining > 0;
+    if (element.hidden) continue;
+    element.dataset.side = mirrored() ? (side === 'left' ? 'right' : 'left') : side;
+    const wins = String(view.shuttleWins[side]);
+    if (element.dataset.wins === wins) continue;
+    element.dataset.wins = wins;
+    element.setAttribute('aria-label', label + ': ' + wins + ' of 2 shuttles won');
+  }
   doublesTurnLabel.dataset.side = shownSide();
   const turnMessage = view.fault ? (view.fault === 'left' ? 'WRONG PARTNER' : view.fault === 'leftB' ? 'PARTNER FAULT' : 'CPU TEAM FAULT')
     : '';
@@ -438,9 +453,16 @@ function updateHud(view) {
   setText(status, message);
   rematchLabel.hidden = mode !== 'online' || phase !== 'finished' || !rematchStatus;
   setText(rematchLabel, rematchStatus);
-  eventBanner.hidden = !eventText || stageIntroRemaining > 0;
+  const banner = view.bomb?.lit ? 'BOMB · ' + view.bomb.secondsLeft
+    : view.bomb && eventText === 'out' ? 'OUT' : eventText;
+  eventBanner.hidden = !banner || stageIntroRemaining > 0;
   eventBanner.toggleAttribute('data-wind', eventWind);
-  setText(eventBanner, mirrored() ? eventText.replace(/[←→]/g, arrow => arrow === '←' ? '→' : '←') : eventText);
+  eventBanner.toggleAttribute('data-bomb-urgent', !!view.bomb?.lit && view.bomb.secondsLeft <= 2);
+  setText(eventBanner, mirrored() ? banner.replace(/[←→]/g, arrow => arrow === '←' ? '→' : '←') : banner);
+  const calls = view.shuttleCalls?.flatMap(({ reason }, index) =>
+    reason && (index > 0 || view.firstCallVisible) ? [`${index + 1} · ${reason.toUpperCase()}`] : []).join('   /   ');
+  shuttleCallsLabel.hidden = !calls || stageIntroRemaining > 0;
+  setText(shuttleCallsLabel, calls ?? '');
   // During a CPU match the small restart icon; once any match is over, worded buttons to play again or leave.
   const finished = (mode === 'solo' || mode === 'online') && phase === 'finished';
   gameControl.hidden = mode !== 'solo' || finished || stageIntroRemaining > 0;
@@ -822,10 +844,24 @@ function drawCourt(view) {
   ctx.fillRect(0, 0, width, height);
   ctx.fillStyle = palette.floor;
   ctx.fillRect(0, floor, width, height - floor);
+  const liveBomb = view.bomb?.lit && view.shuttle;
+  const bombThreat = liveBomb ? { x: liveBomb.x, fuse: view.bomb.fuse }
+    : view.bombBurst && { x: view.bombBurst.x, burstAge: view.bombBurst.age };
   drawStands(ctx, standsFor(view), {
     gaze: view.gaze, gazes: view.gazes, palette, cheer: crowdNow.cheer, now: performance.now(), mood: crowdNow.mood,
-    jolt: reduceMotion.matches ? 0 : shockJolt(view.shake)
+    jolt: reduceMotion.matches ? 0 : shockJolt(view.shake), bombThreat: reduceMotion.matches ? undefined : bombThreat
   });
+  if (liveBomb) {
+    const left = liveBomb.x < center ? 0 : center;
+    const red = ctx.createLinearGradient(0, 0, 0, floor);
+    red.addColorStop(0, '#d334337f');
+    red.addColorStop(0.43, '#d33433');
+    ctx.save();
+    ctx.fillStyle = red;
+    ctx.globalAlpha = 0.14 + 0.08 * (1 - clamp(view.bomb.fuse / 2.4, 0, 1));
+    ctx.fillRect(left, 0, center, floor);
+    ctx.restore();
+  }
   startConfetti(view);
   ctx.fillStyle = palette.line;
   ctx.fillRect(leftLine, floor, rightLine - leftLine, 8);
@@ -939,8 +975,24 @@ function draw(view, scenery = false) {
       if (ownRacket && view.phase !== 'finished') drawRacket(ownRacket, '#a9d67877', palette.ink, scenery ? undefined : localSide);
     }
     if (view.bumper) drawBumper(view.bumper);
-    if (view.shuttle) drawShuttle(view, (scenery ? demoAlpha.bird : 1) * (view.shuttleAlpha ?? 1));
+    if (view.bomb && view.shuttle) drawBomb(view.shuttle, view.bomb);
+    else if (view.shuttles) {
+      for (const shuttle of view.shuttles) drawShuttle({ shuttle, phase: view.phase, flash: shuttle.flash });
+      if (view.settledShuttle) drawShuttle({ shuttle: view.settledShuttle, phase: view.phase, flash: 0 });
+    } else if (view.shuttle) drawShuttle(view, (scenery ? demoAlpha.bird : 1) * (view.shuttleAlpha ?? 1));
     ctx.globalAlpha = 1;
+    if (view.shuttleClash) {
+      const { x, y, age } = view.shuttleClash;
+      ctx.save();
+      ctx.globalAlpha = 0.7 * (1 - age / 0.22);
+      ctx.strokeStyle = palette.ink;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(x, y, reduceMotion.matches ? 14 : 7 + age * 74, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+    if (view.bombBurst) drawBombBurst(view.bombBurst);
     drawDecoys(view);
     if (view.pops) drawPops(view.pops);
     if (!scenery) {
@@ -1128,6 +1180,75 @@ function drawWind(force) {
   ctx.restore();
 }
 
+function drawBomb({ x, y, size, angle }, { fuse, lit, remaining }) {
+  const still = reduceMotion.matches;
+  const urgent = lit && fuse <= 2.4;
+  const glow = urgent && (still || Math.sin(fuse * (26 - 6 * fuse)) > 0);
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.fillStyle = glow ? '#a82f23' : palette.ink;
+  ctx.beginPath();
+  ctx.arc(0, 0, size, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Draw the unburnt section of the quadratic curve and put the ember on its moving tip.
+  const t = 0.1 + 0.9 * remaining;
+  const root = -size;
+  const controlX = 6 * t;
+  const controlY = root - 22 * t;
+  const tipX = (1 - t) * controlX + t * (6 + 12 * t);
+  const tipY = (1 - t) * controlY + t * (root - 22 + 7 * t);
+  ctx.fillStyle = palette.net;
+  ctx.fillRect(-4, root - 3, 8, 6);
+  ctx.strokeStyle = '#825727';
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(0, root);
+  ctx.quadraticCurveTo(controlX, controlY, tipX, tipY);
+  ctx.stroke();
+  if (lit) {
+    const flicker = still ? 0.5 : 0.5 + 0.5 * Math.sin(fuse * 44);
+    ctx.fillStyle = '#eb6027';
+    ctx.beginPath();
+    ctx.arc(tipX, tipY, 4 + flicker * 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffdc75';
+    ctx.beginPath();
+    ctx.arc(tipX, tipY, 2.2, 0, Math.PI * 2);
+    ctx.fill();
+    if (!still) {
+      for (let i = 0; i < 3; i++) {
+        const distance = 5 + ((fuse * 28 + i * 3) % 8);
+        const direction = fuse * 8 + i * 2.1;
+        ctx.fillRect(tipX + Math.cos(direction) * distance, tipY + Math.sin(direction) * distance, 2, 2);
+      }
+    }
+  }
+  ctx.restore();
+}
+
+function drawBombBurst({ x, y, age }) {
+  const life = Math.max(0, 1 - age / 0.57);
+  const radius = reduceMotion.matches ? 46 : 18 + (1 - life) * 76;
+  ctx.save();
+  ctx.globalAlpha = life;
+  ctx.fillStyle = '#c54720';
+  ctx.strokeStyle = '#be5829';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.stroke();
+  for (let i = 0; i < 7; i++) {
+    const angle = i * 2 * Math.PI / 7;
+    ctx.beginPath();
+    ctx.arc(x + Math.cos(angle) * radius * 0.82, y + Math.sin(angle) * radius * 0.82, 3 + life * 5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
 function drawShuttle({ flash, phase, shuttle, frozen }, alpha = 1) {
   if (flash > 0 && phase === 'live') {
     ctx.beginPath();
@@ -1151,7 +1272,7 @@ function drawShuttle({ flash, phase, shuttle, frozen }, alpha = 1) {
   }
   // FREEZE: the shuttle fades to a paler version of its own colour, in keeping with the palette.
   ctx.globalAlpha = frozen ? alpha * 0.4 : alpha;
-  ctx.fillStyle = phase === 'live' ? palette.ink : palette.net;
+  ctx.fillStyle = shuttle.color ?? (phase === 'live' ? palette.ink : palette.net);
   ctx.fill('evenodd');
 }
 
@@ -1236,7 +1357,10 @@ function advanceFrame(time) {
   // Windy Day: a quiet wind bed runs under the whole stage.
   sound.setBed('wind', mode === 'solo' && selectedStage?.rules.permanent === 'wind' && !stageIntroRemaining && !gamePaused && view.phase !== 'finished');
   if ((mode === 'solo' || mode === 'online') && !stageIntroRemaining) {
-    for (const cue of soundCues.cues(drawing, time, mode === 'solo' ? 'left' : localSide)) sound.play(cue);
+    for (const cue of soundCues.cues(drawing, time, mode === 'solo' ? 'left' : localSide)) {
+      sound.play(cue, Boolean(view.shuttleCalls) &&
+        (cue.startsWith('shuttle') || cue === 'pointWon' || cue === 'pointLost' || cue === 'win' || cue === 'lose'));
+    }
   }
   const pose = drawing.shuttle;
   if (mode === 'online' && !view.frozen && pose && localRacket &&
@@ -1384,6 +1508,7 @@ function restartCpu() {
   cpuMirrored = !testParams.has('test') && Math.random() < 0.5;
   // Before the restart, so the first serve's outline is already built for this court.
   setMirroredShapes(cpuMirrored);
+  solo = selectedStage?.rules.twinShuttles ? createTwinShuttleGame() : singles;
   solo.restart(3, selectedStage?.rules.cpuLevel ?? selectedCpuLevel, selectedStage?.rules ?? null);
 }
 

@@ -124,6 +124,24 @@ export function pointLost() {
   return make(0.28, (x, i) => 0.6 * square(phases[i]) * env(x, 0.003, 0.09));
 }
 
+function shuttleWon() {
+  const phases = slidePhases(920, 1510, 0.14);
+  return make(0.14, (x, i) => Math.sin(phases[i]) * env(x, 0.002, 0.034));
+}
+
+function shuttleLost() {
+  const phases = slidePhases(450, 230, 0.15);
+  return make(0.15, (x, i) => triangle(phases[i] / TAU) * env(x, 0.002, 0.038));
+}
+
+function shuttleTie() {
+  const out = new Float32Array(length(0.42));
+  const bell = x => (Math.sin(TAU * 587.33 * x) + 0.25 * Math.sin(TAU * 880 * x)) * env(x, 0.004, 0.09);
+  mixInto(out, make(0.14, bell), 0);
+  mixInto(out, make(0.27, bell), 0.15);
+  return out;
+}
+
 // New in the same style: a shimmering upward sweep that fades away.
 export function invisible() {
   const phases = slidePhases(600, 2000, 0.5);
@@ -246,6 +264,7 @@ export function renderEffects() {
     hit: [hit(), 0.9], tick: [tick(), 0.35], gust: [gust(), 0.6], shock: [shock(), 0.8],
     netUp: [net(true), 0.8], netDown: [net(false), 0.8], wah: [wah(), 0.7],
     win: [win(), 0.55], lose: [lose(), 0.55], pointWon: [pointWon(), 0.45], pointLost: [pointLost(), 0.5],
+    shuttleWon: [shuttleWon(), 0.4], shuttleLost: [shuttleLost(), 0.47], shuttleTie: [shuttleTie(), 0.47],
     invisible: [invisible(), 0.7], balloon: [balloon(), 0.7], freeze: [freeze(), 0.7],
     doong: [doong(170, 0.6), 0.9], boing: [doong(115, 0.55), 1], pop: [pop(), 0.8],
     bumper: [bumper(), 0.7], bumperIn: [bumperIn(), 0.5], decoyIn: [decoyIn(), 0.45],

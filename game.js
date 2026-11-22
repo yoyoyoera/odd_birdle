@@ -332,7 +332,7 @@ export function projectStrike(pose, motion, seconds, force) {
   return result;
 }
 
-export function createGame({ withCpu = false, quickEvents = false, rules: initialRules } = {}) {
+export function createGame({ withCpu = false, quickEvents = false, rules: initialRules, externallyDrivenCpu = false } = {}) {
   // Rules belong to a match; test-page overrides and ordinary random matches keep their old defaults.
   let rules = initialRules ? { ...initialRules } : undefined;
   let permanentAge = 0;
@@ -372,6 +372,9 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
   let shape = -1;
   let sizeTier = -1;
   let shuttle;
+  let bombFuse;
+  let bombFuseDuration;
+  let bombBurst;
   let outline;
   let outlinePoints;
   const rackets = {};
@@ -448,7 +451,9 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     for (const key of ['left', 'leftB', 'right', 'rightB']) touching[key] = false;
   }
 
+  let pointReason;
   function serve() {
+    pointReason = undefined;
     settledSize = undefined;
     shrinkFrom = undefined;
     trampolineHold = undefined;
@@ -466,12 +471,15 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     shape = fixedShape ?? (shape < 0
       ? Math.floor(Math.random() * shapes.length)
       : (shape + 1 + Math.floor(Math.random() * (shapes.length - 1))) % shapes.length);
-    const x = server === 'left' ? 245 : 660;
+    const x = server === 'left' ? 245 : externallyDrivenCpu ? width - 245 : 660;
     sizeTier = fixedSize ?? (sizeTier < 0
       ? Math.floor(Math.random() * shuttleSizes.length)
       : (sizeTier + 1 + Math.floor(Math.random() * (shuttleSizes.length - 1))) % shuttleSizes.length);
     const size = shuttleSizes[sizeTier];
     shuttle = { x, y: 56, vx: 0, vy: 35, angle: 0, spin: 0.8, size, ...flightProfile(shapes[shape], size, gravityScale()) };
+    bombFuseDuration = rules?.bomb ? 3 + Math.floor(Math.random() * 5) : undefined;
+    bombFuse = bombFuseDuration;
+    bombBurst = undefined;
     updateOutline();
     fault = undefined;
     cpu = withCpu && !doubles ? { x: 660, y: 300 } : undefined;
@@ -521,7 +529,7 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     } : undefined;
     if (doubles) cpuLevel = Math.max(...doubles.opponents);
     rackets.left = rackets.right = undefined;
-    server = 'left';
+    server = externallyDrivenCpu && rules?.openingSide === 'right' ? 'right' : 'left';
     teamServer = { left: 'left', right: 'right' };
     pops = [];
     press = undefined;
@@ -536,6 +544,7 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
   }
 
   function finishPoint(side, reason, faultPlayer) {
+    pointReason = reason;
     fault = faultPlayer;
     if (countdown > 0) scheduleEvent();
     settledSize = shuttlePose().size;
@@ -572,6 +581,13 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
   function showEvent(message, wind = false) {
     eventText = message;
     eventWind = wind;
+  }
+
+  function explodeBomb() {
+    bombBurst = { x: shuttle.x, y: shuttle.y, age: 0 };
+    bombFuse = undefined;
+    finishPoint(shuttle.x < center ? 'right' : 'left', 'Explosion');
+    showEvent('BOOM!');
   }
 
   function scheduleEvent() {
@@ -1376,8 +1392,16 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
       shuttle.x = touch.x;
       shuttle.y = touch.y;
       if (touch.part !== 'tape' || !netCord(previousX)) {
-        finishPoint(opponent(lastHitter), 'Net');
-        return;
+        if (!rules?.bomb) {
+          finishPoint(opponent(lastHitter), 'Net');
+          return;
+        }
+        // A bomb stays in play after a net fault. Move it clear of the tape before the next step.
+        const side = previousX < center ? -1 : 1;
+        const reach = side < 0 ? right : -left;
+        shuttle.x = center + side * (tapeHalfWidth + reach + 1);
+        shuttle.vx = side * Math.max(35, Math.abs(shuttle.vx) * 0.35);
+        afterBounce = true;
       }
     }
     if (lastHitter && (shuttle.x + right < 0 || shuttle.x + left > width)) {
@@ -1403,6 +1427,10 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     if (shuttle.y + bottom >= floor) {
       shuttle.y = floor - bottom;
       const out = shuttle.x < leftLine || shuttle.x > rightLine;
+      if (rules?.bomb && !out) {
+        explodeBomb();
+        return;
+      }
       const landingSide = shuttle.x < center ? 'left' : 'right';
       const winner = out ? opponent(lastHitter ?? server) : opponent(landingSide);
       let reason = 'Landed';
@@ -1418,6 +1446,7 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
   }
 
   function simulate(dt) {
+    if (bombBurst) bombBurst.age += dt;
     if (netReturn) {
       netReturn.elapsed = Math.min(netMoveSeconds, netReturn.elapsed + dt);
       const progress = netReturn.elapsed / netMoveSeconds;
@@ -1501,6 +1530,10 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
       return;
     }
     advanceShuttle(dt);
+    if (phase === 'live' && bombFuse !== undefined) {
+      bombFuse -= dt;
+      if (bombFuse <= 1e-9) explodeBomb();
+    }
     if (decoys.length) advanceDecoys(dt);
     if (support) {
       const racket = rackets[support];
@@ -1519,7 +1552,7 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
         const motion = contactMotion(racket, racket.time + racket.age * 1000);
         checkContact(side, racket, racket, motion.vx, motion.vy);
       }
-      if (phase === 'live' || !doubles) moveCpus(dt);
+      if (!externallyDrivenCpu && (phase === 'live' || !doubles)) moveCpus(dt);
     }
   }
 
@@ -1531,6 +1564,12 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     return {
       phase, score, message, winner, eventText, eventWind, flash, frozen, support, cpuLevel, netTop: matchNetTop,
       ...(rules ? { pointsToWin } : {}),
+      ...(rules?.bomb ? {
+        bomb: bombFuse !== undefined && (phase === 'live' || pointReason === 'out')
+          ? { fuse: bombFuse, lit: phase === 'live', remaining: bombFuse / bombFuseDuration,
+            secondsLeft: Math.ceil(bombFuse - 1e-9) } : undefined,
+        bombBurst: bombBurst?.age < 0.57 ? { ...bombBurst } : undefined
+      } : {}),
       strike: strike?.flight === flight ? strike : undefined,
       force: currentForce(),
       // Where the crowd is looking: the shuttle's place, sent all through a rally so it is still there when
@@ -1551,7 +1590,7 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
         ? { swell: trampolineSwell(), press: press ? { x: press.x, age: press.age } : undefined } : undefined,
       // NET CORD: how many tape clips so far (a new one is a sound and an "ooh") and the tape's wobble.
       cord: { count: cordCount, x: cordX, wobble: cordFlash / netCordSeconds },
-      shuttle: visible ? { ...shuttlePose(), flight, baseSize: shuttle.size, canHit: hitCooldown <= 0 && !pendingLanding && !frozen } : undefined,
+      shuttle: visible && !bombBurst ? { ...shuttlePose(), flight, baseSize: shuttle.size, canHit: hitCooldown <= 0 && !pendingLanding && !frozen } : undefined,
       left: position(rackets.left),
       right: (racket => racket && (!doubles && cpu && cpuRadius() !== racketRadius ? { ...racket, radius: cpuRadius() } : racket))(position(doubles ? bots.right : cpu ?? rackets.right)),
       ...(doubles ? {
@@ -1634,5 +1673,200 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     if (id in netScales && Number.isFinite(scale) && scale > 0 && scale < 4) netScales[id] = scale;
   }
 
-  return { restart, moveRacket, holdRacket, contactFrame, simulate, view, triggerEffect, testNetCord, setNetScale, setEffectSeconds, setShuttle, setEffects, setOnlyEffect };
+  const drivenCpu = externallyDrivenCpu ? {
+    rally: () => ({ phase, winner, shuttle, reason: pointReason }),
+    deflectShuttle(trajectory) {
+      Object.assign(shuttle, trajectory);
+      shuttle.spin = shuttle.vx / 92 + 1.4;
+      afterBounce = true;
+      flight++;
+      strike = undefined;
+      support = undefined;
+      updateOutline();
+    },
+    driveCpu(position, dt) {
+      if (phase !== 'live') return position;
+      Object.assign(cpu, position);
+      moveCpus(dt);
+      return { x: cpu.x, y: cpu.y };
+    }
+  } : {};
+  return { restart, moveRacket, holdRacket, contactFrame, simulate, view, triggerEffect, testNetCord, setNetScale, setEffectSeconds, setShuttle, setEffects, setOnlyEffect, ...drivenCpu };
+}
+
+// The twin stage uses two round shuttles of equal mass. Sweep their relative motion to find first contact,
+// then exchange part of their speed along the line between their centers.
+export function twinShuttleContact(first, second, fromFirst, fromSecond) {
+  const radius = first.size + second.size;
+  const startX = fromSecond.x - fromFirst.x;
+  const startY = fromSecond.y - fromFirst.y;
+  const endX = second.x - first.x;
+  const endY = second.y - first.y;
+  const dx = endX - startX;
+  const dy = endY - startY;
+  const gap = startX * startX + startY * startY - radius * radius;
+  let at = 1;
+  if (gap >= 0) {
+    const approach = startX * dx + startY * dy;
+    const travel = dx * dx + dy * dy;
+    const discriminant = approach * approach - travel * gap;
+    if (approach >= 0 || discriminant < 0) return;
+    at = gap / (-approach + Math.sqrt(discriminant));
+    if (at > 1) return;
+  } else if (Math.hypot(endX, endY) >= radius) {
+    return;
+  }
+
+  const x = startX + dx * at;
+  const y = startY + dy * at;
+  const distance = Math.hypot(x, y);
+  const nx = distance ? x / distance : 1;
+  const ny = distance ? y / distance : 0;
+  const closingSpeed = (first.vx - second.vx) * nx + (first.vy - second.vy) * ny;
+  const impulse = Math.max(0, closingSpeed) * 0.88;
+  const separation = Math.max(0, radius - distance) * 0.5 + 0.001;
+  const firstX = fromFirst.x + (first.x - fromFirst.x) * at;
+  const firstY = fromFirst.y + (first.y - fromFirst.y) * at;
+  return {
+    first: { x: firstX - nx * separation, y: firstY - ny * separation,
+      vx: first.vx - nx * impulse, vy: first.vy - ny * impulse },
+    second: { x: firstX + x + nx * separation, y: firstY + y + ny * separation,
+      vx: second.vx + nx * impulse, vy: second.vy + ny * impulse },
+    spark: impulse > 0 ? { x: firstX + nx * first.size, y: firstY + ny * first.size, age: 0 } : undefined
+  };
+}
+
+// Each shuttle keeps its own flight and fault rules. Only their combined result can score a match point.
+export function createTwinShuttleGame() {
+  const shuttles = ['left', 'right'].map(openingSide => ({
+    openingSide, game: createGame({ withCpu: true, externallyDrivenCpu: true })
+  }));
+  let score, rules, cpuLevel, pointsToWin, cpu, pointer, phase, winner, eventText, betweenTime;
+  const shuttleCallSeconds = 2.5;
+  let clash;
+  let shuttleCalls, firstCallTime, settledShuttle;
+
+  function startRound(openingCountdown = 0) {
+    cpu = { x: 660, y: 300 };
+    phase = openingCountdown ? 'starting' : 'live';
+    eventText = '';
+    clash = undefined;
+    shuttleCalls = [];
+    firstCallTime = 0;
+    settledShuttle = undefined;
+    for (const { openingSide, game } of shuttles) {
+      game.restart(openingCountdown, cpuLevel, {
+        ...rules, openingSide, points: 1, shuttleShape: 1, shuttleSize: 1
+      });
+      if (pointer) game.moveRacket('left', pointer);
+    }
+  }
+
+  function restart(openingCountdown, level, stageRules) {
+    rules = stageRules;
+    cpuLevel = level;
+    pointsToWin = stageRules.points;
+    score = { left: 0, right: 0 };
+    pointer = undefined;
+    winner = undefined;
+    startRound(openingCountdown);
+  }
+
+  function urgency(shuttle) {
+    const { x, y, vx, vy } = shuttle;
+    const fallTime = (Math.sqrt(vy * vy + 2 * baseGravity * Math.max(0, floor - y)) - vy) / baseGravity;
+    const landingX = x + vx * fallTime;
+    const penalty = landingX >= center && landingX <= rightLine ? 0 : x >= center ? 1.6 : 3;
+    return fallTime + penalty + Math.abs(cpu.x - x) / 1100;
+  }
+
+  function simulate(dt) {
+    firstCallTime = Math.max(0, firstCallTime - dt);
+    if (clash) {
+      clash.age += dt;
+      if (clash.age >= 0.22) clash = undefined;
+    }
+    if (phase === 'finished') return;
+    if (phase === 'between') {
+      betweenTime -= dt;
+      if (betweenTime <= 1e-9) startRound();
+      return;
+    }
+    const before = shuttles.map(({ game }) => {
+      const { phase, shuttle } = game.rally();
+      return phase === 'live' ? { x: shuttle.x, y: shuttle.y } : undefined;
+    });
+    for (const { game } of shuttles) game.simulate(dt);
+    const [first, second] = shuttles.map(({ game }) => game.rally());
+    phase = first.phase === 'starting' ? 'starting' : 'live';
+    if (phase === 'starting') return;
+    for (const [index, rally] of [first, second].entries()) {
+      if (!rally.winner || shuttleCalls.some(call => call.index === index)) continue;
+      shuttleCalls.push({ index, winner: rally.winner, reason: rally.reason });
+      if (shuttleCalls.length === 1) firstCallTime = shuttleCallSeconds;
+      else settledShuttle = shuttles[index].game.view().shuttle;
+    }
+    if (first.winner && second.winner) {
+      if (first.winner === second.winner) {
+        const side = first.winner;
+        score[side]++;
+        eventText = side === 'left' ? 'BOTH YOURS' : 'BOTH LOST';
+        if (score[side] === pointsToWin) {
+          winner = side;
+          phase = 'finished';
+          return;
+        }
+      } else {
+        eventText = 'SPLIT · REPLAY';
+      }
+      phase = 'between';
+      betweenTime = Math.max(1.1, firstCallTime);
+      return;
+    }
+    if (before[0] && before[1] && first.phase === 'live' && second.phase === 'live') {
+      const contact = twinShuttleContact(first.shuttle, second.shuttle, ...before);
+      if (contact) {
+        shuttles[0].game.deflectShuttle(contact.first);
+        shuttles[1].game.deflectShuttle(contact.second);
+        if (contact.spark) clash = contact.spark;
+      }
+    }
+    const target = first.winner || (!second.winner && urgency(second.shuttle) < urgency(first.shuttle)) ? 1 : 0;
+    cpu = shuttles[target].game.driveCpu(cpu, dt);
+    // The CPU moves one racket. Either live shuttle can touch it at the selected position.
+    shuttles[1 - target].game.driveCpu(cpu, 0);
+  }
+
+  function moveRacket(side, input) {
+    if (side !== 'left' || phase === 'finished') return;
+    pointer = input;
+    for (const { game } of shuttles) game.moveRacket(side, input);
+  }
+
+  function view() {
+    const rounds = shuttles.map(({ game }) => game.view());
+    const active = rounds.flatMap((round, index) => round.phase === 'live' && round.shuttle
+      ? [{ ...round.shuttle, flight: round.shuttle.flight * 2 + index, flash: round.flash }]
+      : []);
+    const shuttleWins = { left: 0, right: 0 };
+    for (const round of rounds) {
+      if (round.winner) shuttleWins[round.winner]++;
+    }
+    const notice = phase === 'starting' ? rounds[0].eventText : eventText;
+    // A child no longer updates its racket once its shuttle is decided.
+    const playing = rounds.find(round => round.phase !== 'finished');
+    const left = playing ? playing.left : pointer && {
+      x: clamp(pointer.x, 0, center - racketRadius), y: clamp(pointer.y, 0, floor)
+    };
+    return {
+      phase, score, shuttleWins, winner, pointsToWin, cpuLevel, eventText: notice, left, right: cpu, netTop: rounds[0].netTop,
+      shuttle: active[0], shuttles: active, gazes: active, flash: Math.max(...active.map(shuttle => shuttle.flash), 0),
+      shuttleCalls, firstCallVisible: firstCallTime > 1e-9, settledShuttle,
+      shuttleClash: clash,
+      cord: { ...rounds.reduce((latest, round) => round.cord.wobble > latest.wobble ? round.cord : latest, rounds[0].cord),
+        count: rounds.reduce((total, round) => total + round.cord.count, 0) }
+    };
+  }
+
+  return { restart, simulate, moveRacket, view };
 }
