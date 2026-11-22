@@ -2,7 +2,7 @@ import { center, clamp, createGame, floor, height, leftLine, netTop, racketRadiu
 import { makeStands, drawStands } from './stands.js';
 import { createCrowd } from './crowd.js';
 import { drawCard, cardWidth, cardHeight } from './card.js';
-import { visibleStages } from './stages.js';
+import { bonusUnlocked, visibleStages } from './stages.js';
 import { createStageProgress } from './stage-progress.js';
 import { verdictFor } from './card-lines.js';
 import { createMatchStats } from './match-stats.js';
@@ -469,7 +469,9 @@ function noteFinish(view) {
   noteRecord(view, result);
   if (mode === 'solo' && selectedStage?.daily) reportDailyTry(view, result === 'win');
   else if (mode === 'solo' && selectedStage && result === 'win') {
-    recordText = 'STAGE ' + selectedStage.id + ' CLEARED ✓';
+    const cleared = stageProgress?.cleared ?? [];
+    const unlocked = !bonusUnlocked(cleared) && bonusUnlocked([...cleared, selectedStage.id]);
+    recordText = unlocked ? 'SECRET STAGE UNLOCKED' : stageLabel(selectedStage) + ' CLEARED ✓';
     stageProgress?.record(selectedStage.id);
   }
   matchEnded(result === 'win');
@@ -1344,11 +1346,12 @@ cardButton.addEventListener('click', async () => {
       attempts: cardStage.attempts, rank: dailyResult.rank, date: dailyResult.date,
       streak: streakOf([...(dailyState?.calendar ?? []), dailyResult.date], dailyResult.date)
     } : undefined;
-    drawCard(canvas.getContext('2d'), { ...summary, palette, stage: cardStage?.daily ? undefined : cardStage?.id,
+    const label = cardStage && !cardStage.daily ? stageLabel(cardStage) : undefined;
+    drawCard(canvas.getContext('2d'), { ...summary, palette, stageLabel: label,
       stageName: cardStage?.daily ? undefined : cardStage?.name, daily: dailyCard, line, seed, name: user ? 'u/' + user : '' });
     const text = dailyCard
       ? `DAILY #${dailyCard.number} ${dailyCard.date}: ${dailyCard.title}. CLEARED in ${dailyCard.seconds}s, #${dailyCard.rank} to clear today. ${line}`
-      : `FULL-TIME ${summary.mine}:${summary.theirs} vs CPU Lv.${summary.cpuLevel}. ${cardStage ? `STAGE ${cardStage.id}: ${cardStage.name}. ` : ''}${line}`;
+      : `FULL-TIME ${summary.mine}:${summary.theirs} vs CPU Lv.${summary.cpuLevel}. ${label ? `${label}: ${cardStage.name}. ` : ''}${line}`;
     const response = await fetch('/api/card', {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ image: canvas.toDataURL('image/jpeg', 0.9), ...(dailyCard ? { daily: true } : { text }) })
@@ -1407,6 +1410,7 @@ const goalText = challenge => {
 };
 
 // Stage UI is exclusive to Reddit. Random CPU matches remain available as practice.
+const stageLabel = challenge => challenge.hidden ? 'SECRET STAGE' : 'STAGE ' + challenge.id;
 let stageProgress;
 function renderStages(cleared, online) {
   if (portal !== 'reddit') return;
@@ -1421,7 +1425,8 @@ function renderStages(cleared, online) {
     button.dataset.stageId = challenge.id;
     const top = document.createElement('span'); top.className = 'stage-top';
     const number = document.createElement('span');
-    number.className = 'stage-number'; number.textContent = String(challenge.id).padStart(2, '0');
+    number.className = challenge.hidden ? 'stage-number stage-secret' : 'stage-number';
+    number.textContent = challenge.hidden ? stageLabel(challenge) : String(challenge.id).padStart(2, '0');
     const check = document.createElement('span'); check.className = 'stage-check';
     check.textContent = cleared.includes(challenge.id) ? '✓' : '';
     top.append(number, check);
@@ -1436,7 +1441,7 @@ function renderStages(cleared, online) {
     const description = document.createElement('span'); description.textContent = challenge.description;
     const goal = document.createElement('span'); goal.className = 'stage-goal'; goal.textContent = goalText(challenge).replace('YOU START', 'START');
     copy.append(name, description, goal);
-    button.setAttribute('aria-label', `Stage ${challenge.id}: ${challenge.name}. ${challenge.description} ${goalText(challenge).toLowerCase()}.${cleared.includes(challenge.id) ? ' Cleared.' : ''}`);
+    button.setAttribute('aria-label', `${stageLabel(challenge)}: ${challenge.name}. ${challenge.description} ${goalText(challenge).toLowerCase()}.${cleared.includes(challenge.id) ? ' Cleared.' : ''}`);
     button.append(top, copy);
     button.addEventListener('click', () => afterMatchBreak(() => {
       selectedStage = challenge;
@@ -1463,7 +1468,7 @@ nextStageButton.addEventListener('click', () => {
 function showStageIntro() {
   soundCues.reset();
   stageIntroRemaining = 1.8;
-  stageIntroNumber.textContent = selectedStage.daily ? `DAILY #${selectedStage.number} · TRY ${selectedStage.tryNumber}/${selectedStage.attempts}` : 'STAGE ' + selectedStage.id;
+  stageIntroNumber.textContent = selectedStage.daily ? `DAILY #${selectedStage.number} · TRY ${selectedStage.tryNumber}/${selectedStage.attempts}` : stageLabel(selectedStage);
   stageIntroName.textContent = selectedStage.name;
   stageIntroDescription.textContent = selectedStage.rules.doubles ? 'Take turns hitting with your partner.' : selectedStage.description;
   stageIntroGoal.textContent = goalText(selectedStage);

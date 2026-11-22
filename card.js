@@ -87,9 +87,9 @@ function wrap(ctx, text, maxWidth) {
   return rows;
 }
 
-// match: { won, mine, theirs, cpuLevel, stage, stageName, rally, effects: [['SHOCK', 3], ...], line, name, seed, palette }
+// match: { won, mine, theirs, cpuLevel, stageLabel, stageName, rally, effects: [['SHOCK', 3], ...], line, name, seed, palette }
 export function drawCard(ctx, match) {
-  const { palette, won, mine, theirs, cpuLevel, stage, stageName, rally, effects = [], line, name, seed = 1 } = match;
+  const { palette, won, mine, theirs, cpuLevel, stageLabel, stageName, rally, effects = [], line, name, seed = 1 } = match;
   // The card is shared by many players, so the player's own name stands where YOU would.
   const playerLabel = name || 'YOU';
   const { daily } = match;
@@ -203,7 +203,7 @@ export function drawCard(ctx, match) {
     facts.push(daily.title.toUpperCase());
     if (daily.attempts > 1) facts.push(`TRY ${daily.attempt}/${daily.attempts}`);
   }
-  if (stage) facts.push(`STAGE ${stage}`);
+  if (stageLabel) facts.push(stageLabel);
   if (rally && !daily) facts.push(`LONGEST RALLY ${rally}`);
   // However many kinds of effect fired, the card names only the busiest and counts the rest.
   const byCount = [...effects].sort((a, b) => b[1] - a[1]);
