@@ -59,6 +59,53 @@ test('a pinned trial effect is the only one that comes up, and can be asked for 
   assert.deepEqual([...seen], ['trampoline']);
 });
 
+test('the site bomb turns the current shuttle round and scores once when its fuse expires', t => {
+  t.mock.method(Math, 'random', () => 0.99);
+  const legacy = createGame();
+  legacy.restart();
+  assert.equal(legacy.triggerEffect('bomb'), false);
+  const game = createGame({ bombEffects: true });
+  game.setShuttle({ shape: 5, size: 1 });
+  game.restart();
+  assert.ok(game.triggerEffect('bomb'));
+  assert.equal(game.view().shuttle.shape, 1);
+  assert.deepEqual(game.view().bomb, { fuse: 7, lit: true, remaining: 1, secondsLeft: 7 });
+  // Keep the fuse short enough that it expires in the air before the opening drop lands.
+  game.restart();
+  game.setEffectSeconds('bomb', 0.25);
+  assert.ok(game.triggerEffect('bomb'));
+  run(game, 0.25);
+  const result = JSON.parse(JSON.stringify(game.view()));
+  assert.equal(result.bombBurst.x, 245);
+  assert.equal(result.shuttle, undefined);
+  assert.equal(result.eventText, 'BOOM!');
+  assert.deepEqual(result.score, { left: 0, right: 1 });
+  run(game, 1);
+  assert.deepEqual(game.view().score, { left: 0, right: 1 });
+  assert.equal(game.view().bombBurst, undefined);
+});
+
+test('the site bomb blasts on an in-bounds landing, and an out shot ends normally', t => {
+  t.mock.method(Math, 'random', () => 0);
+  const game = createGame({ bombEffects: true });
+  game.setShuttle({ shape: 5, size: 1 });
+  game.restart();
+  game.triggerEffect('bomb');
+  assert.equal(game.view().bomb.secondsLeft, 3);
+  run(game, 1.1);
+  assert.equal(game.view().eventText, 'BOOM!');
+  assert.deepEqual(game.view().score, { left: 0, right: 1 });
+
+  game.restart();
+  game.triggerEffect('bomb');
+  hit(game, { dx: 60 });
+  run(game, 0.5);
+  assert.equal(game.view().eventText, 'out');
+  assert.equal(game.view().bombBurst, undefined);
+  assert.equal(game.view().bomb.lit, false);
+  assert.deepEqual(game.view().score, { left: 0, right: 1 });
+});
+
 test('BUMPER grows in, stays fixed above the middle of the court, and goes away', t => {
   const game = serve(t);
   game.triggerEffect('bumper');

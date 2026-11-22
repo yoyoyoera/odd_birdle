@@ -106,10 +106,12 @@ const trialEffects = [
 ];
 export const trialEffectIds = trialEffects.map(effect => effect.id);
 export const trialEffectLabels = trialEffects.map(effect => effect.label);
-const everyEffect = [...effects, ...trialEffects];
+const bombEffect = { id: 'bomb', label: 'BOMB' };
+const everyEffect = [...effects, ...trialEffects, bombEffect];
 // FREEZE and INVISIBLE are retired from play: still here for the test pages (asked for by name), never drawn at random.
 const retiredEffects = ['freeze', 'invisible'];
-const livePool = everyEffect.filter(effect => !retiredEffects.includes(effect.id));
+const livePool = everyEffect.filter(effect => effect !== bombEffect && !retiredEffects.includes(effect.id));
+const bombPool = [...livePool, bombEffect];
 export const retiredEffectIds = [...retiredEffects];
 export const randomEffectIds = livePool.map(effect => effect.id);
 
@@ -361,7 +363,7 @@ export function projectStrike(pose, motion, seconds, force) {
   return result;
 }
 
-export function createGame({ withCpu = false, quickEvents = false } = {}) {
+export function createGame({ withCpu = false, quickEvents = false, bombEffects = false } = {}) {
   let netReturn;
   let baseNetTop = netTop;
   let matchNetTop = netTop;
@@ -390,6 +392,8 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
   let eventWait;
   let countdown;
   let activeEffect;
+  let bombBurst;
+  let stoppedBomb;
   let cpuPrediction;
   let cpuFollowUps = 0;
   let cpuThaw = 0;
@@ -430,6 +434,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
   const opponent = (side) => side === 'left' ? 'right' : 'left';
 
   function serve() {
+    bombBurst = stoppedBomb = undefined;
     settledSize = undefined;
     trampolineHold = undefined;
     afterBounce = false;
@@ -487,6 +492,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
   }
 
   function finishPoint(side, reason) {
+    if (reason === 'out' && activeEffect?.id === 'bomb') stoppedBomb = bombView(false);
     if (countdown > 0) scheduleEvent();
     settledSize = shuttlePose().size;
     const finishedNetTop = matchNetTop;
@@ -521,6 +527,17 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     eventWind = wind;
   }
 
+  function bombView(lit) {
+    const { remaining: fuse, total } = activeEffect;
+    return { fuse, lit, remaining: fuse / total, secondsLeft: Math.ceil(fuse - 1e-9) };
+  }
+
+  function explodeBomb() {
+    bombBurst = { x: shuttle.x, y: shuttle.y, age: 0 };
+    finishPoint(shuttle.x < center ? 'right' : 'left', 'Explosion');
+    showEvent('BOOM!');
+  }
+
   function scheduleEvent() {
     countdown = 0;
     // quickEvents is for trying effects out: they come around much sooner.
@@ -548,13 +565,21 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
   }
 
   function startEffect(chosen) {
-    const pool = onlyEffect ? everyEffect.filter(candidate => candidate.id === onlyEffect) : livePool;
+    const pool = onlyEffect ? everyEffect.filter(candidate => candidate.id === onlyEffect)
+      : bombEffects ? bombPool : livePool;
     const effect = chosen ?? pool[Math.floor(Math.random() * pool.length)];
-    const length = effectSeconds[effect.id] ?? (Array.isArray(effect.duration)
+    const length = effectSeconds[effect.id] ?? (effect === bombEffect ? 3 + Math.floor(Math.random() * 5) : Array.isArray(effect.duration)
       ? effect.duration[0] + Math.random() * (effect.duration[1] - effect.duration[0]) : effect.duration);
     activeEffect = { id: effect.id, remaining: length, total: length, netScale: netScales[effect.id] ?? effect.netScale };
     let label = effect.label;
     switch (activeEffect.id) {
+      case 'bomb':
+        shape = 1;
+        Object.assign(shuttle, flightProfile(shapes[shape], shuttle.size));
+        flight++;
+        strike = support = undefined;
+        updateOutline();
+        break;
       case 'freeze':
         flight++;
         flash = 0;
@@ -608,7 +633,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
         matchNetTop = netEffectTop(baseNetTop, netEffectSeconds - activeEffect.remaining, activeEffect.netScale);
         netStart.y = matchNetTop;
       }
-      if (activeEffect.remaining <= 1e-9) clearEffect();
+      if (activeEffect.id !== 'bomb' && activeEffect.remaining <= 1e-9) clearEffect();
       return;
     }
     if (!effectsOn) return;
@@ -1233,6 +1258,10 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     if (shuttle.y + bottom >= floor) {
       shuttle.y = floor - bottom;
       const out = shuttle.x < leftLine || shuttle.x > rightLine;
+      if (!out && activeEffect?.id === 'bomb') {
+        explodeBomb();
+        return;
+      }
       const landingSide = shuttle.x < center ? 'left' : 'right';
       const winner = out ? opponent(lastHitter ?? server) : opponent(landingSide);
       let reason = 'Landed';
@@ -1248,6 +1277,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
   }
 
   function simulate(dt) {
+    if (bombBurst) bombBurst.age += dt;
     if (netReturn) {
       netReturn.elapsed = Math.min(netMoveSeconds, netReturn.elapsed + dt);
       const progress = netReturn.elapsed / netMoveSeconds;
@@ -1323,6 +1353,10 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     const before = shuttle && { x: shuttle.x, y: shuttle.y };
     const flightBefore = flight;
     advanceShuttle(dt);
+    if (phase === 'live' && !pendingLanding && activeEffect?.id === 'bomb' && activeEffect.remaining <= 1e-9) {
+      explodeBomb();
+      return;
+    }
     if (decoys.length) advanceDecoys(dt);
     if (support) {
       const racket = rackets[support];
@@ -1363,6 +1397,8 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
       gazes: decoys.length && shuttle && phase === 'live'
         ? [{ x: shuttle.x, y: shuttle.y }, ...decoys.map(decoy => ({ x: decoy.x, y: decoy.y }))] : undefined,
       effect: activeEffect?.id,
+      bomb: activeEffect?.id === 'bomb' ? bombView(!pendingLanding) : stoppedBomb,
+      bombBurst: bombBurst?.age < 0.57 ? { ...bombBurst } : undefined,
       // How strongly the hidden shuttle shows right now (a soft ghost after a hit), for INVISIBLE only.
       shuttleAlpha: invisible ? revealPeak * Math.min(1, revealAge / 0.05) * (reveal / revealSeconds) ** 1.5 : undefined,
       shake: activeEffect?.id === 'shock' ? activeEffect.remaining : 0,
@@ -1374,7 +1410,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
         ? { swell: trampolineSwell(), press: press ? { x: press.x, age: press.age } : undefined } : undefined,
       // NET CORD: how many tape clips so far (a new one is a sound and an "ooh") and the tape's wobble.
       cord: { count: cordCount, x: cordX, wobble: cordFlash / netCordSeconds },
-      shuttle: visible ? { ...shuttlePose(), flight, baseSize: shuttle.size, canHit: hitCooldown <= 0 && !pendingLanding && !frozen } : undefined,
+      shuttle: visible && !bombBurst ? { ...shuttlePose(), flight, baseSize: shuttle.size, canHit: hitCooldown <= 0 && !pendingLanding && !frozen } : undefined,
       left: position(rackets.left),
       right: position(cpu ?? rackets.right)
     };
@@ -1382,6 +1418,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
 
   // For trying effects out (?test=effects): start one right now if a rally is live.
   function triggerEffect(id) {
+    if (id === 'bomb' && !bombEffects) return false;
     const effect = everyEffect.find(candidate => candidate.id === id);
     if (!effect || phase !== 'live' || activeEffect || !shuttle || pendingLanding) return false;
     countdown = 0;
@@ -1408,6 +1445,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
 
   // Test page only: random effects are always this one (undefined or an unknown id = any effect).
   function setOnlyEffect(id) {
+    if (id === 'bomb' && !bombEffects) return;
     onlyEffect = effectIds.includes(id) || trialEffectIds.includes(id) ? id : undefined;
   }
 

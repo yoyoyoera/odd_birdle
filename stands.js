@@ -47,7 +47,7 @@ const toneCache = new WeakMap();
 
 function drawPerson(ctx, p, tones, look) {
   const { x, y, s } = p;
-  const { raise, droop, clock, lean, gaze } = look;
+  const { raise, droop, clock, lean, gaze, duck } = look;
   const headY = y - 15 * s, r = 11 * s, w = 18 * s;
   const torso = tones.torso[p.row][p.shade], face = tones.face[p.face], hair = tones.hair[p.hair];
   // The head and what sits on it turn together, around the neck.
@@ -136,6 +136,25 @@ function drawPerson(ctx, p, tones, look) {
       ctx.fill();
     }
   });
+  if (duck > 0.01) {
+    ctx.strokeStyle = torso;
+    ctx.fillStyle = face;
+    ctx.lineWidth = 5 * s;
+    ctx.lineCap = 'round';
+    for (const side of [-1, 1]) {
+      const elbowX = x + side * 17 * s;
+      const handX = x + side * (17 - 7 * duck) * s;
+      const handY = y + (8 - 26 * duck) * s;
+      ctx.beginPath();
+      ctx.moveTo(x + side * 12 * s, y + 10 * s);
+      ctx.lineTo(elbowX, y + 8 * s);
+      ctx.lineTo(handX, handY);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(handX, handY, 3 * s, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
 }
 
 const easeOut = t => 1 - (1 - t) ** 3;
@@ -155,6 +174,15 @@ export function cheerAmount(seconds, finale = false, timing = cheerTiming) {
 
 const noMood = { effect: undefined, effectAge: 0, wind: 0, standing: 0, surprise: 0, clock: 0 };
 
+export function bombDuckAmount(person, threat) {
+  if (!threat || (person.x < 450) !== (threat.x < 450)) return 0;
+  if (threat.burstAge !== undefined) {
+    return 1 - easeInOut(Math.max(0, Math.min(1, (threat.burstAge - 0.10) / 0.42)));
+  }
+  const progress = (0.78 - person.delay - threat.fuse) / 0.43;
+  return easeOut(Math.max(0, Math.min(1, progress)));
+}
+
 // Draws the stands. `cheer` is { side, since, finale } for the side that just scored: that side's crowd cheers and
 // the other side sinks a little. `mood` (from crowd.js) carries the effect running, the rally's standing crowd and
 // the crowd's own clock; `jolt` is the SHOCK flinch.
@@ -169,7 +197,7 @@ export function gazeTarget(person, now, count) {
   return Math.abs(Math.imul(slot + Math.round(person.x), 2654435761) >>> 0) % count;
 }
 
-export function drawStands(ctx, stands, { gaze, gazes, palette, cheer, now = 0, jolt = 0, mood = noMood }) {
+export function drawStands(ctx, stands, { gaze, gazes, palette, cheer, now = 0, jolt = 0, mood = noMood, bombThreat }) {
   let tones = toneCache.get(palette);
   if (!tones) toneCache.set(palette, tones = tonesFor(palette));
   const { effect, effectAge, wind, standing, surprise, clock } = mood;
@@ -188,19 +216,21 @@ export function drawStands(ctx, stands, { gaze, gazes, palette, cheer, now = 0, 
       if (p.row !== row) continue;
       const onCheerSide = cheer && (p.x < 450) === (cheer.side === 'left');
       const seconds = cheer ? (now - cheer.since) / 1000 - p.delay : 0;
-      const raise = onCheerSide && (p.fan || cheer.finale) ? cheerAmount(seconds, cheer.finale) : 0;
+      const duck = bombDuckAmount(p, bombThreat);
+      const raise = onCheerSide && (p.fan || cheer.finale) ? cheerAmount(seconds, cheer.finale) * (1 - duck) : 0;
       const droop = cheer && !onCheerSide ? cheerAmount(seconds, cheer.finale, droopTiming) : 0;
       let dx = 0, dy = Math.sin(clock / 650 + p.x * 0.05) * 0.8 * s;
       if (jolt > 0) { dx += Math.sin(now / joltPower.period + p.x) * joltPower.shake * jolt * s; dy += jolt * joltPower.drop * s; }
       dy += droop * 5 * s - surprise * 3 * s;
       if (p.stand) dy -= standing * (9 + Math.abs(Math.sin(clock / 170 + p.x)) * 2.5) * s;
+      dy += duck * 29 * s;
       let tilt = 0;
       if (effect === 'wind') {
         tilt = wind * (0.11 * blend + Math.sin(clock / 80 + p.x) * 0.025);
         dx += wind * 3 * s * blend;
       }
       let look = gazes?.length > 1 ? gazes[gazeTarget(p, now, gazes.length)] : gaze;
-      let lean = 0;
+      let lean = (p.x < 450 ? -0.18 : 0.18) * duck;
       if (effect === 'balloon') look = { x: p.x, y: -400 };
       if (effect === 'invisible' && gaze) lean = Math.max(-0.32, Math.min(0.32, (gaze.x - p.x) / 500 * 0.5));
       ctx.save();
@@ -208,7 +238,7 @@ export function drawStands(ctx, stands, { gaze, gazes, palette, cheer, now = 0, 
       ctx.rotate(tilt);
       ctx.translate(-p.x, -(y + 40 * s));
       drawPerson(ctx, p, tones, {
-        raise, droop, clock, lean, gaze: look
+        raise, droop, clock, lean, gaze: look, duck
       });
       ctx.restore();
     }

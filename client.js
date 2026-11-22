@@ -90,7 +90,7 @@ const testEffects = testParams.get('test') === 'effects';
 const testShapes = testParams.get('test') === 'shapes';
 // ?test=freeze / balloon / shock: a CPU Lv.4 match where the random effect is always that one (for recording).
 // The trial effects (bumper, decoy, trampoline) can only be seen this way or from the ?test=effects buttons.
-const onlyEffectTest = ['freeze', 'balloon', 'shock', ...trialEffectIds].includes(testParams.get('test')) ? testParams.get('test') : undefined;
+const onlyEffectTest = ['freeze', 'balloon', 'shock', 'bomb', ...trialEffectIds].includes(testParams.get('test')) ? testParams.get('test') : undefined;
 const debugNet = testParams.get('debug') === 'net';
 // ?net=old: the earlier playback and unbundled touch input, to compare on the same phones.
 const oldNet = testParams.get('net') === 'old';
@@ -114,7 +114,7 @@ let racketIsTouch = false;
 const racketSender = createRacketSender(message => send(message), { interval: () => (racketIsTouch && !oldNet ? 33 : 0) });
 // ?test=juice opens a CPU Lv.4 match with switches for each screen touch below.
 const testJuice = testParams.get('test') === 'juice';
-const solo = createGame({ withCpu: true, quickEvents: (testEffects || onlyEffectTest) && testParams.get('fast') === '1' });
+const solo = createGame({ withCpu: true, bombEffects: !portal, quickEvents: (testEffects || onlyEffectTest) && testParams.get('fast') === '1' });
 const demo = createDemo();
 const sound = createSound();
 const soundCues = createCueTracker();
@@ -268,6 +268,7 @@ function connect(request, via = request.type === 'join' ? 'code' : 'create') {
   if (!queueing) setMode(join ? 'join' : 'connecting');
   quick.queued = false;
   const url = new URL('play', serverBase);
+  if (!portal) url.searchParams.set('bomb', '1');
   url.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
   const connection = new WebSocket(url);
   socket = connection;
@@ -394,9 +395,12 @@ function updateHud(view) {
   setText(status, message);
   rematchLabel.hidden = mode !== 'online' || phase !== 'finished' || !rematchStatus;
   setText(rematchLabel, rematchStatus);
-  eventBanner.hidden = !eventText;
+  const banner = view.bomb?.lit ? 'BOMB · ' + view.bomb.secondsLeft
+    : view.bomb && eventText === 'out' ? 'OUT' : eventText;
+  eventBanner.hidden = !banner;
   eventBanner.toggleAttribute('data-wind', eventWind);
-  setText(eventBanner, mirrored() ? eventText.replace(/[←→]/g, arrow => arrow === '←' ? '→' : '←') : eventText);
+  eventBanner.toggleAttribute('data-bomb-urgent', !!view.bomb?.lit && view.bomb.secondsLeft <= 2);
+  setText(eventBanner, mirrored() ? banner.replace(/[←→]/g, arrow => arrow === '←' ? '→' : '←') : banner);
   // During a CPU match the small restart icon; once any match is over, worded buttons to play again or leave.
   const finished = (mode === 'solo' || mode === 'online') && phase === 'finished';
   gameControl.hidden = mode !== 'solo' || finished;
@@ -748,10 +752,24 @@ function drawCourt(view) {
   ctx.fillRect(0, 0, width, height);
   ctx.fillStyle = palette.floor;
   ctx.fillRect(0, floor, width, height - floor);
+  const liveBomb = view.bomb?.lit && view.shuttle;
+  const bombThreat = liveBomb ? { x: liveBomb.x, fuse: view.bomb.fuse }
+    : view.bombBurst && { x: view.bombBurst.x, burstAge: view.bombBurst.age };
   drawStands(ctx, standsFor(view), {
     gaze: view.gaze, gazes: view.gazes, palette, cheer: crowdNow.cheer, now: performance.now(), mood: crowdNow.mood,
-    jolt: reduceMotion.matches ? 0 : shockJolt(view.shake)
+    jolt: reduceMotion.matches ? 0 : shockJolt(view.shake), bombThreat: reduceMotion.matches ? undefined : bombThreat
   });
+  if (liveBomb) {
+    const left = liveBomb.x < center ? 0 : center;
+    const red = ctx.createLinearGradient(0, 0, 0, floor);
+    red.addColorStop(0, '#d334337f');
+    red.addColorStop(0.43, '#d33433');
+    ctx.save();
+    ctx.fillStyle = red;
+    ctx.globalAlpha = 0.14 + 0.08 * (1 - clamp(view.bomb.fuse / 2.4, 0, 1));
+    ctx.fillRect(left, 0, center, floor);
+    ctx.restore();
+  }
   startConfetti(view);
   ctx.fillStyle = palette.line;
   ctx.fillRect(leftLine, floor, rightLine - leftLine, 8);
@@ -862,8 +880,10 @@ function draw(view, scenery = false) {
     const ownRacket = mode === 'online' && !scenery ? localRacket : view[localSide];
     if (ownRacket && view.phase !== 'finished') drawRacket(ownRacket, '#a9d67877', palette.ink, scenery ? undefined : localSide);
     if (view.bumper) drawBumper(view.bumper);
-    if (view.shuttle) drawShuttle(view, (scenery ? demoAlpha.bird : 1) * (view.shuttleAlpha ?? 1));
+    if (view.bomb && view.shuttle) drawBomb(view.shuttle, view.bomb);
+    else if (view.shuttle) drawShuttle(view, (scenery ? demoAlpha.bird : 1) * (view.shuttleAlpha ?? 1));
     ctx.globalAlpha = 1;
+    if (view.bombBurst) drawBombBurst(view.bombBurst);
     drawDecoys(view);
     if (view.pops) drawPops(view.pops);
     if (!scenery) {
@@ -1045,6 +1065,75 @@ function drawWind(force) {
     }
   }
   ctx.stroke();
+  ctx.restore();
+}
+
+function drawBomb({ x, y, size, angle }, { fuse, lit, remaining }) {
+  const still = reduceMotion.matches;
+  const urgent = lit && fuse <= 2.4;
+  const glow = urgent && (still || Math.sin(fuse * (26 - 6 * fuse)) > 0);
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.fillStyle = glow ? '#a82f23' : palette.ink;
+  ctx.beginPath();
+  ctx.arc(0, 0, size, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Draw the unburnt section of the quadratic curve and put the ember on its moving tip.
+  const t = 0.1 + 0.9 * remaining;
+  const root = -size;
+  const controlX = 6 * t;
+  const controlY = root - 22 * t;
+  const tipX = (1 - t) * controlX + t * (6 + 12 * t);
+  const tipY = (1 - t) * controlY + t * (root - 22 + 7 * t);
+  ctx.fillStyle = palette.net;
+  ctx.fillRect(-4, root - 3, 8, 6);
+  ctx.strokeStyle = '#825727';
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(0, root);
+  ctx.quadraticCurveTo(controlX, controlY, tipX, tipY);
+  ctx.stroke();
+  if (lit) {
+    const flicker = still ? 0.5 : 0.5 + 0.5 * Math.sin(fuse * 44);
+    ctx.fillStyle = '#eb6027';
+    ctx.beginPath();
+    ctx.arc(tipX, tipY, 4 + flicker * 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffdc75';
+    ctx.beginPath();
+    ctx.arc(tipX, tipY, 2.2, 0, Math.PI * 2);
+    ctx.fill();
+    if (!still) {
+      for (let i = 0; i < 3; i++) {
+        const distance = 5 + ((fuse * 28 + i * 3) % 8);
+        const direction = fuse * 8 + i * 2.1;
+        ctx.fillRect(tipX + Math.cos(direction) * distance, tipY + Math.sin(direction) * distance, 2, 2);
+      }
+    }
+  }
+  ctx.restore();
+}
+
+function drawBombBurst({ x, y, age }) {
+  const life = Math.max(0, 1 - age / 0.57);
+  const radius = reduceMotion.matches ? 46 : 18 + (1 - life) * 76;
+  ctx.save();
+  ctx.globalAlpha = life;
+  ctx.fillStyle = '#c54720';
+  ctx.strokeStyle = '#be5829';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.stroke();
+  for (let i = 0; i < 7; i++) {
+    const angle = i * 2 * Math.PI / 7;
+    ctx.beginPath();
+    ctx.arc(x + Math.cos(angle) * radius * 0.82, y + Math.sin(angle) * radius * 0.82, 3 + life * 5, 0, Math.PI * 2);
+    ctx.fill();
+  }
   ctx.restore();
 }
 

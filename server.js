@@ -32,18 +32,19 @@ http.on('upgrade', (request, socket, head) => {
   } catch {
     // Browser clients always send Origin.
   }
-  if (request.url !== '/play' || !sameOrigin || websocket.clients.size >= 256) {
+  if (request.url?.split('?')[0] !== '/play' || !sameOrigin || websocket.clients.size >= 256) {
     socket.destroy();
     return;
   }
-  websocket.handleUpgrade(request, socket, head, peer => websocket.emit('connection', peer));
+  websocket.handleUpgrade(request, socket, head, peer => websocket.emit('connection', peer, request));
 });
 
-websocket.on('connection', peer => {
+websocket.on('connection', (peer, request) => {
   peer.lastPong = Date.now();
   peer.on('error', () => peer.terminate());
   peer.on('pong', () => { peer.lastPong = Date.now(); });
-  rooms.attach(peer, { restartBarrier: true });
+  const url = new URL(request.url, 'http://localhost');
+  rooms.attach(peer, { restartBarrier: true, bombEffects: url.searchParams.get('bomb') === '1' });
 });
 
 setInterval(() => {
