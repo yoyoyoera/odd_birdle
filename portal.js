@@ -1,12 +1,12 @@
 // Where the game is running: our site (''), or a portal build ('crazygames', 'itch', 'newgrounds')
-// marked on <html data-portal> by scripts/build-portal.mjs ('gamepix' and 'y8' too).
+// marked on <html data-portal> by scripts/build-portal.mjs ('gamepix' and 'y8' too, and 'app' for the Android app).
 import { createGdAds, showGdContinue } from './gd-ads.js';
 
 export const portal = document.documentElement.dataset.portal ?? '';
 export const siteUrl = 'https://oddbirdle.pages.dev/';
 // Portals that allow no links out of the game and no analytics of our own: invites are the room code, nothing is
-// counted, and the debug and test pages are off.
-export const closedPortal = ['gamepix', 'y8', 'gamedistribution'].includes(portal);
+// counted, and the debug and test pages are off. The Android app is the same: everything it needs is inside it.
+export const closedPortal = ['gamepix', 'y8', 'gamedistribution', 'app'].includes(portal);
 export const coordinatedBreak = ['gamepix', 'gamedistribution'].includes(portal);
 // Portal builds are served from the portal's domain but play on our server.
 export const serverBase = portal ? siteUrl : new URL('./', location.href).href;
@@ -26,6 +26,7 @@ let lastAd = -Infinity;
 let sdkPaused = false;
 let focusPaused = false;
 let adPaused = false;
+let appPaused = false;
 let sdkMuted = false;
 let muted = false;
 const pauseListeners = [];
@@ -39,7 +40,7 @@ export const y8AdLimitMs = 90 * 1000;
 export const y8AdStartMs = 3000;
 
 function refreshPause() {
-  const next = sdkPaused || focusPaused || adPaused;
+  const next = sdkPaused || focusPaused || adPaused || appPaused;
   if (next !== paused) {
     paused = next;
     for (const listener of pauseListeners) listener(paused);
@@ -55,6 +56,11 @@ function refreshMute() {
 }
 
 export const isPaused = () => paused;
+// The Android app (app-shell.js): the back button's pause screen, and the app being in the background.
+export function setAppPaused(value) {
+  appPaused = Boolean(value);
+  refreshPause();
+}
 export function onPortalPause(handler) {
   pauseListeners.push(handler);
 }

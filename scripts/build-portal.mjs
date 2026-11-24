@@ -1,16 +1,24 @@
 // Builds an upload zip for a game portal from the site build.
 // Usage: node scripts/build-portal.mjs crazygames|itch|newgrounds|gamepix|y8|gamedistribution  ->  portal/oddbirdle-<name>.zip
+// The Android app: node scripts/build-portal.mjs app [--features=stages,daily,online]  ->  portal/app/ (Capacitor's webDir,
+// no zip). Its optional parts are all off unless listed (features.js).
 import { execFileSync } from 'node:child_process';
-import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 // Portals that must make no outside requests carry the font themselves instead of asking Google Fonts.
-const ownFont = ['gamepix', 'y8', 'gamedistribution'];
+// The Android app is one of them: it has to start in airplane mode.
+const ownFont = ['gamepix', 'y8', 'gamedistribution', 'app'];
 
 const name = process.argv[2];
-if (!['crazygames', 'itch', 'newgrounds', 'gamepix', 'y8', 'gamedistribution'].includes(name)) {
-  console.error('Usage: node scripts/build-portal.mjs crazygames|itch|newgrounds|gamepix|y8|gamedistribution');
+if (!['crazygames', 'itch', 'newgrounds', 'gamepix', 'y8', 'gamedistribution', 'app'].includes(name)) {
+  console.error('Usage: node scripts/build-portal.mjs crazygames|itch|newgrounds|gamepix|y8|gamedistribution|app');
   process.exit(1);
+}
+const appFeatures = (process.argv.find(arg => arg.startsWith('--features='))?.slice('--features='.length) ?? '')
+  .split(',').map(feature => feature.trim().toLowerCase()).filter(Boolean);
+for (const feature of appFeatures) {
+  if (!['stages', 'daily', 'online'].includes(feature)) throw new Error('Unknown feature: ' + feature);
 }
 const gdPreview = name === 'gamedistribution' && process.argv.includes('--preview');
 const diagnostics = name === 'gamedistribution' && process.argv.includes('--diagnostics');
@@ -26,6 +34,8 @@ rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 // Everything the game needs, all referenced by relative paths; the font page and preview image stay on the site.
 cpSync(new URL('dist/', root), out, { recursive: true, filter: source => !/(?:fonts\.html|og\.png|ads\.txt)$/.test(source) });
+// The app's back button and background pause; only the app build carries it (client.js loads it there).
+if (name === 'app') cpSync(new URL('app-shell.js', root), new URL('app-shell.js', out));
 
 const indexUrl = new URL('index.html', out);
 let html = readFileSync(indexUrl, 'utf8');
@@ -52,6 +62,32 @@ if (ownFont.includes(name)) {
     .replace(/\s*<a href="https:[^>]*>[\s\S]*?<\/a>/g, '')
     .replace('width=device-width, initial-scale=1', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no')
     .replace('>COPY LINK<', '>COPY CODE<');
+}
+if (name === 'app') {
+  // Android 16 draws the app under the status bar, the camera cutout and the gesture bar. The page keeps clear of them:
+  // Capacitor's --safe-area-inset-* when it sets them, else the WebView's env(). The court's size limits are the
+  // page's own ones less those insets; with every inset at 0 the layout is the website's.
+  html = html
+    .replace('user-scalable=no', 'user-scalable=no, viewport-fit=cover')
+    .replace('<html lang="en" data-portal="app">', `<html lang="en" data-portal="app" data-features="${appFeatures.join(' ')}">`)
+    .replace('</style>', `  /* The Android app: safe areas (edge to edge). */
+    html[data-portal="app"] { --app-safe-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
+      --app-safe-right: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
+      --app-safe-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+      --app-safe-left: var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
+      --app-safe-block: calc(var(--app-safe-top) + var(--app-safe-bottom)); overscroll-behavior: none; }
+    html[data-portal="app"] body { padding: var(--app-safe-top) var(--app-safe-right) var(--app-safe-bottom) var(--app-safe-left);
+      overscroll-behavior: none; }
+    html[data-portal="app"] main { width: min(1260px, 100% - 32px, (100svh - 100px - var(--app-safe-block)) * 1.8); }
+    @media (orientation: landscape) and ((pointer: coarse) or (max-height: 620px)), (min-aspect-ratio: 16/9) {
+      html[data-portal="app"] main { width: min(1312px, 100% - 24px, calc((100svh - 12px - var(--app-safe-block)) * 1.8 + 52px)); }
+      html[data-portal="app"][data-touch-tune-open] main {
+        width: min(1384px, 100% - 24px, calc((100svh - 12px - var(--app-safe-block)) * 1.8 + 124px)); }
+    }
+    html[data-portal="app"][data-pad] main { width: calc(100% - 16px); }
+    html[data-portal="app"] #guide { padding: calc(16px + var(--app-safe-top)) calc(16px + var(--app-safe-right))
+      calc(16px + var(--app-safe-bottom)) calc(16px + var(--app-safe-left)); }
+  </style>`);
 }
 if (name === 'gamepix') {
   html = html
@@ -106,13 +142,30 @@ if (name === 'y8') {
     body { touch-action: none; }`);
 }
 if (ownFont.includes(name)) {
-  // Nothing may point anywhere else: the only web address left in the page is the portal's SDK.
-  const sdkHost = name === 'gamepix' ? 'integration.gamepix.com' : name === 'y8' ? 'cdn.y8.com' : 'html5.api.gamedistribution.com';
-  const outside = [...html.matchAll(/https?:\/\/[^"'\s)<]+/g)].map(match => match[0]).filter(link => !link.includes(sdkHost));
+  // Nothing may point anywhere else: the only web address left in the page is the portal's SDK (the app has none).
+  const sdkHost = name === 'gamepix' ? 'integration.gamepix.com' : name === 'y8' ? 'cdn.y8.com'
+    : name === 'app' ? undefined : 'html5.api.gamedistribution.com';
+  const outside = [...html.matchAll(/https?:\/\/[^"'\s)<]+/g)].map(match => match[0]).filter(link => !sdkHost || !link.includes(sdkHost));
   if (outside.length) throw new Error(name + ' build still links out: ' + outside.join(', '));
 }
 if (!html.includes(`data-portal="${name}"`)) throw new Error('Could not mark index.html for the portal.');
 writeFileSync(indexUrl, html);
+
+if (name === 'app') {
+  // Inside the APK nothing is fetched from the web: every file is checked, not only the page. The one address allowed is
+  // the match server's (portal.js siteUrl), and it is only used by ONLINE, which this build can leave off.
+  const outside = [];
+  for (const file of readdirSync(out, { recursive: true })) {
+    if (!/\.(?:html|js|css)$/.test(file)) continue;
+    const text = readFileSync(new URL(file, out), 'utf8');
+    for (const match of text.matchAll(/https?:\/\/[^"'\s)<>`]+/g)) {
+      if (!(file === 'portal.js' && match[0] === 'https://oddbirdle.pages.dev/')) outside.push(file + ': ' + match[0]);
+    }
+  }
+  if (outside.length) throw new Error('app build still reaches outside: ' + outside.join(', '));
+  console.log('wrote', fileURLToPath(out));
+  process.exit(0);
+}
 
 const zip = fileURLToPath(new URL(`portal/oddbirdle-${name}${gdPreview ? "-preview" : ""}${diagnostics ? "-diagnostics" : ""}.zip`, root));
 rmSync(zip, { force: true });

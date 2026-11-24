@@ -84,6 +84,14 @@ export function createSound() {
     applyGain();
   }
 
+  // The Android app going to the background and coming back (app-shell.js; its WebView may not report visibility).
+  function sleep() {
+    try { context?.suspend(); } catch { /* nothing to stop */ }
+  }
+  function wake() {
+    try { if (context && context.state !== 'running') context.resume(); } catch { /* stays quiet */ }
+  }
+
   // Hidden tabs (and portal frames scrolled away) go quiet.
   document.addEventListener('visibilitychange', () => {
     if (!context) return;
@@ -93,6 +101,7 @@ export function createSound() {
 
   return {
     unlock, play,
+    sleep, wake,
     get enabled() { return enabled; },
     get audible() { return audible(); },
     get portalMuted() { return portalMuted; },

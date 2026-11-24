@@ -16,6 +16,7 @@ import { createNetMeter } from './net-quality.js';
 import { normalizeRoomCode, roomFromLink, roomLink } from './room-link.js';
 import { createDemo } from './demo.js';
 import { startHeartbeat, track, trackVisit } from './analytics.js';
+import { features } from './features.js';
 import { createSound } from './sound.js';
 import { createCueTracker } from './sound-cues.js';
 import {
@@ -24,7 +25,8 @@ import {
 } from './juice.js';
 import {
   initPortal, isInstantMultiplayer, loadingStart, loadingStop, matchBreak, matchEnded, onJoinRoom, onPortalMute, onPortalPause,
-  closedPortal, coordinatedBreak, portal, portalInviteLink, portalInviteRoom, portalMuted, roomFull, roomLeft, roomOpen, serverBase, setPlaying, siteUrl
+  closedPortal, coordinatedBreak, portal, portalInviteLink, portalInviteRoom, portalMuted, roomFull, roomLeft, roomOpen, serverBase, setAppPaused,
+  setPlaying, siteUrl
 } from './portal.js';
 
 const court = document.querySelector('#court');
@@ -121,8 +123,9 @@ const racketSender = createRacketSender(message => send(message), { interval: ()
 // ?test=juice opens a CPU Lv.4 match with switches for each screen touch below.
 const testJuice = testParams.get('test') === 'juice';
 const testThreeTouches = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname) && testParams.get('test') === 'touches';
+// The Android app plays the website's FREE PLAY as it is, bomb included; the other portal builds keep theirs without it.
 const solo = createGame({
-  withCpu: true, bombEffects: !portal, touchLimit: threeTouchLimit,
+  withCpu: true, bombEffects: !portal || portal === 'app', touchLimit: threeTouchLimit,
   quickEvents: (testEffects || onlyEffectTest) && testParams.get('fast') === '1'
 });
 const demo = createDemo();
@@ -272,7 +275,8 @@ function leave(message = '', stay = false) {
 function connect(request, via = request.type === 'join' ? 'code' : 'create') {
   const join = request.type === 'join';
   const queueing = request.type === 'queue';
-  if (socket || gamePaused) return;
+  // Builds without ONLINE (the first Android app) never open a connection.
+  if (socket || gamePaused || !features.online) return;
   joinVia = via;
   // Quick match connects quietly while the CPU game keeps going.
   if (!queueing) setMode(join ? 'join' : 'connecting');
@@ -572,9 +576,10 @@ function showPauseState() {
   stage.toggleAttribute('data-paused', showing);
   const online = mode === 'online';
   // Y8 pauses when the game loses focus, and a click on the game brings it back.
-  const resume = portal === 'y8' ? 'Click the game to continue.' : 'Resume to continue.';
+  const resume = portal === 'y8' ? 'Click the game to continue.' : portal === 'app' ? 'Tap to continue. Back for the menu.' : 'Resume to continue.';
   setText(pauseTitle, online ? 'ONLINE MATCHES CANNOT BE PAUSED' : 'PAUSED');
-  setText(pauseDetail, online ? 'The match continues while you are away. ' + (portal === 'y8' ? 'Click the game to return.' : 'Resume to return.')
+  setText(pauseDetail, online ? 'The match continues while you are away. ' +
+    (portal === 'y8' ? 'Click the game to return.' : portal === 'app' ? 'Tap to return.' : 'Resume to return.')
     : quick.on ? 'CPU game and matchmaking are paused. ' + resume : resume);
 }
 
@@ -647,7 +652,9 @@ function layoutTouch() {
   if (view === 'play') {
     pad.hidden = false;
     pad.style.height = '0px';
-    space = window.innerHeight - touchTune.getBoundingClientRect().bottom - 24;
+    // The page's own bottom padding (the app's gesture-bar inset; none on the website) stays clear of the pad too.
+    const pagePad = parseFloat(window.getComputedStyle?.(document.body)?.paddingBottom) || 0;
+    space = window.innerHeight - touchTune.getBoundingClientRect().bottom - 24 - pagePad;
     pad.style.height = Math.max(0, space) + 'px';
   }
   // Too little room under the court: then the finger plays on the court itself.
@@ -1347,6 +1354,8 @@ function guideBeforeCountdown(after) {
   };
 }
 
+// Without ONLINE the menu is CPU only: no QUICK MATCH, rooms or codes.
+if (!features.online) for (const id of ['#quick', '#create', '#join']) document.querySelector(id).hidden = true;
 document.querySelector('#create').addEventListener('click', () =>
   portal === 'gamedistribution' ? afterMatchBreak(() => connect({ type: 'create' })) : connect({ type: 'create' }));
 document.querySelector('#join').addEventListener('click', () => {
@@ -1886,6 +1895,16 @@ initPortal().then(() => {
   showSoundState();
   loadingStop();
 });
+// The Android app: the system back button, and pausing while the app is in the background (app-shell.js).
+if (portal === 'app') {
+  import('./app-shell.js').then(({ startAppShell }) => startAppShell({
+    state: () => ({ mode, phase: currentView().phase, guideOpen }),
+    setPaused: setAppPaused,
+    toMenu: () => leave(),
+    wakeAudio: () => sound.wake(),
+    sleepAudio: () => sound.sleep()
+  })).catch(error => console.error('Odd Birdle app shell failed', error));
+}
 trackVisit();
 startHeartbeat(() => mode === 'solo' ? 'cpu' : mode === 'online' ? 'online' : 'menu');
 
