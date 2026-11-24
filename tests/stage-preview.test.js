@@ -166,3 +166,43 @@ test('two live shuttles ricochet off each other without deciding either one', t 
   assert.ok(game.view().shuttles[1].x > collision.shuttles[1].x);
   assert.equal(game.view().shuttleClash.age, step, 'separating shuttles do not collide again');
 });
+
+test('a fourth consecutive hit loses only that shuttle in Twin Shuttles', t => {
+  t.mock.method(Math, 'random', () => 0.4);
+  const game = createTwinShuttleGame();
+  game.restart(0, 4, rules(15), { touchLimit: 3 });
+  for (let hit = 1; hit <= 4; hit++) {
+    const shuttle = game.view().shuttles.find(bird => bird.flight % 2 === 0);
+    assert.ok(shuttle && shuttle.x < center);
+    game.moveRacket('left', undefined);
+    game.moveRacket('left', { x: shuttle.x, y: shuttle.y, time: hit * 200 });
+    if (hit < 4) assert.equal(game.view().shuttles[0].flight, shuttle.flight + 2);
+    for (let i = 0; i < 18; i++) game.simulate(step);
+  }
+  const result = game.view();
+  assert.equal(result.phase, 'live');
+  assert.deepEqual(result.shuttleCalls, [{ index: 0, winner: 'right', reason: 'touch limit' }]);
+  assert.equal(result.shuttles.length, 1);
+  assert.deepEqual(result.score, { left: 0, right: 0 });
+});
+
+for (const stage of [undefined, 7]) {
+  test(`fourth hit faults in ${stage ? 'Bomb Rally' : 'an ordinary CPU match'}`, t => {
+    t.mock.method(Math, 'random', () => 0.4);
+    const game = createGame({ withCpu: true, externallyDrivenCpu: true });
+    game.setEffects(false);
+    game.restart(0, 4, stage ? rules(stage) : null, { touchLimit: 3 });
+    for (let hit = 1; hit <= 4; hit++) {
+      const shuttle = game.rally().shuttle;
+      const priorFlight = game.view().shuttle.flight;
+      game.moveRacket('left', undefined);
+      game.moveRacket('left', { x: shuttle.x, y: shuttle.y, time: hit * 200 });
+      if (hit < 4) assert.equal(game.view().shuttle.flight, priorFlight + 1);
+      for (let i = 0; i < 18; i++) game.simulate(step);
+    }
+    assert.equal(game.view().eventText, 'THAT’S FOUR!');
+    assert.deepEqual(game.view().score, { left: 0, right: 1 });
+    assert.equal(game.view().bombBurst, undefined);
+    assert.ok(game.view().shuttle);
+  });
+}

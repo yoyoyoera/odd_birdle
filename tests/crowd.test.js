@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createCrowd } from '../crowd.js';
+import { touchLimitFault } from '../game.js';
 import { cheerAmount } from '../stands.js';
 
 const live = { phase: 'live', effect: undefined };
@@ -33,6 +34,17 @@ test('the winner side keeps cheering when the match ends, and the big applause p
   assert.equal(end.cheer.finale, true);
   assert.equal(crowd.update({ phase: 'finished', winner: 'right' }, [], 200, 'right').cheer.finale, true);
   assert.equal(crowd.update({ phase: 'live' }, [], 300, 'right').cheer, undefined, 'a new match starts calm');
+});
+
+test('a fourth touch makes spectators on the faulting side protest briefly and silently', () => {
+  const crowd = createCrowd();
+  const fault = { phase: 'between', eventText: touchLimitFault };
+  const point = crowd.update(fault, [{ type: 'score', side: 'right' }], 100);
+  assert.deepEqual(point.boo, { side: 'left', since: 100 });
+  assert.deepEqual(point.cues, []);
+  assert.equal(crowd.update(fault, [], 400).boo.since, 100, 'the same point does not restart the reaction');
+  assert.equal(crowd.update(fault, [], 950).boo, undefined);
+  assert.equal(crowd.update({ phase: 'between' }, [{ type: 'score', side: 'left' }], 1000).boo, undefined);
 });
 
 test('effects change the mood: FREEZE stops the crowd clock, surprising ones startle, GUST leans them', () => {

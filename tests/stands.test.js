@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bombDuckAmount, createBombCrowdMotion, makeStands, mix, standsBottom } from '../stands.js';
+import { bombDuckAmount, createBombCrowdMotion, drawStands, makeStands, mix, standsBottom } from '../stands.js';
 
 test('every match gets its own crowd, and the same seed gives the same one', () => {
   const sizes = new Set();
@@ -16,6 +16,32 @@ test('the crowd stays inside the stands at the top and never sits in the middle 
       assert.ok(p.y + 44 * p.s <= standsBottom + 10);
     }
   }
+});
+
+test('only zero to four spectators on the faulting side raise one hand on a fourth touch', () => {
+  const stands = makeStands(22462);
+  const palette = { court: '#faf9ef', ink: '#18343b' };
+  const armsAt = (boo, now) => {
+    const arms = [];
+    let x;
+    const canvas = new Proxy({
+      moveTo: start => { x = start; },
+      stroke: () => { arms.push(x); }
+    }, { get: (target, name) => target[name] ?? (() => {}) });
+    drawStands(canvas, stands, { palette, boo, now });
+    return arms;
+  };
+  const counts = new Set();
+  for (const side of ['left', 'right']) {
+    for (let since = 1000; since < 1060; since++) {
+      const boo = { side, since };
+      const arms = armsAt(boo, since + 350);
+      counts.add(arms.length);
+      assert.ok(arms.length <= 4 && arms.every(x => (x < 450) === (side === 'left')));
+      assert.deepEqual(armsAt(boo, since + 380), arms);
+    }
+  }
+  assert.deepEqual([...counts].sort(), [0, 1, 2, 3, 4]);
 });
 
 test('mix blends two colours', () => {

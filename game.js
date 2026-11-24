@@ -77,6 +77,9 @@ export const rightLine = width - leftLine;
 export const racketRadius = 22;
 const baseGravity = 760;
 export const step = 1 / 120;
+export const threeTouchLimit = 3;
+export const touchLimitReason = 'touch limit';
+export const touchLimitFault = 'THAT’S FOUR!';
 export const faultReactions = ['Pardon?', 'LOL', 'Oops!', 'Nice try.', 'Wrong way.'];
 const cpuLevels = [
   { speed: 0.65, spikeChance: 0.04, outChance: 0.15 },
@@ -392,6 +395,8 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
   // wins the serve back, its other player serves.
   let teamServer = { left: 'left', right: 'right' };
   let lastHitter;
+  let consecutiveTouches = 0;
+  let touchLimit;
   let phase = 'ready';
   let phaseTime;
   let hitCooldown;
@@ -486,6 +491,7 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     if (doubles) resetDoubles();
     phase = 'live';
     lastHitter = undefined;
+    consecutiveTouches = 0;
     cordTouches = 0;
     hitCooldown = 0;
     touching.left = touching.right = false;
@@ -493,9 +499,10 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     message = server + ' serve';
   }
 
-  function restart(openingCountdown = 0, selectedCpuLevel, nextRules) {
+  function restart(openingCountdown = 0, selectedCpuLevel, nextRules, options = {}) {
     // Passing a third argument (including undefined/null) explicitly returns practice to its defaults.
     if (arguments.length >= 3) rules = nextRules ? { ...nextRules } : undefined;
+    touchLimit = options.touchLimit;
     permanentAge = 0;
     swayAge = 0;
     if (rules?.permanent === 'wind') permanentWindX = Math.random() < 0.5 ? -1 : 1;
@@ -557,6 +564,7 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     }
     updateOutline();
     if (reason === 'out') showEvent('out');
+    if (reason === touchLimitReason) showEvent(touchLimitFault);
     // A wrong-turn hit is called out for either team: FOUL for you and your partner, THEIR FOUL for the rivals.
     if (reason === 'wrong partner') showEvent(faultPlayer?.startsWith('left') ? 'FOUL' : 'THEIR FOUL');
     const matchPoint = Math.max(score.left, score.right) === pointsToWin - 1;
@@ -958,12 +966,21 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     return first;
   }
 
+  function touchesLeft(team) {
+    return (touchLimit ?? Infinity) - (lastHitter === team ? consecutiveTouches : 0);
+  }
+
   function launch(vx, vy, hitter) {
+    const team = teamOf(hitter);
     support = undefined;
     strike = undefined;
+    pendingLanding = undefined;
+    if (touchesLeft(team) === 0) {
+      finishPoint(opponent(team), touchLimitReason);
+      return false;
+    }
     afterBounce = false;
     flight++;
-    pendingLanding = undefined;
     shuttle.vx = vx;
     shuttle.vy = vy;
     if (Number.isFinite(rules?.shrink) && rules.shrink > 0 && rules.shrink < 1) {
@@ -975,7 +992,8 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
       updateOutline();
     }
     shuttle.spin = vx / 92 + 1.4;
-    lastHitter = teamOf(hitter);
+    consecutiveTouches = lastHitter === team ? consecutiveTouches + 1 : 1;
+    lastHitter = team;
     cordTouches = 0;
     if (doubles) {
       lastPlayer = hitter;
@@ -993,6 +1011,7 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
       revealAge = 0;
       if (cpuPrediction) cpuPrediction = { x: shuttle.x, y: shuttle.y + cpuSightBias, vx, vy };
     }
+    return true;
   }
 
   function playerHit(side, swingX, swingY) {
@@ -1001,7 +1020,7 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
       if (cpu) cpu.outFeint = undefined;
     }
     const { vx, vy } = swingVelocity(swingX, swingY);
-    launch(vx, vy, side);
+    return launch(vx, vy, side);
   }
 
   function onSide(side) {
@@ -1080,7 +1099,7 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     }
     // Start at the same contact pose the striker saw, then catch up to the server clock.
     Object.assign(shuttle, { x: frame.x, y: frame.y, angle: frame.angle });
-    playerHit(side, to.vx, to.vy);
+    if (!playerHit(side, to.vx, to.vy)) return;
     if (Number.isFinite(frame.time)) {
       strike = { flight, time: frame.time, fromFlight: frame.flight, side,
         racket: { x: to.x, y: to.y },
@@ -1252,7 +1271,8 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
       bot.y = Math.min(bot.y, floor - extra);
     }
     const inReach = defending && tracked.x <= rightLine && birdX <= rightLine;
-    if (canHit && cpuThaw <= 0 && (inReach || leavingOut) && birdX >= center &&
+    const remainingTouches = touchesLeft(team);
+    if (canHit && remainingTouches > 0 && cpuThaw <= 0 && (inReach || leavingOut) && birdX >= center &&
         (doubles || lastHitter !== team || cpuFollowUps > 0 || afterBounce) && hitCooldown <= 0 &&
         racketContact(bot, bot, doubles ? racketRadius : cpuRadius())) {
       if (leavingOut) {
@@ -1268,6 +1288,7 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
         const roll = Math.random();
         if (roll < liftChance) cpuFollowUps = roll < doubleLiftChance ? 2 : 1;
       }
+      cpuFollowUps = Math.min(cpuFollowUps, remainingTouches - 1);
       if (cpuFollowUps > 0) {
         // Keep the setup on our side and chase it for the next real contact.
         const target = clamp(shuttle.x, center + 78, rightLine - 75);
@@ -1552,7 +1573,7 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
         const motion = contactMotion(racket, racket.time + racket.age * 1000);
         checkContact(side, racket, racket, motion.vx, motion.vy);
       }
-      if (!externallyDrivenCpu && (phase === 'live' || !doubles)) moveCpus(dt);
+      if (!externallyDrivenCpu && phase === 'live') moveCpus(dt);
     }
   }
 
@@ -1659,6 +1680,7 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     Object.assign(shuttle, from, { vx, vy: (low + high) / 2, spin: 1.2 });
     clearEffect();
     lastHitter = 'left';
+    consecutiveTouches = 1;
     cordTouches = 0;
     hitCooldown = 0.14;
     flight++;
@@ -1742,6 +1764,7 @@ export function createTwinShuttleGame() {
     openingSide, game: createGame({ withCpu: true, externallyDrivenCpu: true })
   }));
   let score, rules, cpuLevel, pointsToWin, cpu, pointer, phase, winner, eventText, betweenTime;
+  let matchOptions;
   const shuttleCallSeconds = 2.5;
   let clash;
   let shuttleCalls, firstCallTime, settledShuttle;
@@ -1757,13 +1780,14 @@ export function createTwinShuttleGame() {
     for (const { openingSide, game } of shuttles) {
       game.restart(openingCountdown, cpuLevel, {
         ...rules, openingSide, points: 1, shuttleShape: 1, shuttleSize: 1
-      });
+      }, matchOptions);
       if (pointer) game.moveRacket('left', pointer);
     }
   }
 
-  function restart(openingCountdown, level, stageRules) {
+  function restart(openingCountdown, level, stageRules, options) {
     rules = stageRules;
+    matchOptions = options;
     cpuLevel = level;
     pointsToWin = stageRules.points;
     score = { left: 0, right: 0 };

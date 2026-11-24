@@ -1,4 +1,4 @@
-import { center, clamp, createGame, createTwinShuttleGame, floor, height, leftLine, netTop, racketRadius, rightLine, setMirroredShapes, shuttleOutline, step, width, contactMotion, isSwing, projectStrike, forceAt, effectIds, shapeCount, shuttleSizeOptions, racketTouches, supportedShuttleY, swingMotion, trialEffectIds, trialEffectLabels, trampolineLift, trampolineDent } from './game.js';
+import { center, clamp, createGame, createTwinShuttleGame, floor, height, leftLine, netTop, racketRadius, rightLine, setMirroredShapes, shuttleOutline, step, width, contactMotion, isSwing, projectStrike, forceAt, effectIds, shapeCount, shuttleSizeOptions, racketTouches, supportedShuttleY, swingMotion, trialEffectIds, trialEffectLabels, trampolineLift, trampolineDent, threeTouchLimit, touchLimitReason, touchLimitFault } from './game.js';
 import { makeStands, drawStands, createBombCrowdMotion } from './stands.js';
 import { createCrowd } from './crowd.js';
 import { drawCard, cardWidth, cardHeight } from './card.js';
@@ -460,7 +460,7 @@ function updateHud(view) {
   eventBanner.toggleAttribute('data-bomb-urgent', !!view.bomb?.lit && view.bomb.secondsLeft <= 2);
   setText(eventBanner, mirrored() ? banner.replace(/[←→]/g, arrow => arrow === '←' ? '→' : '←') : banner);
   const calls = view.shuttleCalls?.flatMap(({ reason }, index) =>
-    reason && (index > 0 || view.firstCallVisible) ? [`${index + 1} · ${reason.toUpperCase()}`] : []).join('   /   ');
+    reason && (index > 0 || view.firstCallVisible) ? [`${index + 1} · ${(reason === touchLimitReason ? touchLimitFault : reason.toUpperCase())}`] : []).join('   /   ');
   shuttleCallsLabel.hidden = !calls || stageIntroRemaining > 0;
   setText(shuttleCallsLabel, calls ?? '');
   // During a CPU match the small restart icon; once any match is over, worded buttons to play again or leave.
@@ -848,7 +848,7 @@ function drawCourt(view) {
   const now = performance.now();
   const bombDuck = bombCrowdMotion.update(now, reduceMotion.matches ? undefined : liveBomb?.x);
   drawStands(ctx, standsFor(view), {
-    gaze: view.gaze, gazes: view.gazes, palette, cheer: crowdNow.cheer, now, mood: crowdNow.mood,
+    gaze: view.gaze, gazes: view.gazes, palette, cheer: crowdNow.cheer, boo: reduceMotion.matches ? undefined : crowdNow.boo, now, mood: crowdNow.mood,
     jolt: reduceMotion.matches ? 0 : shockJolt(view.shake), bombDuck: reduceMotion.matches ? undefined : bombDuck
   });
   if (liveBomb) {
@@ -1509,8 +1509,10 @@ function restartCpu() {
   cpuMirrored = !testParams.has('test') && Math.random() < 0.5;
   // Before the restart, so the first serve's outline is already built for this court.
   setMirroredShapes(cpuMirrored);
-  solo = selectedStage?.rules.twinShuttles ? createTwinShuttleGame() : singles;
-  solo.restart(3, selectedStage?.rules.cpuLevel ?? selectedCpuLevel, selectedStage?.rules ?? null);
+  const rules = selectedStage?.rules;
+  const touchLimit = portal === 'reddit' && !selectedStage?.daily ? threeTouchLimit : undefined;
+  solo = rules?.twinShuttles ? createTwinShuttleGame() : singles;
+  solo.restart(3, rules?.cpuLevel ?? selectedCpuLevel, rules ?? null, { touchLimit });
 }
 
 function startCpu() {
