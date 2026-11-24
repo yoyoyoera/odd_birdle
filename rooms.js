@@ -1,4 +1,4 @@
-import { createGame, step } from './game.js';
+import { createGame, step, threeTouchLimit } from './game.js';
 
 // Quick match: at most this many players wait at once.
 const maxQueue = 200;
@@ -67,7 +67,8 @@ export function createRooms(randomIndex) {
 
   const isOpen = peer => peer.readyState === 1;
   const newGame = (left, right) => createGame({
-    bombEffects: states.get(left)?.bombEffects === true && states.get(right)?.bombEffects === true
+    bombEffects: states.get(left)?.bombEffects === true && states.get(right)?.bombEffects === true,
+    touchLimit: states.get(left)?.threeTouches && states.get(right)?.threeTouches ? threeTouchLimit : undefined
   });
 
   function dequeue(peer) {
@@ -184,7 +185,9 @@ export function createRooms(randomIndex) {
       }
 
       if (!room && ['create', 'join', 'queue'].includes(message.type)) {
-        states.get(peer).restartBarrier = message.restartBarrier === true;
+        const state = states.get(peer);
+        state.restartBarrier = message.restartBarrier === true;
+        state.threeTouches = message.touchLimit === threeTouchLimit;
       }
 
       if (room?.game) {

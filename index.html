@@ -88,6 +88,7 @@
     main[data-fullscreen] #pause-title { font-size: 3.4cqw; }
     main[data-fullscreen] #pause-detail { font-size: 1.7cqw; }
     main[data-fullscreen] #score { font-size: 6cqw; }
+    main[data-fullscreen] #touch-rule { top: calc(50% + 3cqw + .3rem); font-size: clamp(.7rem, 1.7cqw, 1.25rem); }
     main[data-fullscreen] #side-label, main[data-fullscreen] #cpu-label, main[data-fullscreen] #record { font-size: 1.5cqw; }
     main[data-fullscreen] #you-flag { font-size: 6.8cqw; }
     main[data-fullscreen] #winner { font-size: 3cqw; bottom: calc(50% + 2.4cqw); }
@@ -198,6 +199,10 @@
       color: var(--ink); opacity: .45; font-size: clamp(1.5rem, 6vw, calc(3.5rem * var(--grow, 1))); font-weight: 650; line-height: 1;
       font-variant-numeric: tabular-nums; pointer-events: none; }
     #stage[data-phase="ready"] #score, #stage[data-phase="finished"] #score { opacity: 1; }
+    #touch-rule { position: absolute; top: calc(50% + clamp(.75rem, 3vw, calc(1.75rem * var(--grow, 1))) + .3rem);
+      left: 50%; transform: translateX(-50%); color: var(--ink);
+      font-size: clamp(.7rem, 2.2vw, calc(1rem * var(--grow, 1))); font-weight: 700;
+      letter-spacing: .08em; white-space: nowrap; pointer-events: none; }
     #side-label, #cpu-label { position: absolute; top: 5%; left: 25%; transform: translateX(-50%);
       color: var(--ink); font-size: clamp(.65rem, 1.7vw, calc(.875rem * var(--grow, 1))); font-weight: 650;
       letter-spacing: .08em; pointer-events: none; }
@@ -238,6 +243,7 @@
       font-weight: 650; white-space: nowrap; pointer-events: none; }
     #event-banner[data-wind] { font-size: clamp(1.4rem, 6vw, calc(3.6rem * var(--grow, 1))); }
     #event-banner[data-bomb-urgent] { color: #a82f23; }
+    #event-banner[data-touch-fault] { top: 12%; color: #a82f23; }
     #stage[data-phase="ready"] #event-banner { top: 33.5%; transform: translate(-50%, -50%); opacity: .75;
       font-size: clamp(.75rem, 3.2vw, calc(1.9rem * var(--grow, 1))); }
     #game-control { position: absolute; top: 8px; right: 8px; display: grid; place-items: center;
@@ -297,6 +303,7 @@
     <h1>ODD BIRDLE</h1>
     <canvas id="court" aria-label="Badminton court. Use your pointer to hit the shuttle."></canvas>
     <output id="score" aria-label="Left and right scores" hidden>0:0</output>
+    <span id="touch-rule" hidden></span>
     <span id="side-label" hidden>YOU</span>
     <span id="cpu-label" hidden></span>
     <span id="you-flag" aria-hidden="true" hidden>YOU</span>

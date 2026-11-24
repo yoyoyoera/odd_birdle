@@ -79,6 +79,8 @@ export const racketRadius = 22;
 export const radiusOf = racket => racket?.r ?? racketRadius;
 const baseGravity = 760;
 export const step = 1 / 120;
+export const threeTouchLimit = 3;
+export const touchLimitFault = 'THAT’S FOUR!';
 export const faultReactions = ['Pardon?', 'LOL', 'Oops!', 'Nice try.', 'Wrong way.'];
 const cpuLevels = [
   { speed: 0.65, spikeChance: 0.04, outChance: 0.15 },
@@ -363,7 +365,7 @@ export function projectStrike(pose, motion, seconds, force) {
   return result;
 }
 
-export function createGame({ withCpu = false, quickEvents = false, bombEffects = false } = {}) {
+export function createGame({ withCpu = false, quickEvents = false, bombEffects = false, touchLimit } = {}) {
   let netReturn;
   let baseNetTop = netTop;
   let matchNetTop = netTop;
@@ -385,6 +387,7 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
   let cpuLevel;
   let server;
   let lastHitter;
+  let consecutiveTouches = 0;
   let phase = 'ready';
   let phaseTime;
   let hitCooldown;
@@ -459,6 +462,7 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
     cpu = withCpu ? { x: 660, y: 300 } : undefined;
     phase = 'live';
     lastHitter = undefined;
+    consecutiveTouches = 0;
     cordTouches = 0;
     hitCooldown = 0;
     touching.left = touching.right = false;
@@ -504,6 +508,7 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
     }
     updateOutline();
     if (reason === 'out') showEvent('out');
+    if (reason === 'touch limit') showEvent(touchLimitFault);
     const matchPoint = Math.max(score.left, score.right) === pointsToWin - 1;
     if (!matchPoint && (reason === 'own court' || reason === 'Net')) {
       showEvent(faultReactions[Math.floor(Math.random() * faultReactions.length)]);
@@ -897,15 +902,24 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
     return first;
   }
 
+  function touchesLeft(side) {
+    return (touchLimit ?? Infinity) - (lastHitter === side ? consecutiveTouches : 0);
+  }
+
   function launch(vx, vy, hitter) {
     support = undefined;
     strike = undefined;
+    pendingLanding = undefined;
+    if (touchesLeft(hitter) === 0) {
+      finishPoint(opponent(hitter), 'touch limit');
+      return false;
+    }
     afterBounce = false;
     flight++;
-    pendingLanding = undefined;
     shuttle.vx = vx;
     shuttle.vy = vy;
     shuttle.spin = vx / 92 + 1.4;
+    if (touchLimit !== undefined) consecutiveTouches = lastHitter === hitter ? consecutiveTouches + 1 : 1;
     lastHitter = hitter;
     cordTouches = 0;
     hitCooldown = 0.14;
@@ -917,6 +931,7 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
       revealAge = 0;
       if (cpuPrediction) cpuPrediction = { x: shuttle.x, y: shuttle.y + cpuSightBias, vx, vy };
     }
+    return true;
   }
 
   function playerHit(side, swingX, swingY) {
@@ -925,7 +940,7 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
       cpuOutFeint = undefined;
     }
     const { vx, vy } = swingVelocity(swingX, swingY);
-    launch(vx, vy, side);
+    return launch(vx, vy, side);
   }
 
   function onSide(side) {
@@ -935,6 +950,11 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
   function shuttlePose() {
     return { x: shuttle.x, y: shuttle.y, shape, angle: shuttle.angle,
       size: settledSize ?? shuttle.size * (activeEffect?.id === 'balloon' ? 2 : 1) };
+  }
+
+  function networkShuttlePose() {
+    return { ...shuttlePose(), baseSize: shuttle.size,
+      touchLimitReachedFor: touchesLeft(lastHitter) === 0 ? lastHitter : undefined };
   }
 
   function updateOutline() {
@@ -1003,11 +1023,11 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
     }
     // Start at the same contact pose the striker saw, then catch up to the server clock.
     Object.assign(shuttle, { x: frame.x, y: frame.y, angle: frame.angle });
-    playerHit(side, to.vx, to.vy);
+    if (!playerHit(side, to.vx, to.vy)) return;
     if (Number.isFinite(frame.time)) {
       strike = { flight, time: frame.time, fromFlight: frame.flight, side,
         racket: { x: to.x, y: to.y },
-        pose: { ...shuttlePose(), baseSize: shuttle.size }, motion: { vx: to.vx, vy: to.vy },
+        pose: networkShuttlePose(), motion: { vx: to.vx, vy: to.vy },
         force: pastForce(currentForce(), frame.age ?? 0) };
     }
     touching[side] = overlaps;
@@ -1136,7 +1156,8 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
     cpu.x += clamp(targetX - cpu.x, -290 * travel, 290 * travel);
     cpu.y += clamp(targetY - cpu.y, -340 * travel, 340 * travel);
     const inReach = defending && tracked.x <= rightLine && shuttle.x <= rightLine;
-    if (canHit && cpuThaw <= 0 && (inReach || leavingOut) && shuttle.x >= center &&
+    const remainingTouches = touchesLeft('right');
+    if (canHit && remainingTouches > 0 && cpuThaw <= 0 && (inReach || leavingOut) && shuttle.x >= center &&
         (lastHitter !== 'right' || cpuFollowUps > 0 || afterBounce) && hitCooldown <= 0 &&
         racketContact(cpu, cpu)) {
       if (leavingOut) {
@@ -1152,6 +1173,7 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
         const roll = Math.random();
         if (roll < liftChance) cpuFollowUps = roll < doubleLiftChance ? 2 : 1;
       }
+      cpuFollowUps = Math.min(cpuFollowUps, remainingTouches - 1);
       if (cpuFollowUps > 0) {
         // Keep the setup on our side and chase it for the next real contact.
         const target = clamp(shuttle.x, center + 78, rightLine - 75);
@@ -1376,7 +1398,7 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
         // Same flight only: a bounce or a hit in this step moved it somewhere it did not fly to.
         checkContact(side, racket, racket, motion.vx, motion.vy, flightBefore === flight ? before : undefined);
       }
-      moveCpu(dt);
+      if (phase === 'live') moveCpu(dt);
       if (decoys.length && cpu) racketPopsDecoys(cpu, cpu);
     }
   }
@@ -1387,7 +1409,7 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
     const visible = shuttle && phase !== 'starting' && (!invisible || reveal > 0);
     const position = (racket) => racket && { x: racket.x, y: racket.y, seenTime: racket.seenTime, r: racket.r };
     return {
-      phase, score, message, winner, eventText, eventWind, flash, frozen, support, cpuLevel, netTop: matchNetTop,
+      phase, score, message, winner, eventText, eventWind, flash, frozen, support, cpuLevel, touchLimit, netTop: matchNetTop,
       strike: strike?.flight === flight ? strike : undefined,
       force: currentForce(),
       // Where the crowd is looking: the shuttle's place, sent all through a rally so it is still there when
@@ -1410,7 +1432,7 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
         ? { swell: trampolineSwell(), press: press ? { x: press.x, age: press.age } : undefined } : undefined,
       // NET CORD: how many tape clips so far (a new one is a sound and an "ooh") and the tape's wobble.
       cord: { count: cordCount, x: cordX, wobble: cordFlash / netCordSeconds },
-      shuttle: visible && !bombBurst ? { ...shuttlePose(), flight, baseSize: shuttle.size, canHit: hitCooldown <= 0 && !pendingLanding && !frozen } : undefined,
+      shuttle: visible && !bombBurst ? { ...networkShuttlePose(), flight, canHit: hitCooldown <= 0 && !pendingLanding && !frozen } : undefined,
       left: position(rackets.left),
       right: position(cpu ?? rackets.right)
     };

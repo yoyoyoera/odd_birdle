@@ -47,7 +47,7 @@ const toneCache = new WeakMap();
 
 function drawPerson(ctx, p, tones, look) {
   const { x, y, s } = p;
-  const { raise, droop, clock, lean, gaze, duck } = look;
+  const { raise, boo, droop, clock, lean, gaze, duck } = look;
   const headY = y - 15 * s, r = 11 * s, w = 18 * s;
   const torso = tones.torso[p.row][p.shade], face = tones.face[p.face], hair = tones.hair[p.hair];
   // The head and what sits on it turn together, around the neck.
@@ -59,18 +59,21 @@ function drawPerson(ctx, p, tones, look) {
     draw();
     ctx.restore();
   };
-  if (raise > 0.01) {
-    // The arm swings up from hanging at the side to up and a little outward, with a small wave while it is up.
+  const protesting = boo > 0.01;
+  if (raise > 0.01 || protesting) {
+    // A cheer waves overhead. A protest lifts the hand nearest the middle of the court.
     const swing = raise * 2.9 + Math.sin(clock / 160 + x) * 0.07 * raise;
     ctx.strokeStyle = torso;
     ctx.lineWidth = 7 * s;
     ctx.lineCap = 'round';
     ctx.fillStyle = face;
-    for (const d of [-1, 1]) {
+    for (const d of protesting ? [x < 450 ? 1 : -1] : [-1, 1]) {
       const fromX = x + d * w * 0.7, fromY = y + 8 * s;
-      const toX = fromX + d * Math.sin(swing) * 36 * s, toY = fromY + Math.cos(swing) * 36 * s;
+      const toX = protesting ? fromX + d * (5 + 10 * boo) * s : fromX + d * Math.sin(swing) * 36 * s;
+      const toY = protesting ? fromY + (17 - 23 * boo) * s : fromY + Math.cos(swing) * 36 * s;
       ctx.beginPath();
       ctx.moveTo(fromX, fromY);
+      if (protesting) ctx.lineTo(fromX + d * 8 * boo * s, fromY + 9 * s);
       ctx.lineTo(toX, toY);
       ctx.stroke();
       ctx.beginPath();
@@ -164,6 +167,8 @@ const easeOut = t => 1 - (1 - t) ** 3;
 const easeInOut = t => t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
 const cheerTiming = { rise: 0.3, hold: 0.7, fall: 0.5 };
 const droopTiming = { rise: 0.4, hold: 1.1, fall: 0.8 };
+const booTiming = { rise: 0.15, hold: 0.24, fall: 0.24 };
+const booSpectators = new WeakMap();
 
 // How far a reaction has gone, 0 to 1, `seconds` after it began: eased up, held, then eased back. At the end of a
 // match (`finale`) it stays up.
@@ -208,7 +213,7 @@ export function bombDuckAmount(person, progress) {
 }
 
 // Draws the stands. `cheer` is { side, since, finale } for the side that just scored: that side's crowd cheers and
-// the other side sinks a little. `mood` (from crowd.js) carries the effect running, the rally's standing crowd and
+// the other side sinks a little. `boo` marks the side that broke the touch limit. `mood` carries the effect running, the rally's standing crowd and
 // the crowd's own clock; `jolt` is the SHOCK flinch.
 // How hard the crowd flinches at SHOCK (px at full jolt, before scale): sideways shake, sinking, shake speed.
 // A little stronger than before (was 2.2 / 6 / 22 ms; tuned up again after a first bump was too faint to see); reduced motion turns the jolt off in client.js.
@@ -221,10 +226,27 @@ export function gazeTarget(person, now, count) {
   return Math.abs(Math.imul(slot + Math.round(person.x), 2654435761) >>> 0) % count;
 }
 
-export function drawStands(ctx, stands, { gaze, gazes, palette, cheer, now = 0, jolt = 0, mood = noMood, bombDuck }) {
+function spectatorsForBoo(stands, boo) {
+  const current = booSpectators.get(boo);
+  if (current) return current;
+  // Keep the same few seats reacting for the entire point without consuming gameplay randomness.
+  const random = randomFrom(Math.imul(Math.floor(boo.since), 2654435761) >>> 0);
+  const seats = stands.people.filter(person => person.fan && (person.x < 450) === (boo.side === 'left'));
+  const count = Math.min(seats.length, Math.floor(random() * 5));
+  const selected = new Set();
+  for (let i = 0; i < count; i++) {
+    const index = Math.floor(random() * seats.length);
+    selected.add(seats.splice(index, 1)[0]);
+  }
+  booSpectators.set(boo, selected);
+  return selected;
+}
+
+export function drawStands(ctx, stands, { gaze, gazes, palette, cheer, boo, now = 0, jolt = 0, mood = noMood, bombDuck }) {
   let tones = toneCache.get(palette);
   if (!tones) toneCache.set(palette, tones = tonesFor(palette));
   const { effect, effectAge, wind, standing, surprise, clock } = mood;
+  const reacting = boo && spectatorsForBoo(stands, boo);
   const blend = Math.min(1, effectAge / 250);
   ctx.fillStyle = tones.wall;
   ctx.fillRect(0, 0, 900, standsBottom);
@@ -242,10 +264,12 @@ export function drawStands(ctx, stands, { gaze, gazes, palette, cheer, now = 0, 
       const seconds = cheer ? (now - cheer.since) / 1000 - p.delay : 0;
       const duck = bombDuckAmount(p, bombDuck);
       const raise = onCheerSide && (p.fan || cheer.finale) ? cheerAmount(seconds, cheer.finale) * (1 - duck) : 0;
-      const droop = cheer && !onCheerSide ? cheerAmount(seconds, cheer.finale, droopTiming) : 0;
+      const booSeconds = reacting?.has(p) ? (now - boo.since) / 1000 - p.delay : 0;
+      const protest = cheerAmount(booSeconds, false, booTiming) * (1 - duck);
+      const droop = cheer && !onCheerSide ? cheerAmount(seconds, cheer.finale, droopTiming) * (1 - protest) : 0;
       let dx = 0, dy = Math.sin(clock / 650 + p.x * 0.05) * 0.8 * s;
       if (jolt > 0) { dx += Math.sin(now / joltPower.period + p.x) * joltPower.shake * jolt * s; dy += jolt * joltPower.drop * s; }
-      dy += droop * 5 * s - surprise * 3 * s;
+      dy += (droop * 5 - surprise * 3 - protest * 1.4) * s;
       if (p.stand) dy -= standing * (9 + Math.abs(Math.sin(clock / 170 + p.x)) * 2.5) * s;
       dy += duck * 29 * s;
       let tilt = 0;
@@ -257,12 +281,13 @@ export function drawStands(ctx, stands, { gaze, gazes, palette, cheer, now = 0, 
       let lean = (p.x < 450 ? -0.18 : 0.18) * duck;
       if (effect === 'balloon') look = { x: p.x, y: -400 };
       if (effect === 'invisible' && gaze) lean = Math.max(-0.32, Math.min(0.32, (gaze.x - p.x) / 500 * 0.5));
+      lean += Math.sin(booSeconds * 18) * 0.09 * protest;
       ctx.save();
       ctx.translate(p.x + dx, y + 40 * s + dy);
       ctx.rotate(tilt);
       ctx.translate(-p.x, -(y + 40 * s));
       drawPerson(ctx, p, tones, {
-        raise, droop, clock, lean, gaze: look, duck
+        raise, boo: protest, droop, clock, lean, gaze: look, duck
       });
       ctx.restore();
     }

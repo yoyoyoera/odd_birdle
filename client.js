@@ -1,4 +1,9 @@
-import { center, clamp, createGame, floor, height, leftLine, netTop, racketRadius, rightLine, setMirroredShapes, shuttleOutline, step, width, contactMotion, isSwing, projectStrike, forceAt, effectIds, shapeCount, shuttleSizeOptions, racketTouches, posesBetween, sweptTouch, supportedShuttleY, swingMotion, trialEffectIds, trialEffectLabels, trampolineLift, trampolineDent } from './game.js';
+import {
+  center, clamp, createGame, floor, height, leftLine, netTop, racketRadius, rightLine, setMirroredShapes, shuttleOutline,
+  step, width, contactMotion, isSwing, projectStrike, forceAt, effectIds, shapeCount, shuttleSizeOptions, racketTouches,
+  posesBetween, sweptTouch, supportedShuttleY, swingMotion, trialEffectIds, trialEffectLabels, trampolineLift,
+  trampolineDent, threeTouchLimit, touchLimitFault
+} from './game.js';
 import { makeStands, drawStands, createBombCrowdMotion } from './stands.js';
 import { createCrowd } from './crowd.js';
 import { createLinkQuality } from './link-quality.js';
@@ -38,6 +43,7 @@ if (frameDiagnostics) {
 }
 const stage = document.querySelector('#stage');
 const scoreboard = document.querySelector('#score');
+const touchRule = document.querySelector('#touch-rule');
 const sideLabel = document.querySelector('#side-label');
 const cpuLabel = document.querySelector('#cpu-label');
 const youFlag = document.querySelector('#you-flag');
@@ -114,7 +120,11 @@ let racketIsTouch = false;
 const racketSender = createRacketSender(message => send(message), { interval: () => (racketIsTouch && !oldNet ? 33 : 0) });
 // ?test=juice opens a CPU Lv.4 match with switches for each screen touch below.
 const testJuice = testParams.get('test') === 'juice';
-const solo = createGame({ withCpu: true, bombEffects: !portal, quickEvents: (testEffects || onlyEffectTest) && testParams.get('fast') === '1' });
+const testThreeTouches = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname) && testParams.get('test') === 'touches';
+const solo = createGame({
+  withCpu: true, bombEffects: !portal, touchLimit: threeTouchLimit,
+  quickEvents: (testEffects || onlyEffectTest) && testParams.get('fast') === '1'
+});
 const demo = createDemo();
 const sound = createSound();
 const soundCues = createCueTracker();
@@ -275,7 +285,7 @@ function connect(request, via = request.type === 'join' ? 'code' : 'create') {
   connection.addEventListener('open', () => {
     if (socket !== connection) return;
     if (queueing) updateQueue();
-    else send({ ...request, restartBarrier: coordinatedBreak });
+    else send({ ...request, restartBarrier: coordinatedBreak, touchLimit: threeTouchLimit });
   });
   connection.addEventListener('message', ({ data }) => {
     if (socket !== connection) return;
@@ -377,6 +387,8 @@ function updateHud(view) {
   const { phase, score, eventText = '', eventWind = false, winner, message = '' } = view;
   if (stage.dataset.phase !== phase) stage.dataset.phase = phase;
   scoreboard.hidden = !score;
+  touchRule.hidden = phase !== 'starting' || !score;
+  if (!touchRule.hidden) setText(touchRule, view.touchLimit === threeTouchLimit ? '3 TOUCH LIMIT' : 'UNLIMITED TOUCHES');
   sideLabel.hidden = mode !== 'online' && mode !== 'solo';
   sideLabel.dataset.side = shownSide();
   cpuLabel.dataset.side = shownSide() === 'left' ? 'right' : 'left';
@@ -400,6 +412,7 @@ function updateHud(view) {
   eventBanner.hidden = !banner;
   eventBanner.toggleAttribute('data-wind', eventWind);
   eventBanner.toggleAttribute('data-bomb-urgent', !!view.bomb?.lit && view.bomb.secondsLeft <= 2);
+  eventBanner.toggleAttribute('data-touch-fault', banner === touchLimitFault);
   setText(eventBanner, mirrored() ? banner.replace(/[←→]/g, arrow => arrow === '←' ? '→' : '←') : banner);
   // During a CPU match the small restart icon; once any match is over, worded buttons to play again or leave.
   const finished = (mode === 'solo' || mode === 'online') && phase === 'finished';
@@ -462,6 +475,8 @@ function predictContact(from, to, motion, time, moving = false) {
   hitSeenTime = earlier && Number.isFinite(now) ? earlier.time + (now - earlier.time) * path[meet].fraction : now;
   localOverlap = overlaps;
   predictedFlight = shuttle.flight;
+  // Still report the contact promptly for the server to score the fault, without predicting a return.
+  if (shuttle.touchLimitReachedFor === localSide) return true;
   // A wind or balloon in progress shapes the flight the same way on the server.
   prediction = { shuttle: path[meet], motion, started: time, force: onlineView?.force };
   return true;
@@ -757,6 +772,7 @@ function drawCourt(view) {
   const bombDuck = bombCrowdMotion.update(now, reduceMotion.matches ? undefined : liveBomb?.x);
   drawStands(ctx, standsFor(view), {
     gaze: view.gaze, gazes: view.gazes, palette, cheer: crowdNow.cheer, now, mood: crowdNow.mood,
+    boo: reduceMotion.matches ? undefined : crowdNow.boo,
     jolt: reduceMotion.matches ? 0 : shockJolt(view.shake), bombDuck: reduceMotion.matches ? undefined : bombDuck
   });
   if (liveBomb) {
@@ -1398,6 +1414,13 @@ document.querySelector('#cpu').addEventListener('click', () => afterMatchBreak((
 // Declared before the test pages below, which start a CPU game (and so read it) while the file is still loading.
 const quick = { on: false, queued: false, found: undefined, finished: false };
 
+if (testThreeTouches) {
+  selectedCpuLevel = 4;
+  showCpuLevel();
+  window.oddBirdleTest = { solo };
+  startCpu();
+}
+
 if (testEffects) {
   // A CPU Lv.4 match straight away, with a button (or number key 1-7) per effect.
   selectedCpuLevel = 4;
@@ -1732,7 +1755,7 @@ function updateQueue() {
   const want = !gamePaused && !breakPending && quick.on && mode === 'solo' && document.visibilityState === 'visible' &&
     performance.now() - lastInput < idleMs;
   if (want !== quick.queued && socket?.readyState === WebSocket.OPEN) {
-    send({ type: want ? 'queue' : 'unqueue', restartBarrier: coordinatedBreak });
+    send({ type: want ? 'queue' : 'unqueue', restartBarrier: coordinatedBreak, touchLimit: want ? threeTouchLimit : undefined });
     if (!want) quick.queued = false;
   }
   showQueueStatus();

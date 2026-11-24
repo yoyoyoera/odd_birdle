@@ -2,6 +2,8 @@
 // hits the rally has had (a long one gets people up out of their seats), which effect is running, and which
 // crowd sounds to play. Pure (no drawing, no audio), so it can be tested.
 
+import { touchLimitFault } from './game.js';
+
 const surprising = ['shock', 'highNet', 'lowNet', 'balloon', 'bumper', 'decoy', 'trampoline'];
 const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
 
@@ -10,6 +12,7 @@ export function createCrowd() {
   let standing = 0;
   let last;
   let cheer;
+  let boo;
   let effect;
   let effectSince = -Infinity;
   let surpriseSince = -Infinity;
@@ -17,7 +20,7 @@ export function createCrowd() {
   let clock = 0;
   return {
     reset() {
-      rally = 0; standing = 0; last = undefined; cheer = undefined; effect = undefined; clock = 0; cords = undefined;
+      rally = 0; standing = 0; last = undefined; cheer = undefined; boo = undefined; effect = undefined; clock = 0; cords = undefined;
     },
     get rally() { return rally; },
     update(view, events, now) {
@@ -38,17 +41,21 @@ export function createCrowd() {
       cords = cordNow;
       // The crowd's own clock, which stands still during FREEZE: nobody sways, nobody waves.
       if (effect !== 'freeze') clock += dt * 1000;
+      if (view.phase === 'starting' || (boo && now - boo.since >= 850)) boo = undefined;
       for (const event of events) {
         if (event.type === 'hit' && view.phase === 'live') {
           rally++;
         } else if (event.type === 'score') {
-          cheer = { side: event.side, since: now };
+          boo = view.eventText === touchLimitFault
+            ? { side: event.side === 'left' ? 'right' : 'left', since: now }
+            : undefined;
+          cheer = boo ? undefined : { side: event.side, since: now };
           rally = 0;
           // Only the end of a match gets a sound from the crowd; every point would be too much noise.
           if (view.phase === 'finished') cues.push('applauseBig');
         }
       }
-      if (view.phase === 'finished' && view.winner) {
+      if (view.phase === 'finished' && view.winner && !boo) {
         if (!cheer || cheer.side !== view.winner) cheer = { side: view.winner, since: now };
         cheer.finale = true;
       } else if (cheer?.finale) {
@@ -58,7 +65,7 @@ export function createCrowd() {
       standing += (target - standing) * Math.min(1, dt * 2.5);
       const wind = view.force?.type === 'wind' ? Math.sign(view.force.x) || 0 : 0;
       return {
-        cues, cheer,
+        cues, cheer, boo,
         mood: {
           effect, effectAge: now - effectSince, wind, standing, clock,
           surprise: Math.max(0, 1 - (now - surpriseSince) / 1100)
