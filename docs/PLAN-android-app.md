@@ -76,8 +76,9 @@
   - 둘은 손대는 파일이 겹치지 않는다. 앱 웹 코드와 네이티브가 주고받는 이벤트 목록은 시작 전에 내가 정해 준다.
 - 끝 조건: `npx cap sync android` 성공. Playwright로 390×844·844×390·Android 16 상단 인셋 가정 화면의 배치 스크린샷을 확인하고 회귀 기준으로 저장한다.
 
-#### Step A2. GitHub Actions 디버그 APK 🔄
-- 로컬 `assembleDebug` 성공(4.4MB, targetSdk 36, 16KB 정렬 통과, 네이티브 라이브러리 없음). 워크플로 `.github/workflows/android.yml` 첫 실행 확인 중.
+#### Step A2. GitHub Actions 디버그 APK ✅
+- 로컬 `assembleDebug` 성공(4.4MB, targetSdk 36, 16KB 정렬 통과, 네이티브 라이브러리 없음).
+- Actions 첫 실행 성공(약 2분): https://github.com/yoyoyoera/odd_birdle/actions/runs/45446086703 · 아티팩트 `odd-birdle-debug-9a8413c`(30일 보관). 이후 작업 브랜치에 푸시할 때마다 새 APK가 만들어진다.
 - `.github/workflows/android.yml` 순서:
   1. Node 22 빌드
   2. `cap sync`
@@ -86,7 +87,7 @@
   5. `targetSdk`가 36 이상인지 검사하고, 아니면 빌드를 실패시킨다
 - 끝 조건: Actions에서 APK가 만들어지고 다운로드할 수 있다.
 
-#### Step A3. 실기기 점검 📱 ⬜
+#### Step A3. 실기기 점검 📱 🔄 (사용자 확인 대기)
 - 사용자 체크리스트(결과를 이 문서 8절에 기록):
   1. 비행기 모드에서 첫 실행 → 메뉴·폰트·소리 정상
   2. 세로↔가로 회전(메뉴·경기 중)
