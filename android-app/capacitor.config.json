@@ -1,0 +1,21 @@
+{
+  "appId": "com.oddbirdle.app",
+  "appName": "Odd Birdle",
+  "webDir": "../portal/app",
+  "backgroundColor": "#182223",
+  "server": {
+    "androidScheme": "https",
+    "hostname": "app.oddbirdle"
+  },
+  "android": {
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "SystemBars": {
+      "insetsHandling": "css",
+      "initialViewportFitValueHint": "cover",
+      "style": "DARK",
+      "hidden": true
+    }
+  }
+}
