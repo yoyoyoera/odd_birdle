@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Court cream of the icon art (resources/icon-source.png). -->
+    <color name="ic_launcher_background">#F0E6D6</color>
+    <!-- Page colour of the game (index.html, the page CSS variable); window, splash and WebView background. -->
+    <color name="app_background">#182223</color>
+</resources>
