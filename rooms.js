@@ -1,4 +1,4 @@
-import { createGame, step } from './game.js';
+import { createGame, step, threeTouchLimit } from './game.js';
 
 // Quick match: at most this many players wait at once.
 const maxQueue = 200;
@@ -66,6 +66,10 @@ export function createRooms(randomIndex) {
   }
 
   const isOpen = peer => peer.readyState === 1;
+  const newGame = (left, right) => createGame({
+    bombEffects: states.get(left)?.bombEffects === true && states.get(right)?.bombEffects === true,
+    touchLimit: states.get(left)?.threeTouches && states.get(right)?.threeTouches ? threeTouchLimit : undefined
+  });
 
   function dequeue(peer) {
     const index = queue.indexOf(peer);
@@ -89,7 +93,7 @@ export function createRooms(randomIndex) {
         for (const peer of [left, right]) if (isOpen(peer)) queue.unshift(peer);
         break;
       }
-      const room = { code: newCode(), left, right, expiresAt: Date.now() + roomLifetime, game: createGame(), quick: true };
+      const room = { code: newCode(), left, right, expiresAt: Date.now() + roomLifetime, game: newGame(left, right), quick: true };
       rooms.set(room.code, room);
       states.get(left).seat(room, 'left');
       states.get(right).seat(room, 'right');
@@ -129,13 +133,14 @@ export function createRooms(randomIndex) {
     }
   }
 
-  function attach(peer, { restartBarrier = false } = {}) {
+  function attach(peer, { restartBarrier = false, bombEffects = false } = {}) {
     peers.add(peer);
     startTimers();
     let room;
     let side;
     states.set(peer, {
       id: ++nextPeerId,
+      bombEffects,
       // Set by the server from a trusted request Origin, not by the client protocol.
       // This covers already-submitted portal builds which know only { type: 'restart' }.
       serverRestartBarrier: restartBarrier,
@@ -180,7 +185,9 @@ export function createRooms(randomIndex) {
       }
 
       if (!room && ['create', 'join', 'queue'].includes(message.type)) {
-        states.get(peer).restartBarrier = message.restartBarrier === true;
+        const state = states.get(peer);
+        state.restartBarrier = message.restartBarrier === true;
+        state.threeTouches = message.touchLimit === threeTouchLimit;
       }
 
       if (room?.game) {
@@ -248,7 +255,7 @@ export function createRooms(randomIndex) {
         room = target;
         side = 'right';
         room.right = peer;
-        room.game = createGame();
+        room.game = newGame(room.left, room.right);
         start(room);
       }
     });

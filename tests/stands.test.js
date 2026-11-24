@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { makeStands, mix, standsBottom } from '../stands.js';
+import { bombDuckAmount, createBombCrowdMotion, drawStands, makeStands, mix, standsBottom } from '../stands.js';
 
 test('every match gets its own crowd, and the same seed gives the same one', () => {
   const sizes = new Set();
@@ -18,9 +18,65 @@ test('the crowd stays inside the stands at the top and never sits in the middle 
   }
 });
 
+test('only zero to four spectators on the faulting side raise one hand on a fourth touch', () => {
+  const stands = makeStands(22462);
+  const palette = { court: '#faf9ef', ink: '#18343b' };
+  const armsAt = (boo, now) => {
+    const arms = [];
+    let x;
+    const canvas = new Proxy({
+      moveTo: start => { x = start; },
+      stroke: () => { arms.push(x); }
+    }, { get: (target, name) => target[name] ?? (() => {}) });
+    drawStands(canvas, stands, { palette, boo, now });
+    return arms;
+  };
+  const counts = new Set();
+  for (const side of ['left', 'right']) {
+    for (let since = 1000; since < 1060; since++) {
+      const boo = { side, since };
+      const arms = armsAt(boo, since + 350);
+      counts.add(arms.length);
+      assert.ok(arms.length <= 4 && arms.every(x => (x < 450) === (side === 'left')));
+      assert.deepEqual(armsAt(boo, since + 380), arms);
+    }
+  }
+  assert.deepEqual([...counts].sort(), [0, 1, 2, 3, 4]);
+});
+
 test('mix blends two colours', () => {
   assert.equal(mix('#000000', '#ffffff', 0.5), '#808080');
   assert.equal(mix('#102030', '#102030', 0.7), '#102030');
+});
+
+test('spectators duck on the bomb side and rise smoothly as it crosses or disappears', () => {
+  const crowd = createBombCrowdMotion();
+  const left = { x: 150, delay: 0 };
+  const right = { x: 750, delay: 0 };
+  let now = 0;
+  let progress = crowd.update(now, 210);
+  const advance = (frames, x) => {
+    for (let frame = 0; frame < frames; frame++) progress = crowd.update(now += 16, x);
+    return [bombDuckAmount(left, progress), bombDuckAmount(right, progress)];
+  };
+
+  assert.equal(bombDuckAmount(left, progress), 0);
+  assert.ok(advance(4, 210)[0] > 0);
+  assert.ok(bombDuckAmount({ ...left, delay: 0.16 }, progress) < bombDuckAmount(left, progress));
+  const [crouched, resting] = advance(26, 210);
+  assert.ok(crouched > 0.95);
+  assert.equal(resting, 0);
+
+  const [leaving, entering] = advance(1, 620);
+  assert.ok(leaving > 0.95 && entering < 0.05);
+  const [rising, ducking] = advance(8, 620);
+  assert.ok(rising > 0 && rising < leaving && ducking > entering && ducking < 1);
+  const [reversedLeft, reversedRight] = advance(1, 210);
+  assert.ok(Math.abs(reversedLeft - rising) < 0.15 && Math.abs(reversedRight - ducking) < 0.15);
+
+  const [afterBurst, otherSide] = advance(1, undefined);
+  assert.ok(afterBurst > 0 && otherSide > 0);
+  assert.ok(advance(65, undefined).every(amount => amount < 0.001));
 });
 
 import { cheerAmount } from '../stands.js';

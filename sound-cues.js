@@ -9,6 +9,7 @@ const effectNames = [...effectLabels, ...trialEffectLabels];
 const taunts = new Set([...faultReactions, 'Sleepy?']);
 // Two flashes this close together are one hit (local prediction, then the server's copy).
 const sameHitMs = 130;
+const bombBeats = [2.4, 1.8, 1.3, 0.9, 0.6, 0.38, 0.25, 0.16, 0.09, 0.035];
 
 // Turns what the screen shows into sound cues, so CPU and online play sound alike.
 export function createCueTracker() {
@@ -24,6 +25,9 @@ export function createCueTracker() {
       const text = view.eventText ?? '';
       const fresh = (view.pops ?? []).filter(pop => pop.progress < 0.12).length;
       if (previous) {
+        if (view.bombBurst && (!previous.bombBurst || view.bombBurst.age < previous.bombBurst.age)) cues.push('shock');
+        const fuse = view.bomb?.lit ? view.bomb.fuse : undefined;
+        if (bombBeats.some(beat => previous.fuse > beat && fuse <= beat)) cues.push('tick');
         // The trampoline's throw-back lights the hit ring but is not a racket hit: it has its own sound.
         const trampolineThrow = view.trampoline?.press && view.trampoline.press.age < 0.3;
         if ((view.flash ?? 0) > (previous.flash ?? 0) + 0.05 && now - lastHit > sameHitMs && !trampolineThrow) {
@@ -53,7 +57,7 @@ export function createCueTracker() {
           else if (view.score[other] > previous.score[other]) cues.push('pointLost');
         }
       }
-      previous = { cords: view.cord?.count ?? 0, flash: view.flash ?? 0, text, ring: view.bumper?.ring ?? 0, fresh, pressAge: view.trampoline?.press?.age, phase: view.phase, score: view.score && { ...view.score } };
+      previous = { cords: view.cord?.count ?? 0, flash: view.flash ?? 0, text, ring: view.bumper?.ring ?? 0, fresh, pressAge: view.trampoline?.press?.age, phase: view.phase, score: view.score && { ...view.score }, fuse: view.bomb?.fuse, bombBurst: view.bombBurst };
       return cues;
     }
   };

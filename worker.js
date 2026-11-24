@@ -28,7 +28,11 @@ export class RoomHub extends DurableObject {
     if (this.rooms.size >= 256) return new Response('Lobby full', { status: 503 });
     const pair = new WebSocketPair();
     pair[1].accept();
-    this.rooms.attach(pair[1], { restartBarrier: requiresRematchReady(request.headers.get('Origin')) });
+    const origin = request.headers.get('Origin');
+    this.rooms.attach(pair[1], {
+      restartBarrier: requiresRematchReady(origin),
+      bombEffects: originSource(origin) === 'site' && new URL(request.url).searchParams.get('bomb') === '1'
+    });
     return new Response(null, { status: 101, webSocket: pair[0] });
   }
 }

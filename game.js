@@ -79,6 +79,8 @@ export const racketRadius = 22;
 export const radiusOf = racket => racket?.r ?? racketRadius;
 const baseGravity = 760;
 export const step = 1 / 120;
+export const threeTouchLimit = 3;
+export const touchLimitFault = 'THAT’S FOUR!';
 export const faultReactions = ['Pardon?', 'LOL', 'Oops!', 'Nice try.', 'Wrong way.'];
 const cpuLevels = [
   { speed: 0.65, spikeChance: 0.04, outChance: 0.15 },
@@ -106,10 +108,12 @@ const trialEffects = [
 ];
 export const trialEffectIds = trialEffects.map(effect => effect.id);
 export const trialEffectLabels = trialEffects.map(effect => effect.label);
-const everyEffect = [...effects, ...trialEffects];
+const bombEffect = { id: 'bomb', label: 'BOMB' };
+const everyEffect = [...effects, ...trialEffects, bombEffect];
 // FREEZE and INVISIBLE are retired from play: still here for the test pages (asked for by name), never drawn at random.
 const retiredEffects = ['freeze', 'invisible'];
-const livePool = everyEffect.filter(effect => !retiredEffects.includes(effect.id));
+const livePool = everyEffect.filter(effect => effect !== bombEffect && !retiredEffects.includes(effect.id));
+const bombPool = [...livePool, bombEffect];
 export const retiredEffectIds = [...retiredEffects];
 export const randomEffectIds = livePool.map(effect => effect.id);
 
@@ -361,7 +365,7 @@ export function projectStrike(pose, motion, seconds, force) {
   return result;
 }
 
-export function createGame({ withCpu = false, quickEvents = false } = {}) {
+export function createGame({ withCpu = false, quickEvents = false, bombEffects = false, touchLimit } = {}) {
   let netReturn;
   let baseNetTop = netTop;
   let matchNetTop = netTop;
@@ -383,6 +387,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
   let cpuLevel;
   let server;
   let lastHitter;
+  let consecutiveTouches = 0;
   let phase = 'ready';
   let phaseTime;
   let hitCooldown;
@@ -390,6 +395,8 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
   let eventWait;
   let countdown;
   let activeEffect;
+  let bombBurst;
+  let stoppedBomb;
   let cpuPrediction;
   let cpuFollowUps = 0;
   let cpuThaw = 0;
@@ -430,6 +437,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
   const opponent = (side) => side === 'left' ? 'right' : 'left';
 
   function serve() {
+    bombBurst = stoppedBomb = undefined;
     settledSize = undefined;
     trampolineHold = undefined;
     afterBounce = false;
@@ -454,6 +462,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     cpu = withCpu ? { x: 660, y: 300 } : undefined;
     phase = 'live';
     lastHitter = undefined;
+    consecutiveTouches = 0;
     cordTouches = 0;
     hitCooldown = 0;
     touching.left = touching.right = false;
@@ -487,6 +496,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
   }
 
   function finishPoint(side, reason) {
+    if (reason === 'out' && activeEffect?.id === 'bomb') stoppedBomb = bombView(false);
     if (countdown > 0) scheduleEvent();
     settledSize = shuttlePose().size;
     const finishedNetTop = matchNetTop;
@@ -498,6 +508,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     }
     updateOutline();
     if (reason === 'out') showEvent('out');
+    if (reason === 'touch limit') showEvent(touchLimitFault);
     const matchPoint = Math.max(score.left, score.right) === pointsToWin - 1;
     if (!matchPoint && (reason === 'own court' || reason === 'Net')) {
       showEvent(faultReactions[Math.floor(Math.random() * faultReactions.length)]);
@@ -519,6 +530,17 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
   function showEvent(message, wind = false) {
     eventText = message;
     eventWind = wind;
+  }
+
+  function bombView(lit) {
+    const { remaining: fuse, total } = activeEffect;
+    return { fuse, lit, remaining: fuse / total, secondsLeft: Math.ceil(fuse - 1e-9) };
+  }
+
+  function explodeBomb() {
+    bombBurst = { x: shuttle.x, y: shuttle.y, age: 0 };
+    finishPoint(shuttle.x < center ? 'right' : 'left', 'Explosion');
+    showEvent('BOOM!');
   }
 
   function scheduleEvent() {
@@ -548,13 +570,21 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
   }
 
   function startEffect(chosen) {
-    const pool = onlyEffect ? everyEffect.filter(candidate => candidate.id === onlyEffect) : livePool;
+    const pool = onlyEffect ? everyEffect.filter(candidate => candidate.id === onlyEffect)
+      : bombEffects ? bombPool : livePool;
     const effect = chosen ?? pool[Math.floor(Math.random() * pool.length)];
-    const length = effectSeconds[effect.id] ?? (Array.isArray(effect.duration)
+    const length = effectSeconds[effect.id] ?? (effect === bombEffect ? 3 + Math.floor(Math.random() * 5) : Array.isArray(effect.duration)
       ? effect.duration[0] + Math.random() * (effect.duration[1] - effect.duration[0]) : effect.duration);
     activeEffect = { id: effect.id, remaining: length, total: length, netScale: netScales[effect.id] ?? effect.netScale };
     let label = effect.label;
     switch (activeEffect.id) {
+      case 'bomb':
+        shape = 1;
+        Object.assign(shuttle, flightProfile(shapes[shape], shuttle.size));
+        flight++;
+        strike = support = undefined;
+        updateOutline();
+        break;
       case 'freeze':
         flight++;
         flash = 0;
@@ -608,7 +638,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
         matchNetTop = netEffectTop(baseNetTop, netEffectSeconds - activeEffect.remaining, activeEffect.netScale);
         netStart.y = matchNetTop;
       }
-      if (activeEffect.remaining <= 1e-9) clearEffect();
+      if (activeEffect.id !== 'bomb' && activeEffect.remaining <= 1e-9) clearEffect();
       return;
     }
     if (!effectsOn) return;
@@ -872,15 +902,24 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     return first;
   }
 
+  function touchesLeft(side) {
+    return (touchLimit ?? Infinity) - (lastHitter === side ? consecutiveTouches : 0);
+  }
+
   function launch(vx, vy, hitter) {
     support = undefined;
     strike = undefined;
+    pendingLanding = undefined;
+    if (touchesLeft(hitter) === 0) {
+      finishPoint(opponent(hitter), 'touch limit');
+      return false;
+    }
     afterBounce = false;
     flight++;
-    pendingLanding = undefined;
     shuttle.vx = vx;
     shuttle.vy = vy;
     shuttle.spin = vx / 92 + 1.4;
+    if (touchLimit !== undefined) consecutiveTouches = lastHitter === hitter ? consecutiveTouches + 1 : 1;
     lastHitter = hitter;
     cordTouches = 0;
     hitCooldown = 0.14;
@@ -892,6 +931,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
       revealAge = 0;
       if (cpuPrediction) cpuPrediction = { x: shuttle.x, y: shuttle.y + cpuSightBias, vx, vy };
     }
+    return true;
   }
 
   function playerHit(side, swingX, swingY) {
@@ -900,7 +940,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
       cpuOutFeint = undefined;
     }
     const { vx, vy } = swingVelocity(swingX, swingY);
-    launch(vx, vy, side);
+    return launch(vx, vy, side);
   }
 
   function onSide(side) {
@@ -910,6 +950,11 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
   function shuttlePose() {
     return { x: shuttle.x, y: shuttle.y, shape, angle: shuttle.angle,
       size: settledSize ?? shuttle.size * (activeEffect?.id === 'balloon' ? 2 : 1) };
+  }
+
+  function networkShuttlePose() {
+    return { ...shuttlePose(), baseSize: shuttle.size,
+      touchLimitReachedFor: touchesLeft(lastHitter) === 0 ? lastHitter : undefined };
   }
 
   function updateOutline() {
@@ -978,11 +1023,11 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     }
     // Start at the same contact pose the striker saw, then catch up to the server clock.
     Object.assign(shuttle, { x: frame.x, y: frame.y, angle: frame.angle });
-    playerHit(side, to.vx, to.vy);
+    if (!playerHit(side, to.vx, to.vy)) return;
     if (Number.isFinite(frame.time)) {
       strike = { flight, time: frame.time, fromFlight: frame.flight, side,
         racket: { x: to.x, y: to.y },
-        pose: { ...shuttlePose(), baseSize: shuttle.size }, motion: { vx: to.vx, vy: to.vy },
+        pose: networkShuttlePose(), motion: { vx: to.vx, vy: to.vy },
         force: pastForce(currentForce(), frame.age ?? 0) };
     }
     touching[side] = overlaps;
@@ -1111,7 +1156,8 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     cpu.x += clamp(targetX - cpu.x, -290 * travel, 290 * travel);
     cpu.y += clamp(targetY - cpu.y, -340 * travel, 340 * travel);
     const inReach = defending && tracked.x <= rightLine && shuttle.x <= rightLine;
-    if (canHit && cpuThaw <= 0 && (inReach || leavingOut) && shuttle.x >= center &&
+    const remainingTouches = touchesLeft('right');
+    if (canHit && remainingTouches > 0 && cpuThaw <= 0 && (inReach || leavingOut) && shuttle.x >= center &&
         (lastHitter !== 'right' || cpuFollowUps > 0 || afterBounce) && hitCooldown <= 0 &&
         racketContact(cpu, cpu)) {
       if (leavingOut) {
@@ -1127,6 +1173,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
         const roll = Math.random();
         if (roll < liftChance) cpuFollowUps = roll < doubleLiftChance ? 2 : 1;
       }
+      cpuFollowUps = Math.min(cpuFollowUps, remainingTouches - 1);
       if (cpuFollowUps > 0) {
         // Keep the setup on our side and chase it for the next real contact.
         const target = clamp(shuttle.x, center + 78, rightLine - 75);
@@ -1233,6 +1280,10 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     if (shuttle.y + bottom >= floor) {
       shuttle.y = floor - bottom;
       const out = shuttle.x < leftLine || shuttle.x > rightLine;
+      if (!out && activeEffect?.id === 'bomb') {
+        explodeBomb();
+        return;
+      }
       const landingSide = shuttle.x < center ? 'left' : 'right';
       const winner = out ? opponent(lastHitter ?? server) : opponent(landingSide);
       let reason = 'Landed';
@@ -1248,6 +1299,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
   }
 
   function simulate(dt) {
+    if (bombBurst) bombBurst.age += dt;
     if (netReturn) {
       netReturn.elapsed = Math.min(netMoveSeconds, netReturn.elapsed + dt);
       const progress = netReturn.elapsed / netMoveSeconds;
@@ -1323,6 +1375,10 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     const before = shuttle && { x: shuttle.x, y: shuttle.y };
     const flightBefore = flight;
     advanceShuttle(dt);
+    if (phase === 'live' && !pendingLanding && activeEffect?.id === 'bomb' && activeEffect.remaining <= 1e-9) {
+      explodeBomb();
+      return;
+    }
     if (decoys.length) advanceDecoys(dt);
     if (support) {
       const racket = rackets[support];
@@ -1342,7 +1398,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
         // Same flight only: a bounce or a hit in this step moved it somewhere it did not fly to.
         checkContact(side, racket, racket, motion.vx, motion.vy, flightBefore === flight ? before : undefined);
       }
-      moveCpu(dt);
+      if (phase === 'live') moveCpu(dt);
       if (decoys.length && cpu) racketPopsDecoys(cpu, cpu);
     }
   }
@@ -1353,7 +1409,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
     const visible = shuttle && phase !== 'starting' && (!invisible || reveal > 0);
     const position = (racket) => racket && { x: racket.x, y: racket.y, seenTime: racket.seenTime, r: racket.r };
     return {
-      phase, score, message, winner, eventText, eventWind, flash, frozen, support, cpuLevel, netTop: matchNetTop,
+      phase, score, message, winner, eventText, eventWind, flash, frozen, support, cpuLevel, touchLimit, netTop: matchNetTop,
       strike: strike?.flight === flight ? strike : undefined,
       force: currentForce(),
       // Where the crowd is looking: the shuttle's place, sent all through a rally so it is still there when
@@ -1363,6 +1419,8 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
       gazes: decoys.length && shuttle && phase === 'live'
         ? [{ x: shuttle.x, y: shuttle.y }, ...decoys.map(decoy => ({ x: decoy.x, y: decoy.y }))] : undefined,
       effect: activeEffect?.id,
+      bomb: activeEffect?.id === 'bomb' ? bombView(!pendingLanding) : stoppedBomb,
+      bombBurst: bombBurst?.age < 0.57 ? { ...bombBurst } : undefined,
       // How strongly the hidden shuttle shows right now (a soft ghost after a hit), for INVISIBLE only.
       shuttleAlpha: invisible ? revealPeak * Math.min(1, revealAge / 0.05) * (reveal / revealSeconds) ** 1.5 : undefined,
       shake: activeEffect?.id === 'shock' ? activeEffect.remaining : 0,
@@ -1374,7 +1432,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
         ? { swell: trampolineSwell(), press: press ? { x: press.x, age: press.age } : undefined } : undefined,
       // NET CORD: how many tape clips so far (a new one is a sound and an "ooh") and the tape's wobble.
       cord: { count: cordCount, x: cordX, wobble: cordFlash / netCordSeconds },
-      shuttle: visible ? { ...shuttlePose(), flight, baseSize: shuttle.size, canHit: hitCooldown <= 0 && !pendingLanding && !frozen } : undefined,
+      shuttle: visible && !bombBurst ? { ...networkShuttlePose(), flight, canHit: hitCooldown <= 0 && !pendingLanding && !frozen } : undefined,
       left: position(rackets.left),
       right: position(cpu ?? rackets.right)
     };
@@ -1382,6 +1440,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
 
   // For trying effects out (?test=effects): start one right now if a rally is live.
   function triggerEffect(id) {
+    if (id === 'bomb' && !bombEffects) return false;
     const effect = everyEffect.find(candidate => candidate.id === id);
     if (!effect || phase !== 'live' || activeEffect || !shuttle || pendingLanding) return false;
     countdown = 0;
@@ -1408,6 +1467,7 @@ export function createGame({ withCpu = false, quickEvents = false } = {}) {
 
   // Test page only: random effects are always this one (undefined or an unknown id = any effect).
   function setOnlyEffect(id) {
+    if (id === 'bomb' && !bombEffects) return;
     onlyEffect = effectIds.includes(id) || trialEffectIds.includes(id) ? id : undefined;
   }
 
