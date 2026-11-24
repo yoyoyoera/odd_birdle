@@ -57,7 +57,8 @@
 - 서브에이전트: 사용 안 함.
 - 끝 조건: 기준 소스가 공개판과 같은 동작(랜덤 효과 전체 포함)을 하고, 테스트가 통과한다.
 
-#### Step A1. `app` 빌드 대상 + Capacitor 껍데기 ⬜
+#### Step A1. `app` 빌드 대상 + Capacitor 껍데기 ✅
+- 결과: `node scripts/build-portal.mjs app [--features=...]` → `portal/app/`(외부 주소 검사, 랜덤 폭탄 포함 FREE PLAY만). `app-shell.js`: 경기 중 뒤로 가기 = PAUSED 화면(탭하면 재개, 다시 뒤로 = 메뉴), 메뉴에서 뒤로 = 종료, 백그라운드 = 일시정지·소리 정지. `android-app/`: Capacitor 8.6.2, `@capacitor/app` 8.1.2, appId `com.oddbirdle.app`, WebView Origin `https://app.oddbirdle`, compile/targetSdk 36, minSdk 24, 화면 켜짐 유지·몰입형·가장자리 그리기, SystemBars `insetsHandling: css`. 배치 스크린샷 기준: `tools/app-layout/`. 테스트 207개 통과.
 - `scripts/build-portal.mjs app` 빌드를 추가한다.
   - 외부 링크·분석·포털 SDK·AdSense는 넣지 않는다.
   - 폰트와 사운드는 내장한다.
@@ -75,7 +76,8 @@
   - 둘은 손대는 파일이 겹치지 않는다. 앱 웹 코드와 네이티브가 주고받는 이벤트 목록은 시작 전에 내가 정해 준다.
 - 끝 조건: `npx cap sync android` 성공. Playwright로 390×844·844×390·Android 16 상단 인셋 가정 화면의 배치 스크린샷을 확인하고 회귀 기준으로 저장한다.
 
-#### Step A2. GitHub Actions 디버그 APK ⬜
+#### Step A2. GitHub Actions 디버그 APK 🔄
+- 로컬 `assembleDebug` 성공(4.4MB, targetSdk 36, 16KB 정렬 통과, 네이티브 라이브러리 없음). 워크플로 `.github/workflows/android.yml` 첫 실행 확인 중.
 - `.github/workflows/android.yml` 순서:
   1. Node 22 빌드
   2. `cap sync`
@@ -231,6 +233,7 @@
 
 - 2026-11-24: 계획서 작성(`c7a0165`).
 - 2026-11-24: 개정 1. 검토 의견을 반영해 순서를 "실기기 우선 → 기능 이식 → 서버"로 바꿈.
+- 2026-11-24: A1 완료(서브에이전트 2개 병렬: 웹 쪽 / 안드로이드·CI). 로컬 디버그 APK 빌드 성공.
 - 2026-11-24: A0 완료. 기준 = `375a7bf`(공개판과 동일). 이 저장소 전용 환경에서 `oddbirdle.pages.dev`, `dl.google.com` 접근 허용 → Android SDK를 받아 로컬에서도 APK 빌드 확인 가능.
 - 2026-11-24: 개정 2. 사용자 의견: 폭탄만 따로 떼어 다루지 않는다. 첫 빌드는 폭탄전이 아니라 지금의 웹판 FREE PLAY 그대로이고, 개발용 폭탄 전용 진입점과 폭탄 전용 검증 항목을 뺐다.
 
