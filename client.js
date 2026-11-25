@@ -225,11 +225,13 @@ let shownBands = '';
 let shownProps = '';
 let courtBounds;
 
-// The app: a racket that goes to the edge of the court is drawn whole. The part past the edge (which it cannot go to) is
-// laid over the side strip in a soft red, so nothing is cut off and it is clear that is the limit. The racket's own part
-// inside the court is the normal one from the court canvas; this canvas covers the whole screen and only carries the outside bits.
+// The app: where the player's racket cannot go (the strip past the court's outer edge, which its centre may not enter) turns
+// a soft translucent red as the racket comes near the edge, deeper the closer it is, and clears as it moves away. Only the
+// edge on the player's own side: the net side is plain to see. This canvas covers the whole screen and carries just that tint.
 const bleed = [];
 let bleedCanvas, bleedCtx, bleedDirty = false;
+const bleedReach = 80; // court units from the edge where the tint starts
+const bleedAlpha = 0.3;
 function ensureBleed() {
   if (bleedCanvas) return;
   bleedCanvas = document.createElement('canvas');
@@ -250,24 +252,34 @@ function drawRacketBleed() {
   if (!bleed.length && !bleedDirty) return;
   bleedCtx.clearRect(0, 0, innerWidth, innerHeight);
   bleedDirty = false;
-  const b = courtBounds, sx = b.width / width, sy = b.height / height;
+  const b = courtBounds;
   for (const racket of bleed) {
-    const cx = b.left + racket.x * sx, cy = b.top + racket.y * sy, r = racket.r * sx;
-    if (cx - r >= b.left && cx + r <= b.right) continue;
-    bleedCtx.save();
-    bleedCtx.beginPath();
-    bleedCtx.rect(0, 0, b.left, innerHeight);
-    bleedCtx.rect(b.right, 0, innerWidth - b.right, innerHeight);
-    bleedCtx.clip();
-    bleedCtx.beginPath();
-    bleedCtx.arc(cx, cy, r, 0, Math.PI * 2);
-    bleedCtx.fillStyle = 'rgba(214, 72, 72, 0.34)';
-    bleedCtx.fill();
-    bleedCtx.lineWidth = 2;
-    bleedCtx.strokeStyle = 'rgba(190, 52, 52, 0.55)';
-    bleedCtx.stroke();
-    bleedCtx.restore();
+    const fromLeft = racket.x < width / 2;
+    const distance = fromLeft ? racket.x : width - racket.x;
+    const near = Math.min(1, Math.max(0, 1 - distance / bleedReach));
+    if (near <= 0) continue;
+    bleedCtx.fillStyle = `rgba(214, 72, 72, ${(bleedAlpha * near * near).toFixed(3)})`;
+    if (fromLeft) bleedCtx.fillRect(0, 0, b.left, innerHeight);
+    else bleedCtx.fillRect(b.right, 0, innerWidth - b.right, innerHeight);
     bleedDirty = true;
+    // The racket is still a whole circle: the part that goes past the court edge is drawn here, over the tint.
+    const sx = b.width / width, sy = b.height / height;
+    const cx = b.left + racket.x * sx, cy = b.top + racket.y * sy, r = racket.r * sx;
+    if (cx - r < b.left || cx + r > b.right) {
+      bleedCtx.save();
+      bleedCtx.beginPath();
+      bleedCtx.rect(0, 0, b.left, innerHeight);
+      bleedCtx.rect(b.right, 0, innerWidth - b.right, innerHeight);
+      bleedCtx.clip();
+      bleedCtx.beginPath();
+      bleedCtx.arc(cx, cy, r, 0, Math.PI * 2);
+      bleedCtx.fillStyle = racket.fill;
+      bleedCtx.fill();
+      bleedCtx.lineWidth = 2;
+      bleedCtx.strokeStyle = racket.stroke;
+      bleedCtx.stroke();
+      bleedCtx.restore();
+    }
   }
 }
 // Props on the floor beside the court, drawn in court units (scale) so they keep the court's proportions.
@@ -873,7 +885,7 @@ function drawRacket(position, fill, stroke, side) {
   ctx.lineWidth = 2;
   ctx.strokeStyle = stroke;
   ctx.stroke();
-  if (portal === 'app' && side !== undefined) bleed.push({ x: mirrored() ? width - position.x : position.x, y: position.y, r });
+  if (portal === 'app' && side !== undefined && side === localSide) bleed.push({ x: mirrored() ? width - position.x : position.x, y: position.y, r, fill, stroke });
 }
 
 function drawCourt(view) {
