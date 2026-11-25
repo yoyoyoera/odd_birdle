@@ -4,7 +4,7 @@ import {
   posesBetween, sweptTouch, supportedShuttleY, swingMotion, trialEffectIds, trialEffectLabels, trampolineLift,
   trampolineDent, threeTouchLimit, touchLimitFault
 } from './game.js';
-import { makeStands, drawStands, createBombCrowdMotion, standsBottom, standsWall } from './stands.js';
+import { makeStands, drawStands, createBombCrowdMotion, standsBottom, standsWall, mix } from './stands.js';
 import { createCrowd } from './crowd.js';
 import { createLinkQuality } from './link-quality.js';
 import { createFrameMeter } from './frame-meter.js';
@@ -222,16 +222,50 @@ let shownGrow;
 // floor), lined up with the canvas, so the court seems to run out to every edge of the screen, the notch sides and the
 // home-indicator strip included. The play area itself is unchanged.
 let shownBands = '';
+let shownProps = '';
+// Props on the floor beside the court, drawn in court units (scale) so they keep the court's proportions.
+function paintAppProps(bounds, scale) {
+  // (An HTML container, so the parser puts the <svg> in its own namespace: the app build lists no web addresses.)
+  let box = document.querySelector('#app-props');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'app-props';
+    box.setAttribute('aria-hidden', 'true');
+    box.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:0';
+    document.body.prepend(box);
+  }
+  const strip = Math.min(bounds.left, innerWidth - bounds.right);
+  const base = Math.round(bounds.top + (floor + 34) * scale);
+  const frame = palette.court, ink = palette.ink;
+  const wood = mix(frame, ink, 0.42), soft = mix(frame, ink, 0.28), bag = mix(frame, ink, 0.62);
+  const markup = strip < 42 ? '' : `
+    <g transform="translate(${bounds.left * 0.33} ${base}) scale(${scale})" fill="${wood}">
+      <rect x="-23" y="-110" width="5" height="110"/><rect x="18" y="-110" width="5" height="110"/>
+      <rect x="-27" y="-118" width="54" height="8"/><rect x="-23" y="-152" width="5" height="34"/><rect x="-23" y="-152" width="30" height="5"/>
+      <rect x="-18" y="-60" width="36" height="4" fill="${soft}"/><rect x="-18" y="-84" width="36" height="4" fill="${soft}"/><rect x="-18" y="-36" width="36" height="4" fill="${soft}"/>
+      <rect x="-19" y="-127" width="38" height="9" rx="4" fill="${bag}"/>
+    </g>
+    <g transform="translate(${bounds.left * 0.78} ${base}) scale(${scale * 0.85})">
+      <rect x="-26" y="-27" width="40" height="27" rx="9" fill="${bag}"/>
+      <rect x="-17" y="-35" width="22" height="10" rx="5" fill="none" stroke="${bag}" stroke-width="3"/>
+      <rect x="19" y="-25" width="9" height="25" rx="3" fill="#7fae94"/><rect x="20.5" y="-29" width="6" height="5" rx="2" fill="${wood}"/>
+      <rect x="-36" y="-31" width="8" height="31" rx="3" fill="${soft}"/>
+    </g>`;
+  if (markup === shownProps) return;
+  shownProps = markup;
+  box.innerHTML = `<svg width="${innerWidth}" height="${innerHeight}">${markup}</svg>`;
+}
 function paintAppBackground(bounds) {
   const scale = bounds.height / height;
   const wallEnd = Math.round(bounds.top + standsBottom * scale);
   const floorTop = Math.round(bounds.top + floor * scale);
   const bands = `linear-gradient(to bottom, ${standsWall(palette)} 0 ${wallEnd}px, ${palette.court} ${wallEnd}px ${floorTop}px, ${palette.floor} ${floorTop}px)`;
-  // The strips beside the court are out of play: a little darker, with a thin edge line where the court ends, so it is
-  // clear the shuttle goes no further (the side walls of the hall).
+  // The strips beside the court are out of play: the hall fades softly to a darker tone towards the screen edges (no hard
+  // line), and a few things stand on the floor out there (an umpire chair, a racket bag), so it reads as the side of the hall.
   const left = Math.round(bounds.left), right = Math.round(bounds.right);
-  const shade = `${palette.ink}14`, edge = `${palette.ink}38`;
-  const sides = `linear-gradient(to right, ${shade} 0 ${left - 2}px, ${edge} ${left - 2}px ${left}px, transparent ${left}px ${right}px, ${edge} ${right}px ${right + 2}px, ${shade} ${right + 2}px)`;
+  const fade = `${palette.ink}30`, clear = `${palette.ink}00`;
+  const sides = `linear-gradient(to right, ${fade} 0, ${clear} ${left}px, ${clear} ${right}px, ${fade} 100%)`;
+  paintAppProps(bounds, scale);
   const painted = sides + ',' + bands;
   if (painted === shownBands) return;
   shownBands = painted;

@@ -83,7 +83,6 @@ if (name === 'app') {
       --app-safe-block: calc(var(--app-safe-top) + var(--app-safe-bottom)); overscroll-behavior: none; }
     /* No dark margins: the page is painted by client.js in the court's bands; body and the icon column let it show. */
     html[data-portal="app"] body { background: transparent; }
-    html[data-portal="app"] #studio-links a, html[data-portal="app"] #sound-toggle, html[data-portal="app"] #touch-tune-toggle { color: var(--ink); opacity: .6; }
     html[data-portal="app"] body { padding: var(--app-safe-top) var(--app-safe-right) var(--app-safe-bottom) var(--app-safe-left);
       overscroll-behavior: none; }
     /* Fill the screen: the court is as tall as the screen (9:5, centred left to right, running a little into the side safe
@@ -92,11 +91,19 @@ if (name === 'app') {
     html[data-portal="app"][data-orientation="landscape"] body { padding: 0; }
     html[data-portal="app"][data-orientation="landscape"] main { display: block; padding: 0; margin: 0 auto;
       width: min(1400px, 100svh * 1.8, calc(100vw - 2 * max(var(--app-safe-left), var(--app-safe-right)) + 32px)); }
-    html[data-portal="app"][data-orientation="landscape"] #studio-links { position: fixed; top: 50%; transform: translateY(-50%);
-      right: calc(var(--app-safe-right) + 2px); margin: 0; z-index: 3; }
-    html[data-portal="app"][data-orientation="landscape"] #touch-tune { position: fixed; top: 50%; transform: translateY(-50%);
-      right: calc(var(--app-safe-right) + 50px); z-index: 3; padding: 6px 4px;
-      background: color-mix(in srgb, var(--court) 82%, transparent); color: var(--ink); }
+    html[data-portal="app"][data-orientation="landscape"] main { position: relative; z-index: 1; }
+    /* The sound and speed buttons sit out in the right strip, low down (the notch is in the middle of a short side), as
+       soft round buttons. The speed slider opens to their left. */
+    html[data-portal="app"][data-orientation="landscape"] #studio-links { position: fixed; right: 14px; bottom: 16px; top: auto; gap: 8px;
+      flex-direction: column-reverse; margin: 0; z-index: 3; transform: none; }
+    html[data-portal="app"] #studio-links a, html[data-portal="app"] #sound-toggle, html[data-portal="app"] #touch-tune-toggle {
+      width: 40px; height: 40px; border-radius: 50%; opacity: 1; color: var(--ink);
+      background: color-mix(in srgb, var(--ink) 9%, transparent); transition: background .15s, transform .15s; }
+    html[data-portal="app"] #sound-toggle:active, html[data-portal="app"] #touch-tune-toggle:active { transform: scale(.92); }
+    html[data-portal="app"] #touch-tune-toggle[aria-expanded="true"] { background: color-mix(in srgb, var(--ink) 20%, transparent); }
+    html[data-portal="app"][data-orientation="landscape"] #touch-tune { position: fixed; right: 62px; bottom: 16px; top: auto; transform: none;
+      z-index: 3; padding: 8px 4px; border-radius: 20px;
+      background: color-mix(in srgb, var(--court) 88%, transparent); color: var(--ink); }
     html[data-portal="app"][data-orientation="landscape"] #studio-links { flex-direction: column; margin-top: 0; }
     html[data-portal="app"] #guide { padding: calc(16px + var(--app-safe-top)) calc(16px + var(--app-safe-right))
       calc(16px + var(--app-safe-bottom)) calc(16px + var(--app-safe-left)); }
