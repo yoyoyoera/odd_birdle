@@ -119,7 +119,8 @@
 
 Android 실기기가 없는 동안 iOS로 같은 빌드 1을 병렬 진행한다. 웹 게임(`portal/app/`)은 Android와 같은 파일을 쓴다. 이 트랙의 실기기 결과는 공통 웹 코드(조작감·소리·복귀)에 대한 첫 실기기 판정이기도 하다.
 
-#### Step I0. 준비 (사용자) ⬜
+#### Step I0. 준비 (사용자) 🔄
+- 2026-11-25 확인: 사용자는 **이미 iOS 앱 4개를 출시한 Apple Developer Program 계정**이 있다 → 무료 Apple ID 경로는 쓰지 않는다. 빌드 1부터 **TestFlight 내부 테스트**로 설치한다(F1을 앞당김). 남은 준비: 번들 ID `com.oddbirdle.app` 사용 가능 여부 확인·등록, App Store Connect에 앱 레코드 생성, CI 업로드용 **App Store Connect API 키**(Admin 또는 App Manager, `.p8`)를 GitHub 시크릿으로 등록.
 - Mac에 최신 Xcode 설치(제출 시점에 Apple이 요구하는 최소 Xcode·iOS SDK 버전을 E단계 전에 다시 확인).
 - 실기기 설치 방식 선택:
   - (가) **무료 Apple ID**: Xcode에서 자기 iPhone에 직접 설치. 7일마다 다시 설치해야 하고 TestFlight는 못 쓴다. 빌드 1 조작감 판정에는 충분.
@@ -158,8 +159,16 @@ Android 실기기가 없는 동안 iOS로 같은 빌드 1을 병렬 진행한다
 - macOS 러너는 Linux보다 분 단위 비용이 크다(비공개 저장소는 무료 분량을 10배로 소모). iOS 관련 경로가 바뀔 때와 수동 실행에만 돌린다.
 - 끝 조건: CI 통과, 스크린샷에서 노치·홈 인디케이터에 가려진 것이 없음.
 
+#### Step I2b. [iOS] CI에서 서명·TestFlight 업로드 ⬜ (개정 3-1)
+- 기존 계정이 있으므로 F1의 TestFlight 업로드를 빌드 1로 앞당긴다. Android의 "Actions에서 APK 받기"에 해당하는 iOS 경로다.
+- `ios.yml`에 수동 실행(workflow_dispatch) 전용 잡 추가: App Store Connect API 키로 **자동 서명(`-allowProvisioningUpdates`) + Archive + 업로드**(`xcodebuild -exportArchive`의 `destination: upload` 또는 `xcrun altool`/`notarytool` 대신 App Store Connect API). 빌드 번호는 `github.run_number`.
+- 시크릿: `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8`(base64), `APPLE_TEAM_ID`. 인증서·프로비저닝 파일을 저장소에 두지 않는다.
+- 내부 테스트 그룹(같은 팀, 심사 없음)에 자동 배포. 수출 규정은 Info.plist의 `ITSAppUsesNonExemptEncryption=false`로 매 빌드 질문 없이 통과.
+- 사용자 필요: 번들 ID 등록·앱 레코드 생성, API 키 발급·시크릿 등록.
+
 #### Step I3. iPhone 실기기 점검 📱 ⬜
-- 설치: 사용자 Mac에서 저장소를 받아 `npm ci` → `node scripts/build-portal.mjs app` → `mobile-app/`에서 `npx cap sync ios && npx cap open ios` → Xcode에서 Signing 팀 선택 → iPhone에 실행. (Developer Program이 있으면 이후 TestFlight로 대체, F1.)
+- 설치(개정 3-1): **TestFlight**가 기본. CI(I2b)가 서명·업로드하면 iPhone의 TestFlight 앱에서 바로 설치. CI 서명이 준비되기 전 첫 확인만 아래 Xcode 직접 설치로 한다.
+- Xcode 직접 설치: 사용자 Mac에서 저장소를 받아 `npm ci` → `node scripts/build-portal.mjs app` → `mobile-app/`에서 `npx cap sync ios && npx cap open ios` → Xcode에서 Signing 팀 선택 → iPhone에 실행. (Developer Program이 있으면 이후 TestFlight로 대체, F1.)
 - 체크리스트(A3과 같은 항목, iOS판):
   1. 비행기 모드 첫 실행 → 메뉴·폰트·소리
   2. 폰을 세로로 들어도 가로 유지, 왼쪽↔오른쪽 가로 뒤집기
@@ -270,7 +279,7 @@ Android 실기기가 없는 동안 iOS로 같은 빌드 1을 병렬 진행한다
 - 완료 조건(별도): 비공개 테스트 요건 충족 → 프로덕션 신청 → 공개.
 
 #### Step F1. [iOS] TestFlight 내부 테스트 ⬜
-- 전제: Apple Developer Program 가입, 번들 ID `com.oddbirdle.app`(Android 패키지 이름과 함께 확정) 등록, App Store Connect에 앱 생성.
+- 전제(개정 3-1: 계정은 이미 있음, 업로드 자동화는 I2b로 앞당김): Apple Developer Program 가입, 번들 ID `com.oddbirdle.app`(Android 패키지 이름과 함께 확정) 등록, App Store Connect에 앱 생성.
 - 서명: 처음엔 사용자 Mac의 Xcode 자동 서명으로 Archive → 업로드. CI 업로드는 App Store Connect API 키(GitHub 시크릿)로 나중에 붙인다.
 - 내부 테스터(같은 팀, 최대 100명)는 심사 없이 바로 설치. 외부 테스터는 베타 앱 심사가 필요.
 - Android와 달리 **12명·14일 비공개 테스트 같은 출시 전 의무 요건은 없다.**
@@ -289,6 +298,7 @@ Android 실기기가 없는 동안 iOS로 같은 빌드 1을 병렬 진행한다
 | A1 | **예 (2개 병렬, worktree)** | 앱 빌드·앱 동작(클라이언트) / Capacitor·아이콘·CI(`android-app/`, `.github/`) |
 | A3, 이후 실기기 피드백 | **예 (항목별 병렬 + 리뷰 1)** | 독립 항목별로 나누고, 끝에 코드 리뷰 |
 | I1 (+A2b) | **예 (2개 병렬, worktree)** | 웹 쪽(가로 전용·iOS 분기·오디오) / 네이티브(`mobile-app/` 이름 변경·`ios/`·Android 가로 고정·macOS CI) |
+| I2b | 아니요 | 시크릿·서명은 한 맥락에서 |
 | I3, 이후 iOS 실기기 피드백 | **예 (항목별 병렬 + 리뷰 1)** | A3과 같음 |
 | B1 엔진 이식 | 아니요(순차) + 리뷰 1 | `game.js` 집중이라 병렬 이득 없음 |
 | B2 + B3 | **예 (2개 병렬)** | 스테이지 UI·저장 / 카드 공유 |
@@ -308,7 +318,7 @@ Android 실기기가 없는 동안 iOS로 같은 빌드 1을 병렬 진행한다
 - **C1:** 매치메이커 출처 추가 배포 승인
 - **D1:** 삭제 경로의 본인 확인 방식 결정 / **D3:** Worker·D1 배포 승인
 - **E1·E2:** Play Console 계정 확인(종류·생성일), 패키지 이름 확정, 업로드 키 생성·보관, 비공개 테스터 12명 모집
-- **I0·I3:** Mac에 Xcode 설치, 무료 Apple ID / Developer Program 중 선택, iPhone 개발자 모드, Xcode로 실기기 설치·점검
+- **I0·I2b·I3:** (Developer Program 계정 있음) 번들 ID 등록·App Store Connect 앱 레코드 생성, App Store Connect API 키 발급 → GitHub 시크릿 등록, iPhone TestFlight로 설치·점검. CI 서명 전 첫 확인만 필요하면 Mac Xcode로 직접 설치
 - **F1·F2:** Apple Developer Program 가입($99/년), App Store Connect 앱 생성, Archive 업로드
 
 ## 7. 위험과 대응
@@ -329,6 +339,7 @@ Android 실기기가 없는 동안 iOS로 같은 빌드 1을 병렬 진행한다
 
 ## 8. 진행 기록
 
+- 2026-11-25: 개정 3-1. 사용자에게 iOS 앱 4개를 출시한 개발자 계정이 있음 → 무료 Apple ID 경로 삭제, TestFlight 업로드를 빌드 1로 앞당김(I2b).
 - 2026-11-25: 개정 3. Android 실기기가 없어 iOS 트랙(I0~I3, F1~F2)을 병렬로 추가. 두 플랫폼 모두 가로 전용으로 결정(A2b). 문서 이름을 `PLAN-mobile-app.md`로 바꿈.
 - 2026-11-24: 계획서 작성(`c7a0165`).
 - 2026-11-24: 개정 1. 검토 의견을 반영해 순서를 "실기기 우선 → 기능 이식 → 서버"로 바꿈.
