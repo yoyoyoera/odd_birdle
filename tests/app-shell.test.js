@@ -169,3 +169,15 @@ test('iOS: no back button listener and never exitApp; the background pause and t
   escape();
   assert.deepEqual(log, []);
 });
+
+test('the app page is a game: zoom, double tap, long-press selection and the context menu are all cancelled', () => {
+  const listeners = {};
+  const doc = { addEventListener: (type, fn) => { (listeners[type] ??= []).push(fn); }, hidden: false };
+  startAppShell({ plugins: undefined, platform: 'ios', doc, state: () => ({ mode: 'menu', phase: 'ready' }), setPaused() {}, toMenu() {} });
+  for (const type of ['gesturestart', 'gesturechange', 'gestureend', 'dblclick', 'contextmenu', 'selectstart']) {
+    assert.ok(listeners[type]?.length, type + ' is listened for');
+    let prevented = false;
+    listeners[type][0]({ preventDefault: () => { prevented = true; } });
+    assert.ok(prevented, type + ' is cancelled');
+  }
+});

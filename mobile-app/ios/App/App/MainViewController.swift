@@ -68,6 +68,15 @@ class MainViewController: CAPBridgeViewController {
             UIApplication.shared.isIdleTimerDisabled = false
         })
 
+        // No pinch zoom, and no magnifier or lookup from a long press: the page is a game.
+        if let scrollView = webView?.scrollView {
+            scrollView.pinchGestureRecognizer?.isEnabled = false
+            scrollView.minimumZoomScale = 1
+            scrollView.maximumZoomScale = 1
+            scrollView.bouncesZoom = false
+        }
+        webView?.allowsLinkPreview = false
+
         refreshSystemChrome()
         #if DEBUG
         runCIScriptWhenLoaded()

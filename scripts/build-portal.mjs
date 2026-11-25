@@ -83,6 +83,10 @@ if (name === 'app') {
       --app-safe-block: calc(var(--app-safe-top) + var(--app-safe-bottom)); overscroll-behavior: none; }
     /* No dark margins: the page is painted by client.js in the court's bands; body and the icon column let it show. */
     html[data-portal="app"] body { background: transparent; }
+    /* A game, not a page: nothing to zoom, select or look up with a long press or a double tap. */
+    html[data-portal="app"], html[data-portal="app"] body, html[data-portal="app"] * { touch-action: none; -webkit-user-select: none; user-select: none;
+      -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+    html[data-portal="app"] input, html[data-portal="app"] input[type="range"] { touch-action: none; }
     html[data-portal="app"] body { padding: var(--app-safe-top) var(--app-safe-right) var(--app-safe-bottom) var(--app-safe-left);
       overscroll-behavior: none; }
     /* Fill the screen: the court is as tall as the screen (9:5, centred left to right, running a little into the side safe

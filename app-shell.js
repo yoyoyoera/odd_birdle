@@ -56,6 +56,10 @@ export function startAppShell({
 }) {
   const app = plugins?.App;
   const rules = platformRules(platform);
+  // A game, not a page: no pinch or double-tap zoom, no text selection or magnifier from a long press, no context menu.
+  for (const type of ['gesturestart', 'gesturechange', 'gestureend', 'dblclick', 'contextmenu', 'selectstart']) {
+    doc?.addEventListener?.(type, event => event.preventDefault(), { passive: false });
+  }
   let away = false;   // the app is in the background (or the tab hidden)
   let held = false;   // the player's pause: stays until a tap, or back to the menu
 
