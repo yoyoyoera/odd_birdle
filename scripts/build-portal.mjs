@@ -64,13 +64,18 @@ if (ownFont.includes(name)) {
     .replace('>COPY LINK<', '>COPY CODE<');
 }
 if (name === 'app') {
-  // Android 16 draws the app under the status bar, the camera cutout and the gesture bar. The page keeps clear of them:
-  // Capacitor's --safe-area-inset-* when it sets them, else the WebView's env(). The court's size limits are the
-  // page's own ones less those insets; with every inset at 0 the layout is the website's.
+  // Android 16 and the iPhone draw the app under the status bar, the camera cutout or notch and the gesture bar or home
+  // indicator. The page keeps clear of them: Capacitor's --safe-area-inset-* when it sets them, else the WebView's env().
+  // The court's size limits are the page's own ones less those insets.
+  // The app is landscape only (Android and iOS lock it natively): data-orientation="landscape" makes client.js
+  // (touch-layout.js) skip the upright thumb pad and menu, and the rules below always lay it out on its side, the icon
+  // column beside the court. In a window taller than wide (Android 16 ignores the lock on large screens; the first frame
+  // before the turn) that same layout is scaled to the width and centred, with no "turn your phone" screen.
   html = html
     .replace('user-scalable=no', 'user-scalable=no, viewport-fit=cover')
-    .replace('<html lang="en" data-portal="app">', `<html lang="en" data-portal="app" data-features="${appFeatures.join(' ')}">`)
-    .replace('</style>', `  /* The Android app: safe areas (edge to edge). */
+    .replace('<html lang="en" data-portal="app">',
+      `<html lang="en" data-portal="app" data-orientation="landscape" data-features="${appFeatures.join(' ')}">`)
+    .replace('</style>', `  /* The app: safe areas (edge to edge), landscape only. */
     html[data-portal="app"] { --app-safe-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
       --app-safe-right: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
       --app-safe-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
@@ -78,13 +83,12 @@ if (name === 'app') {
       --app-safe-block: calc(var(--app-safe-top) + var(--app-safe-bottom)); overscroll-behavior: none; }
     html[data-portal="app"] body { padding: var(--app-safe-top) var(--app-safe-right) var(--app-safe-bottom) var(--app-safe-left);
       overscroll-behavior: none; }
-    html[data-portal="app"] main { width: min(1260px, 100% - 32px, (100svh - 100px - var(--app-safe-block)) * 1.8); }
-    @media (orientation: landscape) and ((pointer: coarse) or (max-height: 620px)), (min-aspect-ratio: 16/9) {
-      html[data-portal="app"] main { width: min(1312px, 100% - 24px, calc((100svh - 12px - var(--app-safe-block)) * 1.8 + 52px)); }
-      html[data-portal="app"][data-touch-tune-open] main {
-        width: min(1384px, 100% - 24px, calc((100svh - 12px - var(--app-safe-block)) * 1.8 + 124px)); }
-    }
-    html[data-portal="app"][data-pad] main { width: calc(100% - 16px); }
+    html[data-portal="app"][data-orientation="landscape"] main { display: grid; grid-template-columns: minmax(0, 1fr) 44px;
+      align-items: center; column-gap: 8px; padding-block: 6px;
+      width: min(1312px, 100% - 24px, calc((100svh - 12px - var(--app-safe-block)) * 1.8 + 52px)); }
+    html[data-portal="app"][data-orientation="landscape"][data-touch-tune-open] main { grid-template-columns: minmax(0, 1fr) 44px 64px;
+      width: min(1384px, 100% - 24px, calc((100svh - 12px - var(--app-safe-block)) * 1.8 + 124px)); }
+    html[data-portal="app"][data-orientation="landscape"] #studio-links { flex-direction: column; margin-top: 0; }
     html[data-portal="app"] #guide { padding: calc(16px + var(--app-safe-top)) calc(16px + var(--app-safe-right))
       calc(16px + var(--app-safe-bottom)) calc(16px + var(--app-safe-left)); }
   </style>`);

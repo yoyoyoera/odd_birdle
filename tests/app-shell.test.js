@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { backAction, matchRunning, startAppShell } from '../app-shell.js';
+import { appPlatform, backAction, matchRunning, platformRules, startAppShell } from '../app-shell.js';
 
 test('back: pause in a match, menu from the pause screen and everywhere else, exit from the menu', () => {
   const cases = [
@@ -24,7 +24,7 @@ test('back: pause in a match, menu from the pause screen and everywhere else, ex
   assert.equal(matchRunning({ mode: 'menu', phase: 'ready' }), false);
 });
 
-function rig(start = { mode: 'menu', phase: 'ready', guideOpen: false }) {
+function rig(start = { mode: 'menu', phase: 'ready', guideOpen: false }, platform = 'android') {
   const appListeners = {};
   const docListeners = {};
   const log = [];
@@ -38,7 +38,7 @@ function rig(start = { mode: 'menu', phase: 'ready', guideOpen: false }) {
     addEventListener: (name, handler) => { docListeners[name] = handler; }
   };
   const shell = startAppShell({
-    plugins: { App }, doc, state: () => state,
+    plugins: { App }, platform, doc, state: () => state,
     setPaused: value => log.push(value ? 'paused' : 'running'),
     toMenu: () => { log.push('menu'); state.mode = 'menu'; state.phase = 'ready'; },
     wakeAudio: () => log.push('wake'),
@@ -124,13 +124,48 @@ test('without Capacitor nothing throws', () => {
   const calls = [];
   const shell = startAppShell({ plugins: undefined, doc: undefined, state: () => ({ mode: 'menu', phase: 'ready' }),
     setPaused: value => calls.push(value), toMenu() {} });
-  assert.equal(shell.back(), 'exit');
+  // No Capacitor: a browser preview, which never tries to close anything.
+  assert.equal(shell.platform, 'web');
+  assert.equal(shell.back(), 'none');
   shell.background();
   shell.foreground();
   assert.deepEqual(calls, [true, false]);
   const throwing = startAppShell({
     plugins: { App: { addListener() { throw new Error('old plugin'); }, exitApp() { return Promise.reject(new Error('no')); } } },
-    doc: undefined, state: () => ({ mode: 'menu', phase: 'ready' }), setPaused() {}, toMenu() {}
+    platform: 'android', doc: undefined, state: () => ({ mode: 'menu', phase: 'ready' }), setPaused() {}, toMenu() {}
   });
   assert.equal(throwing.back(), 'exit');
+});
+
+test('the platform comes from Capacitor: android, ios, or web for anything else', () => {
+  assert.equal(appPlatform({ getPlatform: () => 'android' }), 'android');
+  assert.equal(appPlatform({ getPlatform: () => 'ios' }), 'ios');
+  assert.equal(appPlatform({ getPlatform: () => 'web' }), 'web');
+  assert.equal(appPlatform({ getPlatform: () => 'electron' }), 'web');
+  assert.equal(appPlatform({}), 'web');
+  assert.equal(appPlatform(undefined), 'web');
+  assert.equal(appPlatform({ getPlatform() { throw new Error('bridge gone'); } }), 'web');
+  assert.deepEqual(platformRules('android'), { systemBack: true, canExit: true });
+  assert.deepEqual(platformRules('ios'), { systemBack: false, canExit: false });
+  assert.deepEqual(platformRules('web'), { systemBack: true, canExit: false });
+  assert.equal(backAction({ mode: 'menu', phase: 'ready', canExit: false }), 'none');
+  assert.equal(backAction({ mode: 'solo', phase: 'live', canExit: false }), 'pause');
+});
+
+test('iOS: no back button listener and never exitApp; the background pause and the sound work as on Android', () => {
+  const { log, appListeners, docListeners, tapOn } = rig({ mode: 'solo', phase: 'live' }, 'ios');
+  assert.deepEqual(Object.keys(appListeners).sort(), ['appStateChange', 'pause', 'resume']);
+  appListeners.appStateChange({ isActive: false });
+  appListeners.appStateChange({ isActive: true });
+  assert.deepEqual(log.splice(0), ['paused', 'sleep', 'paused', 'wake']);
+  tapOn();
+  assert.deepEqual(log.splice(0), ['running']);
+  // A hardware keyboard's Escape still pauses and leaves a match, but on the menu it never closes the app.
+  const escape = () => docListeners.keydown({ key: 'Escape', target: { closest: () => null }, preventDefault() {} });
+  escape();
+  escape();
+  assert.deepEqual(log.splice(0), ['paused', 'menu', 'running']);
+  escape();
+  escape();
+  assert.deepEqual(log, []);
 });

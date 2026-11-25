@@ -17,6 +17,7 @@ import { normalizeRoomCode, roomFromLink, roomLink } from './room-link.js';
 import { createDemo } from './demo.js';
 import { startHeartbeat, track, trackVisit } from './analytics.js';
 import { features } from './features.js';
+import { landscapeOnly, touchLayout } from './touch-layout.js';
 import { createSound } from './sound.js';
 import { createCueTracker } from './sound-cues.js';
 import {
@@ -576,7 +577,9 @@ function showPauseState() {
   stage.toggleAttribute('data-paused', showing);
   const online = mode === 'online';
   // Y8 pauses when the game loses focus, and a click on the game brings it back.
-  const resume = portal === 'y8' ? 'Click the game to continue.' : portal === 'app' ? 'Tap to continue. Back for the menu.' : 'Resume to continue.';
+  // The iPhone has no back button: there the ← on the court is the way to the menu, and the notice only says tap.
+  const appResume = portal === 'app' && window.Capacitor?.getPlatform?.() === 'ios' ? 'Tap to continue.' : 'Tap to continue. Back for the menu.';
+  const resume = portal === 'y8' ? 'Click the game to continue.' : portal === 'app' ? appResume : 'Resume to continue.';
   setText(pauseTitle, online ? 'ONLINE MATCHES CANNOT BE PAUSED' : 'PAUSED');
   setText(pauseDetail, online ? 'The match continues while you are away. ' +
     (portal === 'y8' ? 'Click the game to return.' : portal === 'app' ? 'Tap to return.' : 'Resume to return.')
@@ -629,13 +632,14 @@ let touchRacket;    // where the racket is on screen, in court units of the half
 
 // A phone held upright (touch, taller than wide): the court at the top, the TOUCH SPEED bar right under its icon row (the
 // same place on the menu and in a match), and under that the menu buttons stacked, or in a match the thumb pad.
+// The app is landscape only (touch-layout.js): never the upright pad or menu, whatever shape the window has.
+const sidewaysOnly = landscapeOnly(document.documentElement.dataset);
 const padMenu = document.querySelector('#pad-menu');
 const menuHome = { parent: menu.parentNode, next: menu.nextSibling };
 function layoutTouch() {
-  const playing = mode === 'solo' || mode === 'online';
-  const upright = coarsePointer.matches && window.innerHeight > window.innerWidth * 1.05;
-  const landscape = coarsePointer.matches && window.innerWidth > window.innerHeight;
-  const view = upright && mode === 'menu' ? 'menu' : upright && playing ? 'play' : '';
+  const { landscape, view } = touchLayout({
+    coarse: coarsePointer.matches, width: window.innerWidth, height: window.innerHeight, mode, landscapeOnly: sidewaysOnly
+  });
   document.documentElement.toggleAttribute?.('data-pad', Boolean(view));
   if (document.documentElement.dataset) document.documentElement.dataset.padView = view;
   if (!landscape) touchTuneOpen = false;
@@ -1329,8 +1333,10 @@ function closeGuide() {
   if (guide) guide.hidden = true;
 }
 function guideBeforeCountdown(after) {
-  const sideways = coarsePointer.matches && !(window.innerHeight > window.innerWidth * 1.05);
-  let seen = !sideways || testParams.has('test') || !guide;
+  const { sideGuide } = touchLayout({
+    coarse: coarsePointer.matches, width: window.innerWidth, height: window.innerHeight, mode, landscapeOnly: sidewaysOnly
+  });
+  let seen = !sideGuide || testParams.has('test') || !guide;
   try { seen ||= Boolean(localStorage.getItem(guideKey)); } catch { /* not remembered: show it */ }
   if (seen || guideOpen) return after?.();
   try { localStorage.setItem(guideKey, '1'); } catch { /* shown again next visit */ }
@@ -1895,7 +1901,7 @@ initPortal().then(() => {
   showSoundState();
   loadingStop();
 });
-// The Android app: the system back button, and pausing while the app is in the background (app-shell.js).
+// The app (Android, iOS): the back button (Android only), and pausing while the app is in the background (app-shell.js).
 if (portal === 'app') {
   import('./app-shell.js').then(({ startAppShell }) => startAppShell({
     state: () => ({ mode, phase: currentView().phase, guideOpen }),

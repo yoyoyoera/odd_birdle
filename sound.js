@@ -18,6 +18,17 @@ function saveEnabled(enabled) {
   }
 }
 
+// A context that can be started again: 'suspended' (not started yet, a hidden tab, the app in the background) or, in
+// Safari and the iOS app, 'interrupted' (a phone call, an alarm, Siri took the audio). Not 'running', not 'closed'.
+export function canResume(state) {
+  return state === 'suspended' || state === 'interrupted';
+}
+
+// resume() returns a promise that iOS can reject (still interrupted); the next tap tries again.
+function resumeQuietly(context) {
+  try { Promise.resolve(context.resume()).catch(() => {}); } catch { /* stays quiet */ }
+}
+
 // Web Audio player. Browsers only allow sound after a click or tap, so
 // nothing is created until unlock() runs from one.
 export function createSound() {
@@ -55,7 +66,8 @@ export function createSound() {
   function unlock() {
     try {
       if (!context && !build()) return;
-      if (document.visibilityState === 'visible' && context.state !== 'running') context.resume();
+      // Every tap or key: cheap when already running, and the first touch after a call or the background starts it again.
+      if (document.visibilityState === 'visible' && canResume(context.state)) resumeQuietly(context);
     } catch {
       // No audio on this device; the game plays silently.
     }
@@ -84,19 +96,19 @@ export function createSound() {
     applyGain();
   }
 
-  // The Android app going to the background and coming back (app-shell.js; its WebView may not report visibility).
+  // The app going to the background and coming back (app-shell.js; its WebView may not report visibility).
   function sleep() {
-    try { context?.suspend(); } catch { /* nothing to stop */ }
+    try { Promise.resolve(context?.suspend()).catch(() => {}); } catch { /* nothing to stop */ }
   }
   function wake() {
-    try { if (context && context.state !== 'running') context.resume(); } catch { /* stays quiet */ }
+    if (context && canResume(context.state)) resumeQuietly(context);
   }
 
   // Hidden tabs (and portal frames scrolled away) go quiet.
   document.addEventListener('visibilitychange', () => {
     if (!context) return;
-    if (document.visibilityState === 'hidden') context.suspend();
-    else context.resume();
+    if (document.visibilityState === 'hidden') Promise.resolve(context.suspend()).catch(() => {});
+    else resumeQuietly(context);
   });
 
   return {

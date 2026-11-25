@@ -27,7 +27,10 @@ test('app build: marked, offline, no ads or analytics, ONLINE and the rest off u
   const out = new URL('../portal/app/', import.meta.url);
   run(['scripts/build-portal.mjs', 'app']);
   const html = readFileSync(new URL('index.html', out), 'utf8');
-  assert.match(html, /<html lang="en" data-portal="app" data-features="">/);
+  // Landscape only (touch-layout.js): the column beside the court whatever the window's shape, never the upright pad.
+  assert.match(html, /<html lang="en" data-portal="app" data-orientation="landscape" data-features="">/);
+  assert.match(html, /html\[data-portal="app"\]\[data-orientation="landscape"\] main \{ display: grid;/);
+  assert.ok(existsSync(new URL('touch-layout.js', out)));
   assert.match(html, /viewport-fit=cover/);
   assert.match(html, /@font-face[^}]*url\(fonts\/space-grotesk-650-latin\.woff2\)/);
   assert.match(html, /env\(safe-area-inset-top/);
@@ -45,16 +48,16 @@ test('app build: marked, offline, no ads or analytics, ONLINE and the rest off u
   assert.deepEqual(addresses, ['portal.js https://oddbirdle.pages.dev/']);
 
   run(['scripts/build-portal.mjs', 'app', '--features=online,stages']);
-  assert.match(readFileSync(new URL('index.html', out), 'utf8'), /data-portal="app" data-features="online stages"/);
+  assert.match(readFileSync(new URL('index.html', out), 'utf8'), /data-portal="app" data-orientation="landscape" data-features="online stages"/);
   assert.throws(() => run(['scripts/build-portal.mjs', 'app', '--features=bogus']));
   run(['scripts/build-portal.mjs', 'app']);
 
   // The website and the other portals carry none of the app's switches, insets or shell.
   run(['scripts/build-portal.mjs', 'itch']);
   const itch = readFileSync(new URL('../portal/itch/index.html', import.meta.url), 'utf8');
-  assert.ok(!/data-features|viewport-fit|safe-area/.test(itch));
+  assert.ok(!/data-features|data-orientation|viewport-fit|safe-area/.test(itch));
   assert.equal(existsSync(new URL('../portal/itch/app-shell.js', import.meta.url)), false);
   const site = readFileSync(new URL('../dist/index.html', import.meta.url), 'utf8');
-  assert.ok(!/data-features|viewport-fit|safe-area/.test(site));
+  assert.ok(!/data-features|data-orientation|viewport-fit|safe-area/.test(site));
   assert.equal(existsSync(new URL('../dist/app-shell.js', import.meta.url)), false);
 });

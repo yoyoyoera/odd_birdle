@@ -1,7 +1,26 @@
-// The Android app only (<html data-portal="app">, loaded by client.js): the system back button and the app going to the
-// background, through Capacitor's App plugin (window.Capacitor.Plugins.App, no bundler). Every call is guarded, so in a
-// normal browser preview the page still works: there the tab being hidden stands in for the app going away, and Escape
-// for the back button.
+// The app only (<html data-portal="app">, loaded by client.js), Android and iOS: the system back button and the app going
+// to the background, through Capacitor's App plugin (window.Capacitor.Plugins.App, no bundler). Every call is guarded, so
+// in a normal browser preview the page still works: there the tab being hidden stands in for the app going away, and
+// Escape for the back button.
+
+// 'android' | 'ios' | 'web' (a browser preview, or anything Capacitor does not name).
+export function appPlatform(capacitor = globalThis.window?.Capacitor) {
+  try {
+    const platform = capacitor?.getPlatform?.();
+    return platform === 'android' || platform === 'ios' ? platform : 'web';
+  } catch {
+    return 'web';
+  }
+}
+
+// What each platform allows:
+//   systemBack: Android's back button (gesture) is listened to. An iPhone has none; there the ← on the court is the way
+//               to the menu, and the pause after the background ends with a tap.
+//   canExit:    App.exitApp is Android only. An iOS app must never close itself (App Store rule), so back on the main
+//               menu (Escape from a hardware keyboard) does nothing there.
+export function platformRules(platform) {
+  return { systemBack: platform !== 'ios', canExit: platform === 'android' };
+}
 
 // A CPU or online match that has not ended yet (the guide before the first countdown counts: it is part of the match).
 export function matchRunning({ mode, phase }) {
@@ -14,9 +33,9 @@ export function matchRunning({ mode, phase }) {
 //   the first-play guide  -> 'menu'   (it opens just before a match, so back leaves that match)
 //   a finished match      -> 'menu'   (the same as its MENU button)
 //   rooms, codes, connecting (online builds) -> 'menu'
-//   the main menu         -> 'exit'
-export function backAction({ mode, phase, paused = false, guideOpen = false }) {
-  if (mode === 'menu') return 'exit';
+//   the main menu         -> 'exit' (Android), 'none' where the app may not close itself (iOS, a browser preview)
+export function backAction({ mode, phase, paused = false, guideOpen = false, canExit = true }) {
+  if (mode === 'menu') return canExit ? 'exit' : 'none';
   if (guideOpen) return 'menu';
   if (matchRunning({ mode, phase })) return paused ? 'menu' : 'pause';
   return 'menu';
@@ -27,6 +46,7 @@ const keepTargets = '#studio-links, #touch-tune';
 
 export function startAppShell({
   plugins = globalThis.window?.Capacitor?.Plugins,
+  platform = appPlatform(),
   doc = globalThis.document,
   state,
   setPaused,
@@ -35,6 +55,7 @@ export function startAppShell({
   sleepAudio = () => {}
 }) {
   const app = plugins?.App;
+  const rules = platformRules(platform);
   let away = false;   // the app is in the background (or the tab hidden)
   let held = false;   // the player's pause: stays until a tap, or back to the menu
 
@@ -43,7 +64,7 @@ export function startAppShell({
   };
 
   function back() {
-    const action = backAction({ ...state(), paused: held });
+    const action = backAction({ ...state(), paused: held, canExit: rules.canExit });
     if (action === 'pause') {
       held = true;
       apply();
@@ -51,7 +72,7 @@ export function startAppShell({
       toMenu();
       held = false;
       apply();
-    } else if (action === 'exit') {
+    } else if (action === 'exit' && rules.canExit) {
       try { Promise.resolve(app?.exitApp?.()).catch(() => {}); } catch { /* not in the app */ }
     }
     return action;
@@ -91,7 +112,7 @@ export function startAppShell({
       // Not in the app, or an older plugin.
     }
   };
-  listen('backButton', () => back());
+  if (rules.systemBack) listen('backButton', () => back());
   listen('appStateChange', change => (change?.isActive === false ? background() : foreground()));
   listen('pause', () => background());
   listen('resume', () => foreground());
@@ -104,5 +125,5 @@ export function startAppShell({
     back();
   });
 
-  return { back, background, foreground, tap, get held() { return held; }, get away() { return away; } };
+  return { back, background, foreground, tap, platform, get held() { return held; }, get away() { return away; } };
 }
