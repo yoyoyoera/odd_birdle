@@ -95,7 +95,8 @@
   5. `targetSdk`가 36 이상인지 검사하고, 아니면 빌드를 실패시킨다
 - 끝 조건: Actions에서 APK가 만들어지고 다운로드할 수 있다.
 
-#### Step A2b. [공통·Android] 가로 전용 전환 ⬜ (개정 3)
+#### Step A2b. [공통·Android] 가로 전용 전환 ✅ (개정 3)
+- 결과: 앱 빌드 `<html data-orientation="landscape">` → 세로 패드·세로 메뉴 없음, 가로 안내만, 세로로 긴 창은 가로 배치를 폭에 맞춰 가운데 표시(`touch-layout.js`). Android `sensorLandscape`(aapt2로 확인). 배치 기준 `tools/app-layout/`: 844×390·932×430·1012×456 × (인셋 없음·노치 왼쪽·노치 오른쪽) + 600×900. 웹사이트 세로 배치 변화 없음.
 - `[Android]` `AndroidManifest.xml` 액티비티에 `android:screenOrientation="sensorLandscape"`. Android 16(targetSdk 36)은 **큰 화면(가로 폭 600dp 이상, 태블릿·폴더블 펼침)에서 방향 고정을 무시**한다. 폰은 고정이 지켜지고, 큰 화면에서는 세로로 열릴 수 있으므로 그때도 가로 배치가 깨지지 않는지(세로로 길어도 게임이 가로 비율로 그려지는지)만 보장한다.
 - `[공통]` 앱 빌드에서 세로 엄지 패드·세로 메뉴 배치를 끄고, 가로 화면 전체 패드를 항상 쓴다. 첫 실행 안내도 가로 안내 하나만. 웹사이트·포털의 세로 지원은 그대로 둔다(기존 테스트로 확인).
 - `[공통]` 혹시 세로로 열린 경우(큰 화면, 고정이 늦게 적용되는 첫 프레임)에는 "Turn your phone sideways" 안내를 띄우지 않고 가로 비율 그대로 그린다 — 안내 화면은 큰 화면 사용자를 막아 버리기 때문.
@@ -127,7 +128,8 @@ Android 실기기가 없는 동안 iOS로 같은 빌드 1을 병렬 진행한다
   - (나) **Apple Developer Program**(연 $99): TestFlight 내부 테스트, CI 서명, App Store 출시에 필수. 출시 전에는 어차피 필요.
 - iPhone: iOS 버전 확인, 설정 → 개인정보 보호 및 보안 → **개발자 모드** 켜기(Xcode로 설치할 때 필요).
 
-#### Step I1. iOS 플랫폼 + 앱 동작의 iOS 분기 ⬜
+#### Step I1. iOS 플랫폼 + 앱 동작의 iOS 분기 ✅ (Xcode 빌드는 I2에서 확인)
+- 결과: `android-app/` → `mobile-app/`. `@capacitor/ios` 8.6.2(SPM), `mobile-app/ios/`. `MainViewController`: 상태바 숨김, 홈 인디케이터 자동 숨김, 위·아래 가장자리 제스처 지연, 가로만, 활성 중 화면 꺼짐 방지. Info.plist 가로만·iPhone 전용·iOS 15.0·암호화 false·사진 저장 문구. `PrivacyInfo.xcprivacy`. 오디오 세션 `.ambient`(AppDelegate). Debug 빌드에만 CI용 JS 실행 훅(`ODDBIRDLE_CI_EVAL`). `app-shell.js`: iOS는 뒤로 가기·앱 종료 없음, 소리는 `interrupted`에서도 복귀·터치 때 재개. 테스트 214개 통과.
 - `[iOS]` `mobile-app/`에 `@capacitor/ios`(8.6.2 고정)를 더하고 `npx cap add ios` → `mobile-app/ios/`(폴더 이름 `android-app`은 두 플랫폼 공용이 되므로 `mobile-app/`으로 바꾸는 것을 이 단계에서 함께 한다). Capacitor 8 기본인 Swift Package Manager 사용(CocoaPods 없음).
 - `[iOS]` 네이티브 설정(커스텀 `CAPBridgeViewController` 하위 클래스 + `Info.plist`):
   - 가로 전용: `UISupportedInterfaceOrientations` = LandscapeLeft·LandscapeRight만.
@@ -149,7 +151,8 @@ Android 실기기가 없는 동안 iOS로 같은 빌드 1을 병렬 진행한다
   - (b) 네이티브 쪽: `mobile-app/` 이름 변경, `ios/` 추가와 위 네이티브 설정, Android 가로 고정(manifest), macOS CI 워크플로(I2).
 - 끝 조건: 이 Linux 환경에서 가능한 범위(`cap sync ios`로 파일 생성, 설정 파일 검사, 웹 테스트)는 여기서, Xcode 빌드는 I2의 CI에서 확인.
 
-#### Step I2. GitHub Actions(macOS) 시뮬레이터 빌드 + 실제 WKWebView 배치 스크린샷 ⬜
+#### Step I2. GitHub Actions(macOS) 시뮬레이터 빌드 + 실제 WKWebView 배치 스크린샷 🔄
+- `.github/workflows/ios.yml`(macos-26) 작성 완료, 첫 실행 확인 중.
 - 이 환경은 Linux라 Xcode가 없다. `.github/workflows/ios.yml`(macOS 러너):
   1. 웹 빌드 → `cap sync ios`
   2. `xcodebuild` 시뮬레이터용 빌드(서명 없음)
@@ -339,6 +342,7 @@ Android 실기기가 없는 동안 iOS로 같은 빌드 1을 병렬 진행한다
 
 ## 8. 진행 기록
 
+- 2026-11-25: A2b·I1 완료(서브에이전트 2개 병렬: 웹 쪽 / 네이티브·CI). iOS는 Linux에서 프로젝트 생성까지, 컴파일은 macOS CI 첫 실행이 처음.
 - 2026-11-25: 개정 3-1. 사용자에게 iOS 앱 4개를 출시한 개발자 계정이 있음 → 무료 Apple ID 경로 삭제, TestFlight 업로드를 빌드 1로 앞당김(I2b).
 - 2026-11-25: 개정 3. Android 실기기가 없어 iOS 트랙(I0~I3, F1~F2)을 병렬로 추가. 두 플랫폼 모두 가로 전용으로 결정(A2b). 문서 이름을 `PLAN-mobile-app.md`로 바꿈.
 - 2026-11-24: 계획서 작성(`c7a0165`).
