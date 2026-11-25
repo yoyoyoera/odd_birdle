@@ -1,8 +1,8 @@
 {
-  "name": "odd-birdle-android",
+  "name": "odd-birdle-mobile",
   "version": "0.1.0",
   "private": true,
-  "description": "Capacitor Android shell for Odd Birdle (web assets come from ../portal/app)",
+  "description": "Capacitor Android and iOS shell for Odd Birdle (web assets come from ../portal/app)",
   "scripts": {
     "sync": "cap sync android",
     "icons": "bash scripts/make-icons.sh",

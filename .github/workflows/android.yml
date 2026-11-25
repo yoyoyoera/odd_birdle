@@ -6,7 +6,7 @@ on:
       - 'claude/**'
       - main
     paths:
-      - 'android-app/**'
+      - 'mobile-app/**'
       - '.github/workflows/android.yml'
       - 'scripts/**'
       - '*.js'
@@ -34,11 +34,11 @@ jobs:
 
       - uses: actions/setup-node@v5
         with:
-          node-version-file: android-app/.nvmrc
+          node-version-file: mobile-app/.nvmrc
           cache: npm
           cache-dependency-path: |
             package-lock.json
-            android-app/package-lock.json
+            mobile-app/package-lock.json
 
       - name: Install web dependencies
         run: npm ci
@@ -47,11 +47,11 @@ jobs:
         run: node scripts/build-portal.mjs app
 
       - name: Install Capacitor
-        working-directory: android-app
+        working-directory: mobile-app
         run: npm ci
 
       - name: Copy web assets into the Android project
-        working-directory: android-app
+        working-directory: mobile-app
         run: npx cap sync android
 
       - uses: actions/setup-java@v5
@@ -61,13 +61,13 @@ jobs:
           cache: gradle
 
       - name: Build debug APK
-        working-directory: android-app/android
+        working-directory: mobile-app/android
         run: ./gradlew assembleDebug --no-daemon
 
       - name: Check targetSdk >= 36
         id: apk
         run: |
-          apk=android-app/android/app/build/outputs/apk/debug/app-debug.apk
+          apk=mobile-app/android/app/build/outputs/apk/debug/app-debug.apk
           aapt2="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)/aapt2"
           badging="$("$aapt2" dump badging "$apk")"
           echo "$badging" | grep -E "^(package|minSdkVersion|targetSdkVersion|sdkVersion):"
@@ -82,6 +82,6 @@ jobs:
       - uses: actions/upload-artifact@v5
         with:
           name: odd-birdle-debug-${{ steps.apk.outputs.short_sha }}
-          path: android-app/android/app/build/outputs/apk/debug/app-debug.apk
+          path: mobile-app/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30

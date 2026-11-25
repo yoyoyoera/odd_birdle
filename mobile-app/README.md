@@ -18,7 +18,7 @@ hostname을 바꾸면 Origin이 바뀌어 기기 저장소(localStorage 등)가 
 
 ## 화면 (몰입형·가장자리·인셋)
 
-- `MainActivity`: 앱이 앞에 있는 동안 화면 꺼짐 방지(`FLAG_KEEP_SCREEN_ON`), 상태·내비게이션 바 숨김(가장자리 스와이프 시 잠깐 표시), 복귀·포커스 때 다시 숨김. 모든 API에서 edge-to-edge + 디스플레이 컷아웃까지 그리기. 회전 고정 없음(세로·가로 모두).
+- `MainActivity`: 앱이 앞에 있는 동안 화면 꺼짐 방지(`FLAG_KEEP_SCREEN_ON`), 상태·내비게이션 바 숨김(가장자리 스와이프 시 잠깐 표시), 복귀·포커스 때 다시 숨김. 모든 API에서 edge-to-edge + 디스플레이 컷아웃까지 그리기. 가로 전용: manifest `android:screenOrientation="sensorLandscape"`(왼쪽·오른쪽 가로만). Android 16(targetSdk 36)은 큰 화면(폭 600dp 이상)에서 이 고정을 무시하므로, 그때는 웹 쪽이 세로 창에서도 가로 비율로 그린다(계획서 A2b).
 - 인셋은 Capacitor 8 내장 SystemBars 플러그인 `insetsHandling: "css"`(기본값)로 처리한다. Capacitor 7의 `adjustMarginsForEdgeToEdge`는 8에 없다.
   - **WebView 140 이상 + 페이지 viewport에 `viewport-fit=cover`가 있을 때:** 네이티브 여백 없이 WebView가 화면 전체를 쓰고, `env(safe-area-inset-*)`가 실제 값을 갖는다. 같은 값이 `--safe-area-inset-*` CSS 변수로도 들어간다.
   - **WebView 140 미만이거나 `viewport-fit=cover`가 없을 때:** Capacitor가 WebView 바깥에 네이티브 여백을 주고 `env()`·`--safe-area-inset-*`는 0이 된다(화면이 시스템 바·컷아웃을 피함).
@@ -31,7 +31,7 @@ hostname을 바꾸면 Origin이 바뀌어 기기 저장소(localStorage 등)가 
 `resources/icon-source.png`(reddit 브랜치 `reddit/odd-birdle/public/icon.png`, Snoo 없음)에서 셔틀콕 모양을 잘라 만든다. ImageMagick 6(`convert`) 필요.
 
 ```sh
-bash android-app/scripts/make-icons.sh
+bash mobile-app/scripts/make-icons.sh
 ```
 
 - 적응형 아이콘: 배경 크림색 `#F0E6D6` + 셔틀콕 전경(같은 전경을 Android 13 테마 아이콘 monochrome으로도 사용), 구형 기기용 사각·원형 PNG
@@ -43,10 +43,10 @@ bash android-app/scripts/make-icons.sh
 # 1) 웹 번들 → portal/app/
 npm ci && node scripts/build-portal.mjs app
 # 2) Capacitor
-cd android-app && npm ci && npx cap sync android
+cd mobile-app && npm ci && npx cap sync android
 # 3) APK (JDK 21, ANDROID_HOME에 platform 36 + build-tools 필요)
 cd android && ./gradlew assembleDebug
-# 결과: android-app/android/app/build/outputs/apk/debug/app-debug.apk
+# 결과: mobile-app/android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
 SDK 설치 예(저장소 밖):
@@ -72,7 +72,7 @@ git에 들어가지 않는 것: `android/app/src/main/assets/public`(복사된 �
 ## CI (`.github/workflows/android.yml`)
 
 `main`·`claude/**` 푸시(앱·웹 관련 경로가 바뀐 경우)와 수동 실행(workflow_dispatch). 순서:
-루트 `npm ci` → `node scripts/build-portal.mjs app` → `android-app`에서 `npm ci` → `npx cap sync android` → Temurin JDK 21 → `./gradlew assembleDebug` → `aapt2 dump badging`으로 targetSdk 36 미만이면 실패 → 아티팩트 `odd-birdle-debug-<짧은 SHA>`로 APK 업로드(30일 보관).
+루트 `npm ci` → `node scripts/build-portal.mjs app` → `mobile-app`에서 `npm ci` → `npx cap sync android` → Temurin JDK 21 → `./gradlew assembleDebug` → `aapt2 dump badging`으로 targetSdk 36 미만이면 실패 → 아티팩트 `odd-birdle-debug-<짧은 SHA>`로 APK 업로드(30일 보관).
 릴리스 서명·AAB는 아직 없음(Step E1).
 
 ## 실기기 체크리스트 (Step A3, 결과는 계획서 8절에)

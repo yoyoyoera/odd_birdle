@@ -3,7 +3,7 @@
 # resources/icon-source.png (the plain Odd Birdle icon: the shuttle on a cream court).
 # Needs ImageMagick 6 (`convert`) on PATH. Rerunnable; overwrites the PNGs it owns.
 #
-#   bash android-app/scripts/make-icons.sh
+#   bash mobile-app/scripts/make-icons.sh
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")/.." && pwd)"
