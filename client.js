@@ -214,7 +214,7 @@ function resize() {
   // How much bigger than the old 940 wide court this one is: the words over the court grow with it (index.html).
   const grow = Math.min(Math.max(bounds.width / 940, 1), 1.4).toFixed(3);
   if (grow !== shownGrow) document.documentElement.style.setProperty('--grow', shownGrow = grow);
-  if (portal === 'app') paintAppBackground(bounds);
+  if (portal === 'app') { courtBounds = bounds; sizeBleed(); paintAppBackground(bounds); }
 }
 let shownGrow;
 
@@ -223,6 +223,53 @@ let shownGrow;
 // home-indicator strip included. The play area itself is unchanged.
 let shownBands = '';
 let shownProps = '';
+let courtBounds;
+
+// The app: a racket that goes to the edge of the court is drawn whole. The part past the edge (which it cannot go to) is
+// laid over the side strip in a soft red, so nothing is cut off and it is clear that is the limit. The racket's own part
+// inside the court is the normal one from the court canvas; this canvas covers the whole screen and only carries the outside bits.
+const bleed = [];
+let bleedCanvas, bleedCtx, bleedDirty = false;
+function ensureBleed() {
+  if (bleedCanvas) return;
+  bleedCanvas = document.createElement('canvas');
+  bleedCanvas.setAttribute('aria-hidden', 'true');
+  bleedCanvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;aspect-ratio:auto;background:transparent;pointer-events:none;z-index:2';
+  document.body.append(bleedCanvas);
+  bleedCtx = bleedCanvas.getContext('2d');
+}
+function sizeBleed() {
+  ensureBleed();
+  const ratio = Math.min(devicePixelRatio || 1, 2);
+  bleedCanvas.width = Math.round(innerWidth * ratio);
+  bleedCanvas.height = Math.round(innerHeight * ratio);
+  bleedCtx.setTransform(ratio, 0, 0, ratio, 0, 0);
+}
+function drawRacketBleed() {
+  if (!bleedCtx || !courtBounds) return;
+  if (!bleed.length && !bleedDirty) return;
+  bleedCtx.clearRect(0, 0, innerWidth, innerHeight);
+  bleedDirty = false;
+  const b = courtBounds, sx = b.width / width, sy = b.height / height;
+  for (const racket of bleed) {
+    const cx = b.left + racket.x * sx, cy = b.top + racket.y * sy, r = racket.r * sx;
+    if (cx - r >= b.left && cx + r <= b.right) continue;
+    bleedCtx.save();
+    bleedCtx.beginPath();
+    bleedCtx.rect(0, 0, b.left, innerHeight);
+    bleedCtx.rect(b.right, 0, innerWidth - b.right, innerHeight);
+    bleedCtx.clip();
+    bleedCtx.beginPath();
+    bleedCtx.arc(cx, cy, r, 0, Math.PI * 2);
+    bleedCtx.fillStyle = 'rgba(214, 72, 72, 0.34)';
+    bleedCtx.fill();
+    bleedCtx.lineWidth = 2;
+    bleedCtx.strokeStyle = 'rgba(190, 52, 52, 0.55)';
+    bleedCtx.stroke();
+    bleedCtx.restore();
+    bleedDirty = true;
+  }
+}
 // Props on the floor beside the court, drawn in court units (scale) so they keep the court's proportions.
 function paintAppProps(bounds, scale) {
   // (An HTML container, so the parser puts the <svg> in its own namespace: the app build lists no web addresses.)
@@ -234,22 +281,25 @@ function paintAppProps(bounds, scale) {
     box.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:0';
     document.body.prepend(box);
   }
-  const strip = Math.min(bounds.left, innerWidth - bounds.right);
-  const base = Math.round(bounds.top + (floor + 34) * scale);
+  const strip = bounds.left;
+  const floorTop = bounds.top + floor * scale;
   const frame = palette.court, ink = palette.ink;
   const wood = mix(frame, ink, 0.42), soft = mix(frame, ink, 0.28), bag = mix(frame, ink, 0.62);
-  const markup = strip < 42 ? '' : `
-    <g transform="translate(${bounds.left * 0.33} ${base}) scale(${scale})" fill="${wood}">
+  // Sized to fit the strip with a margin (never cut by the screen edge or the court), the chair behind and the bag in front.
+  const fit = Math.min(scale * 0.8, (strip - 14) / 74);
+  const chairX = 8 + 27 * fit, chairBase = Math.round(floorTop + 24 * scale);
+  const bagX = Math.min(strip - 8 - 28 * fit, chairX + 27 * fit + 4 + 26 * fit), bagBase = Math.round(floorTop + 44 * scale);
+  const markup = strip < 46 ? '' : `
+    <g transform="translate(${chairX} ${chairBase}) scale(${fit})" fill="${wood}">
       <rect x="-23" y="-110" width="5" height="110"/><rect x="18" y="-110" width="5" height="110"/>
       <rect x="-27" y="-118" width="54" height="8"/><rect x="-23" y="-152" width="5" height="34"/><rect x="-23" y="-152" width="30" height="5"/>
       <rect x="-18" y="-60" width="36" height="4" fill="${soft}"/><rect x="-18" y="-84" width="36" height="4" fill="${soft}"/><rect x="-18" y="-36" width="36" height="4" fill="${soft}"/>
       <rect x="-19" y="-127" width="38" height="9" rx="4" fill="${bag}"/>
     </g>
-    <g transform="translate(${bounds.left * 0.78} ${base}) scale(${scale * 0.85})">
+    <g transform="translate(${bagX} ${bagBase}) scale(${fit})">
       <rect x="-26" y="-27" width="40" height="27" rx="9" fill="${bag}"/>
       <rect x="-17" y="-35" width="22" height="10" rx="5" fill="none" stroke="${bag}" stroke-width="3"/>
       <rect x="19" y="-25" width="9" height="25" rx="3" fill="#7fae94"/><rect x="20.5" y="-29" width="6" height="5" rx="2" fill="${wood}"/>
-      <rect x="-36" y="-31" width="8" height="31" rx="3" fill="${soft}"/>
     </g>`;
   if (markup === shownProps) return;
   shownProps = markup;
@@ -260,13 +310,10 @@ function paintAppBackground(bounds) {
   const wallEnd = Math.round(bounds.top + standsBottom * scale);
   const floorTop = Math.round(bounds.top + floor * scale);
   const bands = `linear-gradient(to bottom, ${standsWall(palette)} 0 ${wallEnd}px, ${palette.court} ${wallEnd}px ${floorTop}px, ${palette.floor} ${floorTop}px)`;
-  // The strips beside the court are out of play: the hall fades softly to a darker tone towards the screen edges (no hard
-  // line), and a few things stand on the floor out there (an umpire chair, a racket bag), so it reads as the side of the hall.
-  const left = Math.round(bounds.left), right = Math.round(bounds.right);
-  const fade = `${palette.ink}30`, clear = `${palette.ink}00`;
-  const sides = `linear-gradient(to right, ${fade} 0, ${clear} ${left}px, ${clear} ${right}px, ${fade} 100%)`;
+  // The strips beside the court are out of play: a few things stand on the floor out there (an umpire chair, a racket bag),
+  // so it reads as the side of the hall. (A racket that goes to the edge shows what it cannot reach in red: see drawRacketBleed.)
   paintAppProps(bounds, scale);
-  const painted = sides + ',' + bands;
+  const painted = bands;
   if (painted === shownBands) return;
   shownBands = painted;
   document.documentElement.style.background = painted;
@@ -826,6 +873,7 @@ function drawRacket(position, fill, stroke, side) {
   ctx.lineWidth = 2;
   ctx.strokeStyle = stroke;
   ctx.stroke();
+  if (portal === 'app' && side !== undefined) bleed.push({ x: mirrored() ? width - position.x : position.x, y: position.y, r });
 }
 
 function drawCourt(view) {
@@ -943,6 +991,7 @@ function drawPops(pops) {
 
 function draw(view, scenery = false) {
   ctx.clearRect(0, 0, width, height);
+  bleed.length = 0;
   ctx.save();
   if (!scenery && mirrored()) {
     ctx.translate(width, 0);
@@ -976,6 +1025,7 @@ function draw(view, scenery = false) {
     }
   }
   ctx.restore();
+  drawRacketBleed();
   if (view.shake && !reduceMotion.matches) {
     const veil = shockFlicker(view.shake);
     for (const [color, alpha] of [['#0b1410', veil.dark], ['#ffffff', veil.light]]) {
