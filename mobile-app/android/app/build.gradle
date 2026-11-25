@@ -7,10 +7,10 @@ def keystoreFile = file(System.getenv('ODDBIRDLE_KEYSTORE_PROPS') ?: "${System.g
 if (keystoreFile.exists()) keystoreFile.withInputStream { keystoreProps.load(it) }
 
 android {
-    namespace = "com.oddbirdle.app"
+    namespace = "com.yoyoyo.oddbirdle"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.oddbirdle.app"
+        applicationId "com.yoyoyo.oddbirdle"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

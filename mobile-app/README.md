@@ -2,7 +2,7 @@
 
 게임 웹 파일(`portal/app/`)을 앱에 내장하는 Capacitor 껍데기. 두 플랫폼 공용 폴더(이전 이름 `android-app/`). 계획: `docs/PLAN-mobile-app.md` Step A1(b)·A2·A2b·A3, I1(b)·I2·I3.
 
-- 앱 ID: `com.oddbirdle.app`(Android 패키지 = iOS 번들 ID), 표시 이름 `Odd Birdle` — 첫 스토어 업로드 전에 확정
+- 앱 ID: `com.yoyoyo.oddbirdle`(Android 패키지 = iOS 번들 ID), 표시 이름 `Odd Birdle` — 첫 스토어 업로드 전에 확정
 - 버전 고정(`^` 없음): `@capacitor/core`·`@capacitor/cli`·`@capacitor/android`·`@capacitor/ios` 8.6.2, `@capacitor/app` 8.1.2
 - Android: `compileSdk 36`, `targetSdk 36`, `minSdk 24` (`android/variables.gradle`), JDK 21, Gradle wrapper 8.14.3, AGP 8.13.0
 - iOS: iPhone 전용(`TARGETED_DEVICE_FAMILY = 1`), 최소 iOS 15.0, Swift Package Manager(CocoaPods 없음, `ios/App/CapApp-SPM/Package.swift`는 CLI가 관리)
@@ -120,7 +120,7 @@ npx cap open ios          # Xcode에서 ios/App/App.xcodeproj가 열린다
 ```
 
 Xcode에서:
-1. 왼쪽 `App` 프로젝트 → TARGETS `App` → **Signing & Capabilities** → Team에서 자기 Apple ID(무료 계정이면 "Personal Team") 선택. 번들 ID `com.oddbirdle.app`이 이미 다른 팀에 등록되어 있다는 오류가 나오면 로컬 시험용으로만 `com.oddbirdle.app.dev` 등으로 바꾸고 커밋하지 않는다.
+1. 왼쪽 `App` 프로젝트 → TARGETS `App` → **Signing & Capabilities** → Team에서 자기 Apple ID(무료 계정이면 "Personal Team") 선택. 번들 ID `com.yoyoyo.oddbirdle`이 이미 다른 팀에 등록되어 있다는 오류가 나오면 로컬 시험용으로만 `com.yoyoyo.oddbirdle.dev` 등으로 바꾸고 커밋하지 않는다.
 2. 위쪽 실행 대상에서 USB로 연결한 iPhone 선택 → ▶(Run). 처음에는 iPhone의 설정 → 일반 → VPN 및 기기 관리에서 개발자 인증서를 신뢰해야 할 수 있다.
 3. 무료 Apple ID로 설치한 앱은 7일 뒤 다시 설치해야 한다.
 
