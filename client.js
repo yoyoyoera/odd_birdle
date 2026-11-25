@@ -290,7 +290,7 @@ function paintAppProps(bounds, scale) {
     box = document.createElement('div');
     box.id = 'app-props';
     box.setAttribute('aria-hidden', 'true');
-    box.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:0';
+    box.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:-1';
     document.body.prepend(box);
   }
   const strip = bounds.left;
@@ -739,6 +739,25 @@ const touchTuneToggle = document.querySelector('#touch-tune-toggle');
 const touchTune = document.querySelector('#touch-tune');
 const touchGainInput = document.querySelector('#touch-gain');
 const touchGainValue = document.querySelector('#touch-gain-value');
+// The app: touch speed is set with two square buttons (+ and −) around the value, instead of a slider.
+if (portal === 'app') {
+  const step = (name, label, change) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'tune-step';
+    button.id = name;
+    button.textContent = label;
+    button.setAttribute('aria-label', change > 0 ? 'Faster touch' : 'Slower touch');
+    button.addEventListener('click', () => {
+      const next = Math.round(Math.min(Number(touchGainInput.max), Math.max(Number(touchGainInput.min), Number(touchGainInput.value) + change)) * 20) / 20;
+      touchGainInput.value = String(next);
+      touchGainInput.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    return button;
+  };
+  touchTune.prepend(step('touch-gain-up', '+', 0.1));
+  touchTune.append(step('touch-gain-down', '−', -0.1));
+}
 const padHintKey = 'oddbirdle-pad-hint-done';
 let padActive = false;
 let touchTuneOpen = false;
@@ -895,6 +914,7 @@ function drawCourt(view) {
   ctx.fillStyle = palette.floor;
   ctx.fillRect(0, floor, width, height - floor);
   const liveBomb = view.bomb?.lit && view.shuttle;
+  const bombWash = liveBomb && portal !== 'app';
   const now = performance.now();
   const bombDuck = bombCrowdMotion.update(now, reduceMotion.matches ? undefined : liveBomb?.x);
   drawStands(ctx, standsFor(view), {
@@ -902,7 +922,7 @@ function drawCourt(view) {
     boo: reduceMotion.matches ? undefined : crowdNow.boo,
     jolt: reduceMotion.matches ? 0 : shockJolt(view.shake), bombDuck: reduceMotion.matches ? undefined : bombDuck
   });
-  if (liveBomb) {
+  if (bombWash) {
     const left = liveBomb.x < center ? 0 : center;
     const red = ctx.createLinearGradient(0, 0, 0, floor);
     red.addColorStop(0, '#d334337f');
@@ -1038,7 +1058,8 @@ function draw(view, scenery = false) {
   }
   ctx.restore();
   drawRacketBleed();
-  if (view.shake && !reduceMotion.matches) {
+  // (The app has no dark or light veil over the court alone: the strips beside it would stay as they were.)
+  if (view.shake && !reduceMotion.matches && portal !== 'app') {
     const veil = shockFlicker(view.shake);
     for (const [color, alpha] of [['#0b1410', veil.dark], ['#ffffff', veil.light]]) {
       if (alpha <= 0) continue;
