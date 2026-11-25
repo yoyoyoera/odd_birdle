@@ -42,7 +42,29 @@ class MainViewController: CAPBridgeViewController {
         })
 
         refreshSystemChrome()
+        #if DEBUG
+        runCIScriptWhenLoaded()
+        #endif
     }
+
+    #if DEBUG
+    private var ciLoadObservation: NSKeyValueObservation?
+
+    /// CI only (Debug builds): `SIMCTL_CHILD_ODDBIRDLE_CI_EVAL='<js>' xcrun simctl launch ...`
+    /// runs that JavaScript once the first page has loaded, e.g. to press CPU for a
+    /// match screenshot in .github/workflows/ios.yml. Release builds do not contain this.
+    private func runCIScriptWhenLoaded() {
+        guard let script = ProcessInfo.processInfo.environment["ODDBIRDLE_CI_EVAL"], !script.isEmpty,
+              let webView = webView else { return }
+        ciLoadObservation = webView.observe(\.isLoading, options: [.new]) { [weak self] view, _ in
+            guard !view.isLoading, view.url != nil else { return }
+            self?.ciLoadObservation = nil
+            view.evaluateJavaScript(script) { _, error in
+                if let error = error { print("ODDBIRDLE_CI_EVAL failed: \(error)") }
+            }
+        }
+    }
+    #endif
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
