@@ -1,6 +1,6 @@
 # Odd Birdle Android 앱 (Capacitor 8)
 
-게임 웹 파일(`portal/app/`)을 APK에 내장하는 Capacitor 껍데기. 계획: `docs/PLAN-android-app.md` Step A1(b)·A2·A3.
+게임 웹 파일(`portal/app/`)을 APK에 내장하는 Capacitor 껍데기. 계획: `docs/PLAN-mobile-app.md` Step A1(b)·A2·A3.
 
 - 패키지 이름(가칭): `com.oddbirdle.app` — 첫 Play 업로드 전에 확정
 - 버전 고정(`^` 없음): `@capacitor/core`·`@capacitor/cli`·`@capacitor/android` 8.6.2, `@capacitor/app` 8.1.2
