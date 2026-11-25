@@ -4,7 +4,7 @@ import {
   posesBetween, sweptTouch, supportedShuttleY, swingMotion, trialEffectIds, trialEffectLabels, trampolineLift,
   trampolineDent, threeTouchLimit, touchLimitFault
 } from './game.js';
-import { makeStands, drawStands, createBombCrowdMotion } from './stands.js';
+import { makeStands, drawStands, createBombCrowdMotion, standsBottom, standsWall } from './stands.js';
 import { createCrowd } from './crowd.js';
 import { createLinkQuality } from './link-quality.js';
 import { createFrameMeter } from './frame-meter.js';
@@ -214,8 +214,24 @@ function resize() {
   // How much bigger than the old 940 wide court this one is: the words over the court grow with it (index.html).
   const grow = Math.min(Math.max(bounds.width / 940, 1), 1.4).toFixed(3);
   if (grow !== shownGrow) document.documentElement.style.setProperty('--grow', shownGrow = grow);
+  if (portal === 'app') paintAppBackground(bounds);
 }
 let shownGrow;
+
+// The app: no dark margins. The page behind the court is painted in the court's own bands (wall behind the crowd, court,
+// floor), lined up with the canvas, so the court seems to run out to every edge of the screen, the notch sides and the
+// home-indicator strip included. The play area itself is unchanged.
+let shownBands = '';
+function paintAppBackground(bounds) {
+  const scale = bounds.height / height;
+  const wallEnd = Math.round(bounds.top + standsBottom * scale);
+  const floorTop = Math.round(bounds.top + floor * scale);
+  const bands = `linear-gradient(to bottom, ${standsWall(palette)} 0 ${wallEnd}px, ${palette.court} ${wallEnd}px ${floorTop}px, ${palette.floor} ${floorTop}px)`;
+  if (bands === shownBands) return;
+  shownBands = bands;
+  document.documentElement.style.background = bands;
+  document.documentElement.style.setProperty('--app-court-ink', palette.ink);
+}
 
 function setText(element, text) {
   if (element.textContent !== text) element.textContent = text;

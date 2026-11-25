@@ -81,6 +81,9 @@ if (name === 'app') {
       --app-safe-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
       --app-safe-left: var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
       --app-safe-block: calc(var(--app-safe-top) + var(--app-safe-bottom)); overscroll-behavior: none; }
+    /* No dark margins: the page is painted by client.js in the court's bands; body and the icon column let it show. */
+    html[data-portal="app"] body { background: transparent; }
+    html[data-portal="app"] #studio-links a, html[data-portal="app"] #sound-toggle { color: var(--ink); opacity: .6; }
     html[data-portal="app"] body { padding: var(--app-safe-top) var(--app-safe-right) var(--app-safe-bottom) var(--app-safe-left);
       overscroll-behavior: none; }
     html[data-portal="app"][data-orientation="landscape"] main { display: grid; grid-template-columns: minmax(0, 1fr) 44px;
