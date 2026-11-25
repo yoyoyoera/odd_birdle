@@ -17,8 +17,27 @@ function randomFrom(seed) {
   return () => (state = (state * 16807) % 2147483647) / 2147483647;
 }
 
+// Who someone is, beyond where they sit: the side they support (most back the half they sit by, some the other one,
+// some nobody), how big their reactions are, and how they show it. From a second stream of the same seed, so the
+// seats themselves come out exactly as before.
+export const joyMoves = ['arms', 'clap', 'jump'];
+function personality(random, x) {
+  const near = x < 450 ? 'left' : 'right';
+  const far = near === 'left' ? 'right' : 'left';
+  const roll = random();
+  return {
+    team: roll < 0.58 ? near : roll < 0.8 ? far : 'neutral',
+    // 0.35 (hardly moves) to 1.6 (all in).
+    energy: 0.35 + random() ** 1.3 * 1.25,
+    joy: joyMoves[Math.min(2, Math.floor(random() * 3))],
+    // When their side loses a point: slump, or hands on the head.
+    grief: random() < 0.6 ? 'slump' : 'head'
+  };
+}
+
 export function makeStands(seed = Math.random() * 2147483646, fullness) {
   const random = randomFrom(seed);
+  const traits = randomFrom((Math.floor(seed) * 7919 + 17) % 2147483646);
   // `fullness` (0 to 1) fixes how packed the stands are; the game leaves it random, the full-time card packs them.
   const fill = fullness ?? 0.3 + random() * 0.7;
   const people = [];
@@ -29,6 +48,7 @@ export function makeStands(seed = Math.random() * 2147483646, fullness) {
         hair: Math.floor(random() * 3), style: random(), hat: random() < 0.1, fan: random() < 0.6, stand: random() < 0.7, delay: random() * 0.18
       };
       const seated = random() < fill;
+      Object.assign(person, personality(traits, person.x));
       if (seated && Math.abs(x - 450) >= 30) people.push(person);
     }
   });
@@ -48,7 +68,7 @@ const toneCache = new WeakMap();
 
 function drawPerson(ctx, p, tones, look) {
   const { x, y, s } = p;
-  const { raise, boo, droop, clock, lean, gaze, duck } = look;
+  const { raise, boo, droop, clock, lean, gaze, duck, clap = 0, hold = 0 } = look;
   const headY = y - 15 * s, r = 11 * s, w = 18 * s;
   const torso = tones.torso[p.row][p.shade], face = tones.face[p.face], hair = tones.hair[p.hair];
   // The head and what sits on it turn together, around the neck.
@@ -140,7 +160,31 @@ function drawPerson(ctx, p, tones, look) {
       ctx.fill();
     }
   });
-  if (duck > 0.001) {
+  if (clap > 0.01) {
+    // Clapping in front of the chest: the hands meet and part on the person's own beat.
+    const open = 0.5 + 0.5 * Math.sin(clock / 55 + x * 0.3);
+    ctx.save();
+    ctx.globalAlpha *= Math.min(1, clap * 3);
+    ctx.strokeStyle = torso;
+    ctx.fillStyle = face;
+    ctx.lineWidth = 5 * s;
+    ctx.lineCap = 'round';
+    for (const d of [-1, 1]) {
+      const handX = x + d * (2.5 + 6 * open) * s, handY = y + (12 - 9 * clap) * s;
+      ctx.beginPath();
+      ctx.moveTo(x + d * 13 * s, y + 12 * s);
+      ctx.lineTo(handX, handY);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(handX, handY, 3.4 * s, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+  // Hands on the head (their side lost the point) uses the same arms as ducking under a bomb, without the body going down.
+  const cover = Math.max(duck, hold);
+  if (cover > 0.001) {
+    const duck = cover;
     ctx.save();
     ctx.globalAlpha *= Math.min(1, (duck - 0.001) * 6);
     ctx.strokeStyle = torso;
@@ -246,7 +290,7 @@ function spectatorsForBoo(stands, boo) {
 export function drawStands(ctx, stands, { gaze, gazes, palette, cheer, boo, now = 0, jolt = 0, mood = noMood, bombDuck }) {
   let tones = toneCache.get(palette);
   if (!tones) toneCache.set(palette, tones = tonesFor(palette));
-  const { effect, effectAge, wind, standing, surprise, clock } = mood;
+  const { effect, effectAge, wind, standing, surprise, clock, tension = 0, wave } = mood;
   const reacting = boo && spectatorsForBoo(stands, boo);
   const blend = Math.min(1, effectAge / 250);
   ctx.fillStyle = tones.wall;
@@ -261,17 +305,35 @@ export function drawStands(ctx, stands, { gaze, gazes, palette, cheer, boo, now 
     ctx.clip();
     for (const p of stands.people) {
       if (p.row !== row) continue;
-      const onCheerSide = cheer && (p.x < 450) === (cheer.side === 'left');
+      // Each person backs a side (or nobody): their side's point is joy, the other side's is grief.
+      const team = p.team ?? (p.x < 450 ? 'left' : 'right');
       const seconds = cheer ? (now - cheer.since) / 1000 - p.delay : 0;
       const duck = bombDuckAmount(p, bombDuck);
-      const raise = onCheerSide && (p.fan || cheer.finale) ? cheerAmount(seconds, cheer.finale) * (1 - duck) : 0;
       const booSeconds = reacting?.has(p) ? (now - boo.since) / 1000 - p.delay : 0;
       const protest = cheerAmount(booSeconds, false, booTiming) * (1 - duck);
-      const droop = cheer && !onCheerSide ? cheerAmount(seconds, cheer.finale, droopTiming) * (1 - protest) : 0;
-      let dx = 0, dy = Math.sin(clock / 650 + p.x * 0.05) * 0.8 * s;
+      const fanOf = cheer && team === cheer.side;
+      const rival = cheer && team !== 'neutral' && !fanOf;
+      // A comeback lifts everyone on that side, the quiet ones too.
+      const energy = cheer?.big ? Math.max(p.energy ?? 1, 1.25) : p.energy ?? 1;
+      const amount = cheer ? cheerAmount(seconds, cheer.finale) * (1 - duck) : 0;
+      const joyful = fanOf && (p.fan || cheer.finale || cheer.big) ? amount
+        : team === 'neutral' && (cheer?.finale || cheer?.big) ? amount * 0.6 : 0;
+      const move = team === 'neutral' ? 'clap' : p.joy ?? 'arms';
+      let raise = 0, clap = 0, jump = 0;
+      if (move === 'arms') raise = joyful * Math.min(1, 0.5 + energy * 0.45);
+      else if (move === 'clap') clap = joyful;
+      else { jump = joyful * energy; raise = joyful * 0.7; }
+      const sad = rival ? cheerAmount(seconds, cheer.finale, droopTiming) * (1 - protest) * Math.min(1.3, energy) : 0;
+      const hold = p.grief === 'head' ? Math.min(1, sad) * (1 - duck) : 0;
+      const droop = p.grief === 'head' ? sad * 0.4 : sad;
+      // The wave: a bump running left to right; whoever it passes stands and throws their arms up.
+      const swell = wave === undefined ? 0 : Math.exp(-(((p.x - (-120 + wave * 1140)) / 75) ** 2)) * (1 - duck);
+      raise = Math.max(raise, swell * 0.95);
+      // Match point: everyone stops swaying and leans in.
+      let dx = 0, dy = Math.sin(clock / 650 + p.x * 0.05) * 0.8 * s * (1 - tension * 0.85);
       if (jolt > 0) { dx += Math.sin(now / joltPower.period + p.x) * joltPower.shake * jolt * s; dy += jolt * joltPower.drop * s; }
-      dy += (droop * 5 - surprise * 3 - protest * 1.4) * s;
-      if (p.stand) dy -= standing * (9 + Math.abs(Math.sin(clock / 170 + p.x)) * 2.5) * s;
+      dy += (droop * 5 - surprise * 3 - protest * 1.4 + tension * 3.5 - jump * 9 - swell * 11) * s;
+      if (p.stand) dy -= standing * (12 + Math.abs(Math.sin(clock / 170 + p.x)) * 3) * s;
       dy += duck * 29 * s;
       let tilt = 0;
       if (effect === 'wind') {
@@ -288,7 +350,7 @@ export function drawStands(ctx, stands, { gaze, gazes, palette, cheer, boo, now 
       ctx.rotate(tilt);
       ctx.translate(-p.x, -(y + 40 * s));
       drawPerson(ctx, p, tones, {
-        raise, boo: protest, droop, clock, lean, gaze: look, duck
+        raise, boo: protest, droop, clock, lean, gaze: look, duck, clap, hold
       });
       ctx.restore();
     }

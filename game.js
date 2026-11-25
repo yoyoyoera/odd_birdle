@@ -1585,6 +1585,8 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     return {
       phase, score, message, winner, eventText, eventWind, flash, frozen, support, cpuLevel, netTop: matchNetTop,
       ...(rules ? { pointsToWin } : {}),
+      // The crowd reads the target in every match (the goal label above only shows it for a stage).
+      crowdPointsToWin: pointsToWin,
       ...(rules?.bomb ? {
         bomb: bombFuse !== undefined && (phase === 'live' || pointReason === 'out')
           ? { fuse: bombFuse, lit: phase === 'live', remaining: bombFuse / bombFuseDuration,

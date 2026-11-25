@@ -137,3 +137,24 @@ test('DECOY: the crowd looks at different shuttles, each person on their own bea
   assert.notDeepEqual(at(1400), first, 'eyes move on');
   assert.deepEqual(at(1000), first, 'but a moment gives the same answer');
 });
+
+test('every spectator has a side (mostly the half they sit by), a reaction size and a way of showing it', async () => {
+  const { joyMoves } = await import('../stands.js');
+  const people = [];
+  for (let seed = 1; seed <= 40; seed++) people.push(...makeStands(seed).people);
+  const near = people.filter(p => p.team === (p.x < 450 ? 'left' : 'right')).length;
+  const neutral = people.filter(p => p.team === 'neutral').length;
+  assert.ok(near / people.length > 0.5 && near / people.length < 0.66, 'most back the side they sit by');
+  assert.ok(neutral / people.length > 0.12 && neutral / people.length < 0.3, 'some back nobody');
+  assert.ok(people.every(p => p.energy >= 0.35 && p.energy <= 1.6));
+  assert.ok(people.some(p => p.energy < 0.6) && people.some(p => p.energy > 1.3), 'quiet ones and loud ones');
+  for (const move of joyMoves) assert.ok(people.some(p => p.joy === move), move);
+  assert.ok(people.some(p => p.grief === 'head') && people.some(p => p.grief === 'slump'));
+});
+
+test('who someone is does not move the seats: the same seed gives the same places as before', () => {
+  const seats = seed => makeStands(seed).people.map(({ x, y, row, shade, face, hair, style, hat, fan, stand, delay }) =>
+    [x, y, row, shade, face, hair, style, hat, fan, stand, delay]);
+  assert.deepEqual(seats(5), seats(5));
+  assert.equal(makeStands(5).people.length, makeStands(5).people.length);
+});
