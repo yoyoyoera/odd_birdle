@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Regenerates the Android launcher icons and splash images from
+# Regenerates the Android and iOS app icons and splash images from
 # resources/icon-source.png (the plain Odd Birdle icon: the shuttle on a cream court).
 # Needs ImageMagick 6 (`convert`) on PATH. Rerunnable; overwrites the PNGs it owns.
 #
@@ -60,10 +60,10 @@ shuttle "$CREAM" 1152 0.40 "$tmp/splash-icon.png"
 convert "$tmp/splash-icon.png" -strip "$res/drawable-xxxhdpi/splash_icon.png"
 
 # 5. Pre-Android 12 splash bitmaps (window background while the WebView starts).
-splash() { # <w> <h> <out>
+splash() { # <w> <h> <out> [shuttle height as a fraction of the shorter side, default 0.30]
   local m h
   m=$(( $1 < $2 ? $1 : $2 ))
-  h=$(awk -v m="$m" 'BEGIN { printf "%d", m * 0.30 }')
+  h=$(awk -v m="$m" -v f="${4:-0.30}" 'BEGIN { printf "%d", m * f }')
   convert -size "$1x$2" "xc:$PAGE" \
     \( -size "$1x$2" "xc:$CREAM" \( "$tmp/mask.png" -resize "x$h" -background black -gravity center -extent "$1x$2" \) \
        -compose CopyOpacity -composite \) \
@@ -76,4 +76,19 @@ for spec in mdpi:320x480 hdpi:480x800 xhdpi:720x1280 xxhdpi:960x1600 xxxhdpi:128
   splash "$h" "$w" "$res/drawable-land-$d/splash.png"
 done
 
-echo "icons and splash written under $res"
+# 6. iOS: one 1024x1024 opaque app icon (no alpha: App Store rejects transparency;
+#    iOS rounds the corners itself) and the launch-screen image (cream shuttle on the
+#    page colour; LaunchScreen.storyboard fills the rest with #182223, aspect-fill).
+ios="$here/ios/App/App/Assets.xcassets"
+if [ -d "$ios" ]; then
+  convert -size 1024x1024 "xc:$CREAM" "$tmp/legacy-shuttle.png" -compose Over -composite \
+    -background "$CREAM" -alpha remove -alpha off -strip "PNG24:$ios/AppIcon.appiconset/AppIcon-512@2x.png"
+  # Aspect-fill crops the square to the landscape screen (about 46% of its height
+  # shows on a 19.5:9 iPhone), so 0.14 gives a shuttle about 30% of the screen height.
+  splash 2732 2732 "$tmp/ios-splash.png" 0.14
+  for f in splash-2732x2732.png splash-2732x2732-1.png splash-2732x2732-2.png; do
+    convert "$tmp/ios-splash.png" -alpha off "PNG24:$ios/Splash.imageset/$f"
+  done
+fi
+
+echo "icons and splash written under $res${ios:+ and $ios}"
