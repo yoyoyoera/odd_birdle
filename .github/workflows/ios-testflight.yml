@@ -2,14 +2,20 @@ name: iOS TestFlight upload
 
 # Archives the iOS app (Release), signs it with Xcode automatic signing driven by an
 # App Store Connect API key, and uploads it to App Store Connect, where it appears in
-# TestFlight for the internal testers. Manual only: Actions -> "iOS TestFlight upload"
-# -> Run workflow. No certificates or profiles live in the repository.
+# TestFlight for the internal testers. On demand only: a push whose head commit message
+# contains "[testflight]", or Actions -> "iOS TestFlight upload" -> Run workflow (GitHub
+# offers that button only once this file is on the default branch). No certificates or
+# profiles live in the repository.
 #
 # Secrets: APPLE_TEAM_ID, ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8 (the .p8 file, base64).
 # The key needs the Admin role so Xcode can create the cloud-managed distribution
 # certificate and the App Store profile on first use.
 
 on:
+  push:
+    branches:
+      - 'claude/**'
+      - main
   workflow_dispatch:
 
 concurrency:
@@ -21,6 +27,7 @@ permissions:
 
 jobs:
   upload:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[testflight]')
     runs-on: macos-26
     timeout-minutes: 45
     env:
