@@ -94,7 +94,7 @@ if (name === 'app') {
     html[data-portal="app"][data-orientation="landscape"] main { position: relative; }
     /* Odd Birdle's buttons are square. Sound, speed, back and restart sit out in the side strips, low down on the right (the
        notch is in the middle of a short side). The speed setting opens above them as + / value / − . */
-    html[data-portal="app"][data-orientation="landscape"] #studio-links { position: fixed; right: 14px; bottom: 16px; top: auto; gap: 8px;
+    html[data-portal="app"][data-orientation="landscape"] #studio-links { position: fixed; right: 20px; bottom: 36px; top: auto; gap: 8px;
       flex-direction: column-reverse; margin: 0; z-index: 3; transform: none; }
     html[data-portal="app"] #studio-links a, html[data-portal="app"] #sound-toggle, html[data-portal="app"] #touch-tune-toggle,
     html[data-portal="app"][data-orientation="landscape"] #back, html[data-portal="app"][data-orientation="landscape"] #stage #game-control,
@@ -104,10 +104,10 @@ if (name === 'app') {
     html[data-portal="app"] #sound-toggle:active, html[data-portal="app"] #touch-tune-toggle:active, html[data-portal="app"] #back:active,
     html[data-portal="app"] #game-control:active, html[data-portal="app"] .tune-step:active { background: color-mix(in srgb, var(--ink) 22%, transparent); }
     html[data-portal="app"] #touch-tune-toggle[aria-expanded="true"] { background: color-mix(in srgb, var(--ink) 20%, transparent); }
-    html[data-portal="app"][data-orientation="landscape"] #back { position: fixed; left: 14px; top: 14px; z-index: 3; font-size: 20px; }
-    html[data-portal="app"][data-orientation="landscape"] #stage #game-control { position: fixed; right: 14px; left: auto; top: 14px; bottom: auto;
+    html[data-portal="app"][data-orientation="landscape"] #back { position: fixed; left: 20px; top: 28px; z-index: 3; font-size: 20px; }
+    html[data-portal="app"][data-orientation="landscape"] #stage #game-control { position: fixed; right: 20px; left: auto; top: 28px; bottom: auto;
       transform: none; z-index: 3; display: grid; place-items: center; }
-    html[data-portal="app"][data-orientation="landscape"] #touch-tune { position: fixed; right: 14px; bottom: 112px; top: auto; transform: none;
+    html[data-portal="app"][data-orientation="landscape"] #touch-tune { position: fixed; right: 20px; bottom: 132px; top: auto; transform: none;
       z-index: 3; width: 40px; padding: 0; flex-direction: column; gap: 4px; align-items: stretch; background: none; color: var(--ink); }
     html[data-portal="app"] #touch-tune label, html[data-portal="app"] #touch-tune input { display: none; }
     html[data-portal="app"] #touch-tune output { min-width: 0; text-align: center; font: 650 13px "Space Grotesk", system-ui, sans-serif; }

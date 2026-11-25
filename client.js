@@ -247,12 +247,28 @@ function sizeBleed() {
   bleedCanvas.height = Math.round(innerHeight * ratio);
   bleedCtx.setTransform(ratio, 0, 0, ratio, 0, 0);
 }
-function drawRacketBleed() {
+// What the app lays over the whole screen, the strips beside the court included: the bomb's red wash on its half, the soft red
+// where the player's racket cannot go, the racket's own part past the edge, and last the shock veil.
+let overlayFx = {};
+function drawOverlay() {
   if (!bleedCtx || !courtBounds) return;
-  if (!bleed.length && !bleedDirty) return;
+  if (!bleed.length && !overlayFx.bomb && !overlayFx.veil && !bleedDirty) return;
   bleedCtx.clearRect(0, 0, innerWidth, innerHeight);
   bleedDirty = false;
   const b = courtBounds;
+  if (overlayFx.bomb) {
+    const mid = b.left + center * (b.width / width), floorY = b.top + floor * (b.height / height);
+    const red = bleedCtx.createLinearGradient(0, 0, 0, floorY);
+    red.addColorStop(0, '#d334337f');
+    red.addColorStop(0.43, '#d33433');
+    bleedCtx.save();
+    bleedCtx.fillStyle = red;
+    bleedCtx.globalAlpha = overlayFx.bomb.alpha;
+    if (overlayFx.bomb.x < center) bleedCtx.fillRect(0, 0, mid, floorY);
+    else bleedCtx.fillRect(mid, 0, innerWidth - mid, floorY);
+    bleedCtx.restore();
+    bleedDirty = true;
+  }
   for (const racket of bleed) {
     const fromLeft = racket.x < width / 2;
     const distance = fromLeft ? racket.x : width - racket.x;
@@ -280,6 +296,16 @@ function drawRacketBleed() {
       bleedCtx.stroke();
       bleedCtx.restore();
     }
+  }
+  if (overlayFx.veil) {
+    for (const [color, alpha] of [['#0b1410', overlayFx.veil.dark], ['#ffffff', overlayFx.veil.light]]) {
+      if (alpha <= 0) continue;
+      bleedCtx.fillStyle = color;
+      bleedCtx.globalAlpha = alpha;
+      bleedCtx.fillRect(0, 0, innerWidth, innerHeight);
+    }
+    bleedCtx.globalAlpha = 1;
+    bleedDirty = true;
   }
 }
 // Props on the floor beside the court, drawn in court units (scale) so they keep the court's proportions.
@@ -915,6 +941,9 @@ function drawCourt(view) {
   ctx.fillRect(0, floor, width, height - floor);
   const liveBomb = view.bomb?.lit && view.shuttle;
   const bombWash = liveBomb && portal !== 'app';
+  if (liveBomb && portal === 'app') {
+    overlayFx.bomb = { x: mirrored() ? width - liveBomb.x : liveBomb.x, alpha: 0.14 + 0.08 * (1 - clamp(view.bomb.fuse / 2.4, 0, 1)) };
+  }
   const now = performance.now();
   const bombDuck = bombCrowdMotion.update(now, reduceMotion.matches ? undefined : liveBomb?.x);
   drawStands(ctx, standsFor(view), {
@@ -1024,6 +1053,7 @@ function drawPops(pops) {
 function draw(view, scenery = false) {
   ctx.clearRect(0, 0, width, height);
   bleed.length = 0;
+  overlayFx = {};
   ctx.save();
   if (!scenery && mirrored()) {
     ctx.translate(width, 0);
@@ -1057,8 +1087,8 @@ function draw(view, scenery = false) {
     }
   }
   ctx.restore();
-  drawRacketBleed();
-  // (The app has no dark or light veil over the court alone: the strips beside it would stay as they were.)
+  // The app lays the shock veil and the bomb wash over the whole screen (the strips beside the court too), from drawOverlay.
+  if (view.shake && !reduceMotion.matches && portal === 'app') overlayFx.veil = shockFlicker(view.shake);
   if (view.shake && !reduceMotion.matches && portal !== 'app') {
     const veil = shockFlicker(view.shake);
     for (const [color, alpha] of [['#0b1410', veil.dark], ['#ffffff', veil.light]]) {
@@ -1069,6 +1099,7 @@ function draw(view, scenery = false) {
     }
     ctx.globalAlpha = 1;
   }
+  drawOverlay();
 }
 
 function drawDust() {
