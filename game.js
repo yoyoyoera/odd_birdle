@@ -1409,7 +1409,7 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
     const visible = shuttle && phase !== 'starting' && (!invisible || reveal > 0);
     const position = (racket) => racket && { x: racket.x, y: racket.y, seenTime: racket.seenTime, r: racket.r };
     return {
-      phase, score, message, winner, eventText, eventWind, flash, frozen, support, cpuLevel, touchLimit, netTop: matchNetTop,
+      phase, score, pointsToWin, message, winner, eventText, eventWind, flash, frozen, support, cpuLevel, touchLimit, netTop: matchNetTop,
       strike: strike?.flight === flight ? strike : undefined,
       force: currentForce(),
       // Where the crowd is looking: the shuttle's place, sent all through a rally so it is still there when

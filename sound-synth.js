@@ -249,6 +249,6 @@ export function renderEffects() {
     invisible: [invisible(), 0.7], balloon: [balloon(), 0.7], freeze: [freeze(), 0.7],
     doong: [doong(170, 0.6), 0.9], boing: [doong(115, 0.55), 1], pop: [pop(), 0.8],
     bumper: [bumper(), 0.7], bumperIn: [bumperIn(), 0.5], decoyIn: [decoyIn(), 0.45],
-    applauseBig: [applause(2.2, 34), 0.35], cord: [cord(), 0.6], ooh: [ooh(), 0.9]
+    applauseBig: [applause(2.2, 34), 0.35], applause: [applause(1.3, 26), 0.25], cord: [cord(), 0.6], ooh: [ooh(), 0.9]
   };
 }

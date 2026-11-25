@@ -69,3 +69,63 @@ test('the losing side sinks and recovers more slowly than the winner side cheers
   assert.ok(values[0] > 0 && values[0] < 1 && values[3] === 1 && values[6] === 0);
   assert.equal(cheerAmount(9, true, droop), 1, 'stays at the finale');
 });
+
+const scored = (crowd, side, score, now, extra = {}) =>
+  crowd.update({ phase: 'between', score, pointsToWin: 11, ...extra }, [{ type: 'score', side }], now);
+
+test('a comeback from three points down makes that side go wild, with a short applause', () => {
+  const crowd = createCrowd();
+  let now = 0;
+  scored(crowd, 'right', { left: 0, right: 1 }, now += 100);
+  scored(crowd, 'right', { left: 0, right: 2 }, now += 100);
+  scored(crowd, 'right', { left: 0, right: 3 }, now += 100);
+  for (const left of [1, 2]) assert.equal(scored(crowd, 'left', { left, right: 3 }, now += 100).cheer.big, undefined);
+  const level = scored(crowd, 'left', { left: 3, right: 3 }, now += 100);
+  assert.equal(level.cheer.big, true, 'caught up');
+  assert.deepEqual(level.cues, ['applause']);
+  assert.equal(scored(crowd, 'left', { left: 4, right: 3 }, now += 100).cheer.big, undefined, 'once, not every point after');
+});
+
+test('an ordinary close match has no comeback', () => {
+  const crowd = createCrowd();
+  let now = 0;
+  const points = [['left', 1, 0], ['right', 1, 1], ['right', 1, 2], ['left', 2, 2], ['left', 3, 2]];
+  for (const [side, left, right] of points) {
+    assert.equal(scored(crowd, side, { left, right }, now += 100).cheer.big, undefined);
+  }
+});
+
+test('match point: the stands lean in and stay still; when the match is over they let go', () => {
+  const crowd = createCrowd();
+  let now = 0;
+  let state;
+  for (let i = 0; i < 60; i++) state = crowd.update({ phase: 'live', score: { left: 4, right: 2 }, pointsToWin: 11 }, [], now += 16);
+  assert.ok(state.mood.tension < 0.01, 'not yet');
+  for (let i = 0; i < 90; i++) state = crowd.update({ phase: 'live', score: { left: 10, right: 7 }, pointsToWin: 11 }, [], now += 16);
+  assert.ok(state.mood.tension > 0.9, 'holding their breath');
+  for (let i = 0; i < 90; i++) state = crowd.update({ phase: 'finished', winner: 'left', score: { left: 11, right: 7 }, pointsToWin: 11 }, [], now += 16);
+  assert.ok(state.mood.tension < 0.05, 'released');
+});
+
+test('a very long rally sometimes (not always) sets off a wave, once a match', () => {
+  const rally = (crowd, start, score = { left: 1, right: 1 }) => {
+    let state;
+    let now = start;
+    for (let i = 0; i < 16; i++) state = crowd.update({ phase: 'live', score }, [hit], now += 16);
+    return { state, now };
+  };
+  const lucky = createCrowd({ random: () => 0 });
+  let { state, now } = rally(lucky, 0);
+  assert.ok(state.mood.wave >= 0 && state.mood.wave < 1, 'a wave is running');
+  for (let i = 0; i < 200; i++) state = lucky.update({ phase: 'live', score: { left: 1, right: 1 } }, [], now += 16);
+  assert.equal(state.mood.wave, undefined, 'it passes');
+  lucky.update({ phase: 'between', score: { left: 2, right: 1 } }, [{ type: 'score', side: 'left' }], now += 16);
+  ({ state } = rally(lucky, now, { left: 2, right: 1 }));
+  assert.equal(state.mood.wave, undefined, 'not again in the same match');
+  const unlucky = createCrowd({ random: () => 0.99 });
+  assert.equal(rally(unlucky, 0).state.mood.wave, undefined, 'and not every time');
+  const short = createCrowd({ random: () => 0 });
+  let shortState;
+  for (let i = 0; i < 10; i++) shortState = short.update({ phase: 'live' }, [hit], (i + 1) * 16);
+  assert.equal(shortState.mood.wave, undefined, 'only very long rallies');
+});
