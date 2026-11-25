@@ -1,0 +1,209 @@
+name: iOS simulator build
+
+# Builds the Capacitor iOS app for the simulator (no signing), runs it on an
+# iPhone simulator with a Dynamic Island and uploads screenshots of the real
+# WKWebView (menu, CPU match, both landscape sides) plus the zipped .app.
+# macOS minutes are expensive: only iOS-relevant paths trigger it.
+
+on:
+  push:
+    branches:
+      - 'claude/**'
+      - main
+    paths:
+      - 'mobile-app/**'
+      - '!mobile-app/android/**'
+      - '.github/workflows/ios.yml'
+      - 'scripts/**'
+      - '*.js'
+      - '*.mjs'
+      - '*.html'
+      - '*.css'
+      - 'fonts/**'
+      - 'package.json'
+      - 'package-lock.json'
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  simulator:
+    runs-on: macos-26
+    timeout-minutes: 40
+    env:
+      APP_ID: com.oddbirdle.app
+      SHOTS: ${{ github.workspace }}/ios-screenshots
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Xcode version
+        run: |
+          xcodebuild -version
+          xcrun simctl list runtimes ios
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: mobile-app/.nvmrc
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            mobile-app/package-lock.json
+
+      - name: Install web dependencies
+        run: npm ci
+
+      - name: Build the app web bundle (portal/app)
+        run: node scripts/build-portal.mjs app
+
+      - name: Install Capacitor
+        working-directory: mobile-app
+        run: npm ci
+
+      - name: Copy web assets into the iOS project
+        working-directory: mobile-app
+        run: npx cap sync ios
+
+      - name: Pick an iPhone simulator with a Dynamic Island
+        id: sim
+        run: |
+          xcrun simctl list devices available -j > "$RUNNER_TEMP/devices.json"
+          python3 - "$RUNNER_TEMP/devices.json" >> "$GITHUB_OUTPUT" <<'PY'
+          import json, re, sys
+          runtimes = json.load(open(sys.argv[1]))["devices"]
+          def version(key):
+              m = re.search(r"iOS-(\d+)-(\d+)", key)
+              return (int(m.group(1)), int(m.group(2))) if m else None
+          best = None
+          for key, devices in runtimes.items():
+              v = version(key)
+              if not v:
+                  continue
+              for d in devices:
+                  if not d.get("isAvailable", True):
+                      continue
+                  m = re.fullmatch(r"iPhone (\d+) Pro", d["name"])     # newest plain "Pro" first
+                  mm = re.fullmatch(r"iPhone (\d+) Pro Max", d["name"])
+                  if m:
+                      rank = (2, v, int(m.group(1)))
+                  elif mm:
+                      rank = (1, v, int(mm.group(1)))
+                  elif d["name"].startswith("iPhone"):
+                      rank = (0, v, 0)
+                  else:
+                      continue
+                  if best is None or rank > best[0]:
+                      best = (rank, d["udid"], d["name"], key)
+          if best is None:
+              sys.exit("no iPhone simulator available")
+          print(f"udid={best[1]}")
+          print(f"name={best[2]}")
+          print(f"runtime={best[3]}")
+          PY
+          cat "$GITHUB_OUTPUT"
+
+      - name: Cache Swift packages
+        uses: actions/cache@v4
+        with:
+          path: mobile-app/ios/DerivedData/SourcePackages
+          key: spm-${{ runner.os }}-${{ hashFiles('mobile-app/ios/App/CapApp-SPM/Package.swift', 'mobile-app/package-lock.json') }}
+
+      - name: Build for the simulator (Debug, unsigned)
+        working-directory: mobile-app
+        run: |
+          set -o pipefail
+          xcodebuild -project ios/App/App.xcodeproj -scheme App \
+            -sdk iphonesimulator -configuration Debug \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath ios/DerivedData \
+            CODE_SIGNING_ALLOWED=NO build | tail -n 80
+          app=ios/DerivedData/Build/Products/Debug-iphonesimulator/App.app
+          test -d "$app"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :UISupportedInterfaceOrientations' "$app/Info.plist"
+          echo "APP_PATH=$PWD/$app" >> "$GITHUB_ENV"
+
+      - name: Boot the simulator and install
+        run: |
+          udid=${{ steps.sim.outputs.udid }}
+          echo "Simulator: ${{ steps.sim.outputs.name }} (${{ steps.sim.outputs.runtime }})"
+          xcrun simctl boot "$udid" || true
+          xcrun simctl bootstatus "$udid" -b
+          # The Simulator window is only needed for the rotation step below.
+          open -a Simulator --args -CurrentDeviceUDID "$udid" || true
+          xcrun simctl install "$udid" "$APP_PATH"
+          mkdir -p "$SHOTS"
+
+      - name: Screenshots (menu, CPU match)
+        run: |
+          udid=${{ steps.sim.outputs.udid }}
+          shot() { # <name>: the raw framebuffer plus its size
+            xcrun simctl io "$udid" screenshot --type=png "$SHOTS/$1.png"
+            sips -g pixelWidth -g pixelHeight "$SHOTS/$1.png" | tail -n 2 | tr '\n' ' '; echo " <- $1"
+          }
+          xcrun simctl launch --terminate-running-process "$udid" "$APP_ID"
+          sleep 8
+          shot 1-menu
+          # Debug builds run ODDBIRDLE_CI_EVAL after the page loads (MainViewController):
+          # press CPU, then skip the first-run guide if it shows.
+          SIMCTL_CHILD_ODDBIRDLE_CI_EVAL="(function go(){var b=document.querySelector('#cpu');if(!b||document.readyState!=='complete'){return setTimeout(go,200);}b.click();setTimeout(function(){var s=document.querySelector('#guide-skip');if(s&&s.offsetParent){s.click();}},600);})();" \
+            xcrun simctl launch --terminate-running-process "$udid" "$APP_ID"
+          sleep 7
+          shot 2-match
+
+      - name: Screenshots after rotating the device (best effort)
+        continue-on-error: true
+        run: |
+          udid=${{ steps.sim.outputs.udid }}
+          rotate() { # Simulator menu shortcuts: cmd+left = Rotate Left, cmd+right = Rotate Right
+            osascript -e 'tell application "Simulator" to activate' \
+                      -e "tell application \"System Events\" to key code $1 using command down"
+            sleep 2
+          }
+          rotate 123
+          xcrun simctl io "$udid" screenshot --type=png "$SHOTS/3-match-device-rotated-left.png"
+          rotate 124; rotate 124
+          xcrun simctl io "$udid" screenshot --type=png "$SHOTS/4-match-device-rotated-right.png"
+
+      - name: Upright copies of portrait-framebuffer screenshots
+        if: always()
+        run: |
+          # simctl captures the panel in its native portrait orientation, so a
+          # landscape app can come out sideways. Keep the raw file and add a copy
+          # turned 90 degrees clockwise (landscapeRight UI has its top on the left).
+          shopt -s nullglob
+          for f in "$SHOTS"/*.png; do
+            w=$(sips -g pixelWidth "$f" | awk '/pixelWidth/ {print $2}')
+            h=$(sips -g pixelHeight "$f" | awk '/pixelHeight/ {print $2}')
+            echo "$(basename "$f"): ${w}x${h}"
+            if [ "$h" -gt "$w" ]; then
+              sips -r 90 "$f" --out "${f%.png}-turned.png" >/dev/null
+            fi
+          done
+          xcrun simctl spawn ${{ steps.sim.outputs.udid }} log show --last 3m \
+            --predicate 'process == "App"' --style compact > "$SHOTS/app-log.txt" 2>&1 || true
+
+      - name: Zip the simulator app
+        id: zip
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$RUNNER_TEMP/OddBirdle-simulator.app.zip"
+          echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: odd-birdle-ios-screenshots-${{ steps.zip.outputs.short_sha || github.run_id }}
+          path: ${{ env.SHOTS }}
+          if-no-files-found: warn
+          retention-days: 30
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: odd-birdle-ios-simulator-app-${{ steps.zip.outputs.short_sha }}
+          path: ${{ runner.temp }}/OddBirdle-simulator.app.zip
+          if-no-files-found: error
+          retention-days: 14

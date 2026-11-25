@@ -1,17 +1,20 @@
 {
-  "name": "odd-birdle-android",
+  "name": "odd-birdle-mobile",
   "version": "0.1.0",
   "private": true,
-  "description": "Capacitor Android shell for Odd Birdle (web assets come from ../portal/app)",
+  "description": "Capacitor Android and iOS shell for Odd Birdle (web assets come from ../portal/app)",
   "scripts": {
-    "sync": "cap sync android",
+    "sync": "cap sync",
+    "sync:ios": "cap sync ios",
+    "open:ios": "cap open ios",
     "icons": "bash scripts/make-icons.sh",
     "build:debug": "cap sync android && cd android && ./gradlew assembleDebug"
   },
   "dependencies": {
     "@capacitor/android": "8.6.2",
     "@capacitor/app": "8.1.2",
-    "@capacitor/core": "8.6.2"
+    "@capacitor/core": "8.6.2",
+    "@capacitor/ios": "8.6.2"
   },
   "devDependencies": {
     "@capacitor/cli": "8.6.2"

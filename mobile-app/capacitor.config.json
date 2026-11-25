@@ -10,6 +10,11 @@
   "android": {
     "allowMixedContent": false
   },
+  "ios": {
+    "contentInset": "never",
+    "scrollEnabled": false,
+    "allowsLinkPreview": false
+  },
   "plugins": {
     "SystemBars": {
       "insetsHandling": "css",

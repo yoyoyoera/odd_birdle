@@ -66,13 +66,13 @@
 - 끝 조건: 기준 소스가 공개판과 같은 동작(랜덤 효과 전체 포함)을 하고, 테스트가 통과한다.
 
 #### Step A1. `app` 빌드 대상 + Capacitor 껍데기 ✅
-- 결과: `node scripts/build-portal.mjs app [--features=...]` → `portal/app/`(외부 주소 검사, 랜덤 폭탄 포함 FREE PLAY만). `app-shell.js`: 경기 중 뒤로 가기 = PAUSED 화면(탭하면 재개, 다시 뒤로 = 메뉴), 메뉴에서 뒤로 = 종료, 백그라운드 = 일시정지·소리 정지. `android-app/`: Capacitor 8.6.2, `@capacitor/app` 8.1.2, appId `com.oddbirdle.app`, WebView Origin `https://app.oddbirdle`, compile/targetSdk 36, minSdk 24, 화면 켜짐 유지·몰입형·가장자리 그리기, SystemBars `insetsHandling: css`. 배치 스크린샷 기준: `tools/app-layout/`. 테스트 207개 통과.
+- 결과: `node scripts/build-portal.mjs app [--features=...]` → `portal/app/`(외부 주소 검사, 랜덤 폭탄 포함 FREE PLAY만). `app-shell.js`: 경기 중 뒤로 가기 = PAUSED 화면(탭하면 재개, 다시 뒤로 = 메뉴), 메뉴에서 뒤로 = 종료, 백그라운드 = 일시정지·소리 정지. `mobile-app/`: Capacitor 8.6.2, `@capacitor/app` 8.1.2, appId `com.oddbirdle.app`, WebView Origin `https://app.oddbirdle`, compile/targetSdk 36, minSdk 24, 화면 켜짐 유지·몰입형·가장자리 그리기, SystemBars `insetsHandling: css`. 배치 스크린샷 기준: `tools/app-layout/`. 테스트 207개 통과.
 - `scripts/build-portal.mjs app` 빌드를 추가한다.
   - 외부 링크·분석·포털 SDK·AdSense는 넣지 않는다.
   - 폰트와 사운드는 내장한다.
   - `data-portal="app"`을 붙인다.
   - 기능 스위치 기본값: STAGES·DAILY·ONLINE 모두 꺼짐. 메뉴에는 FREE PLAY만 보인다.
-- `android-app/`(Capacitor 8) 구성:
+- `mobile-app/`(Capacitor 8) 구성:
   - `webDir` = `portal/app/`
   - 몰입형 전체 화면, 경기 중 화면 꺼짐 방지
   - **Android 16 대응:** 화면 가장자리(edge-to-edge)는 safe-area 여백으로 처리하고, 시스템 뒤로 가기(예측형 뒤로 가기)는 `@capacitor/app`의 backButton으로 경기 중 일시정지, 메뉴에서 종료 확인
@@ -80,7 +80,7 @@
   - 첫 터치에 오디오 잠금 해제
 - 서브에이전트: **2개 병렬.**
   - (a) `app` 빌드 대상과 앱 전용 동작(기능 스위치, 일시정지, 뒤로 가기, safe-area): 클라이언트 파일 담당
-  - (b) Capacitor 프로젝트, 아이콘·스플래시, GitHub Actions 워크플로: `android-app/`, `.github/` 담당
+  - (b) Capacitor 프로젝트, 아이콘·스플래시, GitHub Actions 워크플로: `mobile-app/`, `.github/` 담당
   - 둘은 손대는 파일이 겹치지 않는다. 앱 웹 코드와 네이티브가 주고받는 이벤트 목록은 시작 전에 내가 정해 준다.
 - 끝 조건: `npx cap sync android` 성공. Playwright로 390×844·844×390·Android 16 상단 인셋 가정 화면의 배치 스크린샷을 확인하고 회귀 기준으로 저장한다.
 
@@ -128,7 +128,7 @@ Android 실기기가 없는 동안 iOS로 같은 빌드 1을 병렬 진행한다
 - iPhone: iOS 버전 확인, 설정 → 개인정보 보호 및 보안 → **개발자 모드** 켜기(Xcode로 설치할 때 필요).
 
 #### Step I1. iOS 플랫폼 + 앱 동작의 iOS 분기 ⬜
-- `[iOS]` `android-app/`에 `@capacitor/ios`(8.6.2 고정)를 더하고 `npx cap add ios` → `android-app/ios/`(폴더 이름 `android-app`은 두 플랫폼 공용이 되므로 `mobile-app/`으로 바꾸는 것을 이 단계에서 함께 한다). Capacitor 8 기본인 Swift Package Manager 사용(CocoaPods 없음).
+- `[iOS]` `mobile-app/`에 `@capacitor/ios`(8.6.2 고정)를 더하고 `npx cap add ios` → `mobile-app/ios/`(폴더 이름 `android-app`은 두 플랫폼 공용이 되므로 `mobile-app/`으로 바꾸는 것을 이 단계에서 함께 한다). Capacitor 8 기본인 Swift Package Manager 사용(CocoaPods 없음).
 - `[iOS]` 네이티브 설정(커스텀 `CAPBridgeViewController` 하위 클래스 + `Info.plist`):
   - 가로 전용: `UISupportedInterfaceOrientations` = LandscapeLeft·LandscapeRight만.
   - 상태바 숨김(`UIStatusBarHidden`, 뷰 컨트롤러 `prefersStatusBarHidden`).
@@ -295,7 +295,7 @@ Android 실기기가 없는 동안 iOS로 같은 빌드 1을 병렬 진행한다
 | 단계 | 사용 | 나누는 방식 |
 |---|---|---|
 | A0 기준 확정 | 아니요 | — |
-| A1 | **예 (2개 병렬, worktree)** | 앱 빌드·앱 동작(클라이언트) / Capacitor·아이콘·CI(`android-app/`, `.github/`) |
+| A1 | **예 (2개 병렬, worktree)** | 앱 빌드·앱 동작(클라이언트) / Capacitor·아이콘·CI(`mobile-app/`, `.github/`) |
 | A3, 이후 실기기 피드백 | **예 (항목별 병렬 + 리뷰 1)** | 독립 항목별로 나누고, 끝에 코드 리뷰 |
 | I1 (+A2b) | **예 (2개 병렬, worktree)** | 웹 쪽(가로 전용·iOS 분기·오디오) / 네이티브(`mobile-app/` 이름 변경·`ios/`·Android 가로 고정·macOS CI) |
 | I2b | 아니요 | 시크릿·서명은 한 맥락에서 |
