@@ -1,6 +1,9 @@
-// Layout baseline for the Android app build (portal/app/): the menu, a running CPU match and the pause screen, upright
-// (390x844) and on its side (844x390), with no insets and with Android 16 edge-to-edge insets (status bar, camera cutout,
-// gesture bar) the way Capacitor reports them (--safe-area-inset-* on <html>). The insets are tinted red in the
+// Layout baseline for the app build (portal/app/, Android and iOS, landscape only): the menu, the TOUCH SPEED bar, the
+// first-play guide, a running CPU match and the pause screen, on its side at three phone sizes (844x390 a usual phone,
+// 932x430 a big one, 1012x456 a long 2400x1080 Android), each with no insets and with a notch or camera cutout on the
+// left and on the right plus the home indicator or gesture bar below, the way Capacitor reports them
+// (--safe-area-inset-* on <html>). One more window is taller than wide (600x900: Android 16 ignores the orientation lock
+// on large screens): the landscape layout must still be drawn, scaled to the width. The insets are tinted red in the
 // screenshots, and every control is checked to sit outside them.
 //
 //   node scripts/build-portal.mjs app && node tools/app-layout/shoot.mjs
@@ -34,14 +37,16 @@ const server = createServer(async (request, response) => {
 await new Promise(resolve => server.once('listening', resolve));
 const base = `http://127.0.0.1:${server.address().port}/`;
 
-const views = [
-  { name: 'portrait', width: 390, height: 844, insets: { top: 0, right: 0, bottom: 0, left: 0 } },
-  { name: 'landscape', width: 844, height: 390, insets: { top: 0, right: 0, bottom: 0, left: 0 } },
-  // Android 16, upright: status bar with a punch-hole camera, gesture bar.
-  { name: 'portrait-insets', width: 390, height: 844, insets: { top: 52, right: 0, bottom: 24, left: 0 } },
-  // On its side: the camera cutout on the left, the status bar strip and the gesture bar.
-  { name: 'landscape-insets', width: 844, height: 390, insets: { top: 24, right: 24, bottom: 20, left: 52 } }
-];
+const none = { top: 0, right: 0, bottom: 0, left: 0 };
+const views = [];
+for (const [width, height] of [[844, 390], [932, 430], [1012, 456]]) {
+  views.push({ name: `${width}x${height}`, width, height, insets: none });
+  // iPhone on its side: the notch (Dynamic Island) on one side, the home indicator below. Android's cutout is smaller.
+  views.push({ name: `${width}x${height}-notch-left`, width, height, insets: { ...none, left: 59, bottom: 21 } });
+  views.push({ name: `${width}x${height}-notch-right`, width, height, insets: { ...none, right: 59, bottom: 21 } });
+}
+// A window taller than wide: the landscape layout scaled to the width, no "turn your phone" screen.
+views.push({ name: '600x900-tall', width: 600, height: 900, insets: none, tall: true });
 
 const browser = await playwright.chromium.launch();
 const problems = [];
@@ -49,7 +54,7 @@ for (const view of views) {
   const context = await browser.newContext({
     viewport: { width: view.width, height: view.height }, deviceScaleFactor: 1, isMobile: true, hasTouch: true
   });
-  // The same colours and sides every run; the hints seen. The first-play guide (phones on their side) is shown once.
+  // The same colours and sides every run; the hints seen. The first-play guide (on its side) is shown once.
   await context.addInitScript(() => {
     let seed = 7;
     Math.random = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
@@ -101,7 +106,13 @@ for (const view of views) {
       if (document.documentElement.scrollWidth > innerWidth || document.documentElement.scrollHeight > innerHeight) {
         bad.push(`page scrolls ${document.documentElement.scrollWidth}x${document.documentElement.scrollHeight}`);
       }
+      // Landscape only: never the upright thumb pad or stacked menu, the icon column beside the court.
+      if (document.documentElement.hasAttribute('data-pad')) bad.push('upright thumb pad layout');
+      if (!document.querySelector('#pad').hidden || !document.querySelector('#pad-menu').hidden) bad.push('upright pad or menu shown');
+      if (document.querySelector('#touch-tune-toggle').hidden) bad.push('no TOUCH SPEED button');
       const court = document.querySelector('#court').getBoundingClientRect();
+      const links = document.querySelector('#studio-links').getBoundingClientRect();
+      if (links.left < court.right) bad.push('icons not beside the court');
       return { bad, court: `${Math.round(court.width)}x${Math.round(court.height)} at ${Math.round(court.left)},${Math.round(court.top)}` };
     }, view.insets);
     for (const line of found.bad) problems.push(`${view.name} ${screen}: ${line}`);
@@ -110,6 +121,12 @@ for (const view of views) {
   };
 
   await check('menu');
+  await page.locator('#touch-tune-toggle').tap();
+  await page.waitForTimeout(200);
+  if (await page.$eval('#touch-tune', element => element.hidden)) problems.push(`${view.name}: TOUCH SPEED did not open`);
+  await check('touch-speed');
+  await page.locator('#touch-tune-toggle').tap();
+  await page.waitForTimeout(200);
   const menuButtons = await page.$$eval('#menu button', buttons => buttons.filter(b => !b.hidden).map(b => b.textContent));
   if (menuButtons.join() !== 'CPU,' + menuButtons[1] || menuButtons.length !== 2) problems.push(`${view.name}: menu shows ${menuButtons}`);
   await page.locator('#cpu').tap();
@@ -117,6 +134,8 @@ for (const view of views) {
   if (await page.$eval('#guide', element => !element.hidden)) {
     await check('guide');
     await page.locator('#guide-skip').tap();
+  } else {
+    problems.push(`${view.name}: no first-play guide`);
   }
   await page.waitForTimeout(2600);
   await check('match');
