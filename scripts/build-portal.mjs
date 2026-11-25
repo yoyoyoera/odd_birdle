@@ -83,14 +83,19 @@ if (name === 'app') {
       --app-safe-block: calc(var(--app-safe-top) + var(--app-safe-bottom)); overscroll-behavior: none; }
     /* No dark margins: the page is painted by client.js in the court's bands; body and the icon column let it show. */
     html[data-portal="app"] body { background: transparent; }
-    html[data-portal="app"] #studio-links a, html[data-portal="app"] #sound-toggle { color: var(--ink); opacity: .6; }
+    html[data-portal="app"] #studio-links a, html[data-portal="app"] #sound-toggle, html[data-portal="app"] #touch-tune-toggle { color: var(--ink); opacity: .6; }
     html[data-portal="app"] body { padding: var(--app-safe-top) var(--app-safe-right) var(--app-safe-bottom) var(--app-safe-left);
       overscroll-behavior: none; }
-    html[data-portal="app"][data-orientation="landscape"] main { display: grid; grid-template-columns: minmax(0, 1fr) 44px;
+    /* Left-right symmetry: an empty column as wide as the icon column on the left keeps the court in the middle. */
+    html[data-portal="app"][data-orientation="landscape"] main { display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px;
       align-items: center; column-gap: 8px; padding-block: 6px;
-      width: min(1312px, 100% - 24px, calc((100svh - 12px - var(--app-safe-block)) * 1.8 + 52px)); }
-    html[data-portal="app"][data-orientation="landscape"][data-touch-tune-open] main { grid-template-columns: minmax(0, 1fr) 44px 64px;
-      width: min(1384px, 100% - 24px, calc((100svh - 12px - var(--app-safe-block)) * 1.8 + 124px)); }
+      width: min(1364px, 100% - 24px, calc((100svh - 12px - var(--app-safe-block)) * 1.8 + 104px)); }
+    html[data-portal="app"][data-orientation="landscape"] #stage { grid-column: 2; }
+    html[data-portal="app"][data-orientation="landscape"] #studio-links { grid-column: 3; }
+    html[data-portal="app"][data-orientation="landscape"][data-touch-tune-open] main { grid-template-columns: 64px minmax(0, 1fr) 44px 64px;
+      width: min(1436px, 100% - 24px, calc((100svh - 12px - var(--app-safe-block)) * 1.8 + 188px)); }
+    html[data-portal="app"][data-orientation="landscape"][data-touch-tune-open] #stage { grid-column: 2; }
+    html[data-portal="app"][data-orientation="landscape"][data-touch-tune-open] #studio-links { grid-column: 3; }
     html[data-portal="app"][data-orientation="landscape"] #studio-links { flex-direction: column; margin-top: 0; }
     html[data-portal="app"] #guide { padding: calc(16px + var(--app-safe-top)) calc(16px + var(--app-safe-right))
       calc(16px + var(--app-safe-bottom)) calc(16px + var(--app-safe-left)); }

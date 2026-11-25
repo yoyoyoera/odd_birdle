@@ -20,6 +20,32 @@ class MainViewController: CAPBridgeViewController {
 
     override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge { [.bottom, .top] }
 
+    /// ProMotion: WebKit paints a page at most about 60 times a second by default (the feature "Prefer Page Rendering Updates
+    /// near 60fps", which Safari's own settings can switch off). Turn that feature off for this web view so requestAnimationFrame
+    /// follows the display (120 Hz on ProMotion iPhones). It uses WebKit's private feature list, looked up by name at run time:
+    /// if a later iOS drops it, nothing happens and the game simply stays at 60.
+    override func webViewConfiguration(for instanceConfiguration: InstanceConfiguration) -> WKWebViewConfiguration {
+        let configuration = super.webViewConfiguration(for: instanceConfiguration)
+        Self.allowFullFrameRate(configuration.preferences)
+        return configuration
+    }
+
+    private static func allowFullFrameRate(_ preferences: WKPreferences) {
+        let listSelector = NSSelectorFromString("_features")
+        let setSelector = NSSelectorFromString("_setEnabled:forFeature:")
+        guard (WKPreferences.self as AnyObject).responds(to: listSelector), preferences.responds(to: setSelector),
+              let list = (WKPreferences.self as AnyObject).perform(listSelector)?.takeUnretainedValue() as? [NSObject],
+              let feature = list.first(where: { ($0.value(forKey: "key") as? String) == "PreferPageRenderingUpdatesNear60FPSEnabled" })
+        else {
+            print("Odd Birdle: the 60 fps page-rendering feature was not found; staying at 60 fps.")
+            return
+        }
+        typealias SetFeature = @convention(c) (AnyObject, Selector, Bool, AnyObject) -> Void
+        let function = unsafeBitCast(preferences.method(for: setSelector), to: SetFeature.self)
+        function(preferences, setSelector, false, feature)
+        print("Odd Birdle: page rendering is allowed above 60 fps.")
+    }
+
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask { .landscape }
 
     override var preferredInterfaceOrientationForPresentation: UIInterfaceOrientation { .landscapeRight }
