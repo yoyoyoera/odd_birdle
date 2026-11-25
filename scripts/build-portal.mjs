@@ -86,16 +86,17 @@ if (name === 'app') {
     html[data-portal="app"] #studio-links a, html[data-portal="app"] #sound-toggle, html[data-portal="app"] #touch-tune-toggle { color: var(--ink); opacity: .6; }
     html[data-portal="app"] body { padding: var(--app-safe-top) var(--app-safe-right) var(--app-safe-bottom) var(--app-safe-left);
       overscroll-behavior: none; }
-    /* Left-right symmetry: an empty column as wide as the icon column on the left keeps the court in the middle. */
-    html[data-portal="app"][data-orientation="landscape"] main { display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px;
-      align-items: center; column-gap: 8px; padding-block: 6px;
-      width: min(1364px, 100% - 24px, calc((100svh - 12px - var(--app-safe-block)) * 1.8 + 104px)); }
-    html[data-portal="app"][data-orientation="landscape"] #stage { grid-column: 2; }
-    html[data-portal="app"][data-orientation="landscape"] #studio-links { grid-column: 3; }
-    html[data-portal="app"][data-orientation="landscape"][data-touch-tune-open] main { grid-template-columns: 64px minmax(0, 1fr) 44px 64px;
-      width: min(1436px, 100% - 24px, calc((100svh - 12px - var(--app-safe-block)) * 1.8 + 188px)); }
-    html[data-portal="app"][data-orientation="landscape"][data-touch-tune-open] #stage { grid-column: 2; }
-    html[data-portal="app"][data-orientation="landscape"][data-touch-tune-open] #studio-links { grid-column: 3; }
+    /* Fill the screen: the court is as tall as the screen (9:5, centred left to right, running a little into the side safe
+       areas where the notch side only covers a small corner); the icon column and the speed slider float over the side
+       strips on the right. */
+    html[data-portal="app"][data-orientation="landscape"] body { padding: 0; }
+    html[data-portal="app"][data-orientation="landscape"] main { display: block; padding: 0; margin: 0 auto;
+      width: min(1400px, 100svh * 1.8, calc(100vw - 2 * max(var(--app-safe-left), var(--app-safe-right)) + 32px)); }
+    html[data-portal="app"][data-orientation="landscape"] #studio-links { position: fixed; top: 50%; transform: translateY(-50%);
+      right: calc(var(--app-safe-right) + 2px); margin: 0; z-index: 3; }
+    html[data-portal="app"][data-orientation="landscape"] #touch-tune { position: fixed; top: 50%; transform: translateY(-50%);
+      right: calc(var(--app-safe-right) + 50px); z-index: 3; padding: 6px 4px;
+      background: color-mix(in srgb, var(--court) 82%, transparent); color: var(--ink); }
     html[data-portal="app"][data-orientation="landscape"] #studio-links { flex-direction: column; margin-top: 0; }
     html[data-portal="app"] #guide { padding: calc(16px + var(--app-safe-top)) calc(16px + var(--app-safe-right))
       calc(16px + var(--app-safe-bottom)) calc(16px + var(--app-safe-left)); }

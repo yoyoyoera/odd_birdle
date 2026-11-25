@@ -227,9 +227,15 @@ function paintAppBackground(bounds) {
   const wallEnd = Math.round(bounds.top + standsBottom * scale);
   const floorTop = Math.round(bounds.top + floor * scale);
   const bands = `linear-gradient(to bottom, ${standsWall(palette)} 0 ${wallEnd}px, ${palette.court} ${wallEnd}px ${floorTop}px, ${palette.floor} ${floorTop}px)`;
-  if (bands === shownBands) return;
-  shownBands = bands;
-  document.documentElement.style.background = bands;
+  // The strips beside the court are out of play: a little darker, with a thin edge line where the court ends, so it is
+  // clear the shuttle goes no further (the side walls of the hall).
+  const left = Math.round(bounds.left), right = Math.round(bounds.right);
+  const shade = `${palette.ink}14`, edge = `${palette.ink}38`;
+  const sides = `linear-gradient(to right, ${shade} 0 ${left - 2}px, ${edge} ${left - 2}px ${left}px, transparent ${left}px ${right}px, ${edge} ${right}px ${right + 2}px, ${shade} ${right + 2}px)`;
+  const painted = sides + ',' + bands;
+  if (painted === shownBands) return;
+  shownBands = painted;
+  document.documentElement.style.background = painted;
   document.documentElement.style.setProperty('--app-court-ink', palette.ink);
 }
 
