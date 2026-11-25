@@ -64,6 +64,8 @@ const tonesFor = palette => {
   };
 };
 const toneCache = new WeakMap();
+// How far down a body is drawn (before scale): the tallest rise (standing + wave + jump) still meets the step.
+const bodyBottom = 92;
 
 function drawPerson(ctx, p, tones, look) {
   const { x, y, s } = p;
@@ -86,6 +88,8 @@ function drawPerson(ctx, p, tones, look) {
     ctx.strokeStyle = torso;
     ctx.lineWidth = 7 * s;
     ctx.lineCap = 'round';
+    // Arms are pills: round at the ends and round at the elbow.
+    ctx.lineJoin = 'round';
     ctx.fillStyle = face;
     for (const d of protesting ? [x < 450 ? 1 : -1] : [-1, 1]) {
       const fromX = x + d * w * 0.7, fromY = y + 8 * s;
@@ -109,12 +113,14 @@ function drawPerson(ctx, p, tones, look) {
   }
   ctx.fillStyle = torso;
   ctx.beginPath();
-  ctx.moveTo(x - w, y + 44 * s);
+  // The body goes on well below the seat line: the step in front hides it when seated, and someone standing up (a
+  // long rally, a wave, jumping for joy) still shows a whole body rather than one cut off in mid-air.
+  ctx.moveTo(x - w, y + bodyBottom * s);
   ctx.lineTo(x - w, y + 11 * s);
   ctx.quadraticCurveTo(x - w, y, x - w + 9 * s, y);
   ctx.lineTo(x + w - 9 * s, y);
   ctx.quadraticCurveTo(x + w, y, x + w, y + 11 * s);
-  ctx.lineTo(x + w, y + 44 * s);
+  ctx.lineTo(x + w, y + bodyBottom * s);
   ctx.fill();
   tilted(() => {
     ctx.fillStyle = face;
@@ -168,6 +174,8 @@ function drawPerson(ctx, p, tones, look) {
     ctx.fillStyle = face;
     ctx.lineWidth = 5 * s;
     ctx.lineCap = 'round';
+    // Arms are pills: round at the ends and round at the elbow.
+    ctx.lineJoin = 'round';
     for (const d of [-1, 1]) {
       const handX = x + d * (2.5 + 6 * open) * s, handY = y + (12 - 9 * clap) * s;
       ctx.beginPath();
@@ -190,6 +198,8 @@ function drawPerson(ctx, p, tones, look) {
     ctx.fillStyle = face;
     ctx.lineWidth = 5 * s;
     ctx.lineCap = 'round';
+    // Arms are pills: round at the ends and round at the elbow.
+    ctx.lineJoin = 'round';
     for (const side of [-1, 1]) {
       const elbowX = x + side * 17 * s;
       const handX = x + side * (17 - 7 * duck) * s;
