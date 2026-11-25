@@ -4,7 +4,7 @@ import Capacitor
 /// Root view controller of Odd Birdle: the Capacitor bridge plus the settings a
 /// landscape-only, whole-screen touch game needs.
 ///
-/// - Status bar hidden, home indicator auto-hidden.
+/// - Status bar hidden; home indicator auto-hidden via the SystemBars plugin config.
 /// - Top and bottom screen-edge system gestures are deferred: the whole landscape
 ///   screen is the racket pad, so the first swipe from the bottom edge goes to the
 ///   game and only a second swipe goes Home (same for Notification/Control Center).
@@ -15,7 +15,8 @@ class MainViewController: CAPBridgeViewController {
 
     override var prefersStatusBarHidden: Bool { true }
 
-    override var prefersHomeIndicatorAutoHidden: Bool { true }
+    // The home indicator is hidden by Capacitor's SystemBars plugin ("hidden": true in capacitor.config.json):
+    // Capacitor declares prefersHomeIndicatorAutoHidden itself and it cannot be overridden here.
 
     override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge { [.bottom, .top] }
 
