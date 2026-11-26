@@ -15,6 +15,7 @@ import { createRacketSender } from './net-send.js';
 import { createNetMeter } from './net-quality.js';
 import { normalizeRoomCode, roomFromLink, roomLink } from './room-link.js';
 import { createDemo } from './demo.js';
+import { createGlassesScript, drawGlasses, parseGlasses } from './glasses.js';
 import { startHeartbeat, track, trackVisit } from './analytics.js';
 import { createSound } from './sound.js';
 import { createCueTracker } from './sound-cues.js';
@@ -92,6 +93,14 @@ for (const [property, value] of Object.entries({
 // ?test=effects opens a CPU match with buttons for trying each random effect (&fast=1: they come sooner).
 // Portals with strict reviews get no test or debug pages, whatever the address says.
 const testParams = new URLSearchParams(closedPortal ? '' : location.search);
+// ?glasses=1: the AI glasses recording mode (glasses.js). Off unless asked; never on a portal.
+const glasses = parseGlasses(closedPortal ? '' : location.search);
+const glassesScript = glasses.on ? createGlassesScript(glasses) : undefined;
+let glassesPrediction;
+let glassesPredictedAt = -Infinity;
+let glassesEffect;
+let glassesEffectSince = 0;
+let glassesBootAt = -Infinity;
 const testEffects = testParams.get('test') === 'effects';
 const testShapes = testParams.get('test') === 'shapes';
 // ?test=freeze / balloon / shock: a CPU Lv.4 match where the random effect is always that one (for recording).
@@ -909,6 +918,15 @@ function draw(view, scenery = false) {
     }
   }
   ctx.restore();
+  if (glasses.on && mode === 'solo' && !scenery && view.phase !== 'ready') {
+    // Drawn upright (not flipped with a mirrored court): words must read, and lines go where the court shows them.
+    const wide = court.getBoundingClientRect().width || width;
+    drawGlasses(ctx, {
+      now: performance.now(), prediction: glassesPrediction, view, lang: glasses.lang,
+      effectAge: (performance.now() - glassesEffectSince) / 1000, bootAge: (performance.now() - glassesBootAt) / 1000,
+      px: n => n * width / wide, mx: x => mirrored() ? width - x : x
+    });
+  }
   if (view.shake && !reduceMotion.matches) {
     const veil = shockFlicker(view.shake);
     for (const [color, alpha] of [['#0b1410', veil.dark], ['#ffffff', veil.light]]) {
@@ -1221,8 +1239,10 @@ function advanceFrame(time) {
       accumulator -= step;
     }
   }
+  const frameSeconds = lastFrame === undefined ? 0 : Math.min((time - lastFrame) / 1000, 0.05);
   lastFrame = time;
   const view = mode === 'online' ? playback.at(time) ?? currentView() : currentView();
+  if (glasses.on && mode === 'solo') glassesFrame(view, time, frameSeconds);
   if (view.frozen) {
     prediction = undefined;
     localOverlap = false;
@@ -1391,7 +1411,27 @@ function flagYou() {
 }
 
 // Each CPU match puts the player on a random side (the ?test= pages keep the left).
+// AI glasses: bring the scripted effects in on time and keep the prediction fresh (about 30 times a second).
+function glassesFrame(view, time, seconds) {
+  glassesScript.update(view, seconds, id => solo.triggerEffect(id));
+  if (view.effect !== glassesEffect) {
+    glassesEffect = view.effect;
+    glassesEffectSince = time;
+  }
+  if (time - glassesPredictedAt >= 33) {
+    glassesPredictedAt = time;
+    glassesPrediction = view.phase === 'live' ? solo.predictFlight() : undefined;
+  }
+}
+
 function restartCpu() {
+  if (glasses.on) {
+    glassesScript.reset();
+    glassesBootAt = performance.now();
+    glassesPrediction = undefined;
+    // Scripted effects replace the random ones.
+    solo.setEffects(!glasses.effects.length);
+  }
   cpuMirrored = !testParams.has('test') && Math.random() < 0.5;
   // Before the restart, so the first serve's outline is already built for this court.
   setMirroredShapes(cpuMirrored);

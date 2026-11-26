@@ -811,17 +811,20 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
     }
   }
 
-  function flyForward(from, seconds = 3.5, watchPost = false) {
+  // `plain`: fly it as if no effect were on (gravity, drag, the net and nothing else): what a viewer who knows only
+  // normal play (the AI glasses of ?glasses=1) would draw.
+  function flyForward(from, seconds = 3.5, watchPost = false, plain = false) {
     const dt = 1 / 60;
     const bottom = Math.max(...outlinePoints.map(point => point.y));
     const reach = Math.max(...outlinePoints.map(point => Math.hypot(point.x, point.y)));
     const body = { x: from.x, y: from.y, vx: from.vx, vy: from.vy };
     const { gravity, airDrag } = shuttle;
-    const force = currentForce();
-    const frozenFor = activeEffect?.id === 'freeze' ? activeEffect.remaining : 0;
-    const clock = activeEffect ? activeEffect.total - activeEffect.remaining : 0;
-    const left = activeEffect ? activeEffect.remaining : 0;
-    let floorUsed = activeEffect?.id !== 'trampoline' || Boolean(activeEffect.used);
+    const effectNow = plain ? undefined : activeEffect;
+    const force = plain ? undefined : currentForce();
+    const frozenFor = effectNow?.id === 'freeze' ? effectNow.remaining : 0;
+    const clock = effectNow ? effectNow.total - effectNow.remaining : 0;
+    const left = effectNow ? effectNow.remaining : 0;
+    let floorUsed = effectNow?.id !== 'trampoline' || Boolean(effectNow.used);
     let postWait = 0;
     let hitPost = false;
     let netTouches = cordTouches;
@@ -842,7 +845,7 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
         cordTouch(body, Math.sign(body.x - beforeX) || (lastHitter === 'left' ? 1 : -1), netTouches, () => 0, reach, outline);
       }
       postWait -= dt;
-      if (activeEffect?.id === 'bumper' && left - t > 0 && postWait <= 0) {
+      if (effectNow?.id === 'bumper' && left - t > 0 && postWait <= 0) {
         const size = smooth(Math.min((clock + t) / bumperGrow, (left - t) / bumperGrow));
         const dx = body.x - bumperSpot.x;
         const dy = body.y - bumperSpot.y;
@@ -1438,6 +1441,22 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
     };
   }
 
+  // AI glasses (?glasses=1): where the shuttle (and each DECOY fake) would come down in normal play, as a thin path and a
+  // landing point. It deliberately knows nothing about effects, so while one is running the lines are wrong.
+  function predictFlight() {
+    if (phase !== 'live' || !shuttle || pendingLanding || trampolineHold) return undefined;
+    const thin = flown => {
+      const path = flown.path.filter((_, i) => i % 3 === 0).map(({ x, y }) => ({ x, y }));
+      if (flown.landing) path.push({ x: flown.landing.x, y: flown.landing.y });
+      return { path, landing: flown.landing && { x: flown.landing.x, y: flown.landing.y, net: Boolean(flown.landing.net) } };
+    };
+    return {
+      flight, lastHitter, effect: activeEffect?.id,
+      shuttle: thin(flyForward(shuttle, 3, false, true)),
+      decoys: decoys.filter(decoy => !decoy.gone).map(decoy => thin(flyForward(decoy, 3, false, true)))
+    };
+  }
+
   // For trying effects out (?test=effects): start one right now if a rally is live.
   function triggerEffect(id) {
     if (id === 'bomb' && !bombEffects) return false;
@@ -1526,5 +1545,5 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
     if (id in netScales && Number.isFinite(scale) && scale > 0 && scale < 4) netScales[id] = scale;
   }
 
-  return { restart, moveRacket, holdRacket, contactFrame, simulate, view, triggerEffect, testNetCord, testShot, setNetScale, setEffectSeconds, setShuttle, setEffects, setOnlyEffect };
+  return { restart, moveRacket, holdRacket, contactFrame, simulate, view, triggerEffect, predictFlight, testNetCord, testShot, setNetScale, setEffectSeconds, setShuttle, setEffects, setOnlyEffect };
 }
