@@ -2208,7 +2208,7 @@ async function renderAccount() {
   byId('ac-apple').hidden = !providers.includes('apple');
   byId('ac-google').hidden = !providers.includes('google');
   byId('ac-nick').hidden = !profile?.account || profile.nicknameLocked;
-  if (profile?.nickname && document.activeElement !== byId('ac-nick-input')) byId('ac-nick-input').value = profile.nickname;
+  byId('ac-nick').textContent = profile?.nickname ? 'CHANGE NICKNAME' : 'SET NICKNAME';
   byId('ac-signout').hidden = !profile?.account;
   byId('account-name').textContent = profile?.name ?? 'ACCOUNT';
 }
@@ -2244,10 +2244,23 @@ function initAppAccount(storage) {
       renderAccount();
     });
   }
-  byId('ac-nick').addEventListener('submit', async event => {
-    event.preventDefault();
-    const answer = await appAccount.setNickname(byId('ac-nick-input').value);
-    say(answer.ok ? 'Saved.' : accountText[answer.reason] ?? 'Could not save.');
+  // The nickname is typed in the phone's own dialog: the game page switches off text editing for itself (so that holding a
+  // finger on a word never brings up the selection loupe), and a native box is also the same on every phone.
+  byId('ac-nick').addEventListener('click', async () => {
+    const dialog = window.Capacitor?.Plugins?.Dialog;
+    let value;
+    try {
+      const answer = dialog
+        ? await dialog.prompt({ title: 'Nickname', message: '3 to 16 letters, numbers, _ or -', inputText: appAccount.profile?.nickname ?? '',
+          okButtonTitle: 'Save', cancelButtonTitle: 'Cancel' })
+        : { cancelled: false, value: window.prompt('Nickname (3 to 16 letters, numbers, _ or -)', appAccount.profile?.nickname ?? '') };
+      if (answer.cancelled || answer.value == null) return;
+      value = answer.value;
+    } catch {
+      return;
+    }
+    const result = await appAccount.setNickname(value);
+    say(result.ok ? 'Saved.' : accountText[result.reason] ?? 'Could not save.');
     renderAccount();
     refreshDaily();
   });

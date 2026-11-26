@@ -169,11 +169,7 @@ if (name === 'app') {
     html[data-portal="app"] #ac-signin p { font-size: 15px; opacity: .8; margin-bottom: 8px; }
     html[data-portal="app"] #ac-providers, html[data-portal="app"] #ac-actions { display: flex; flex-wrap: wrap; gap: 10px; }
     html[data-portal="app"] #ac-providers button { min-height: 46px; }
-    html[data-portal="app"] #ac-nick { display: flex; align-items: center; gap: 10px; }
-    html[data-portal="app"] #ac-nick[hidden] { display: none; }
-    html[data-portal="app"] #ac-nick label { font-size: 13px; letter-spacing: .1em; opacity: .65; }
-    html[data-portal="app"] #ac-nick input { flex: 1; min-width: 0; max-width: 260px; height: 40px; padding: 0 12px; border: 2px solid var(--ink);
-      border-radius: 0; background: transparent; color: var(--ink); font-family: inherit; font-weight: 650; font-size: 16px; user-select: text; -webkit-user-select: text; }
+    html[data-portal="app"] #ac-nick { align-self: flex-start; min-height: 46px; }
     /* The menu, Reddit style: the mode buttons in a column on the left, the daily card with the first five to clear it on the right.
        --cw is one hundredth of the court's width (the court fills the screen's height), so sizes follow the court like on Reddit. */
     html[data-portal="app"] { --cw: min(1.8vh, 1vw); }
