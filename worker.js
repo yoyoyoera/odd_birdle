@@ -1,5 +1,5 @@
 import { DurableObject } from 'cloudflare:workers';
-import { createRooms } from './rooms.js';
+import { createRooms, parseGeo } from './rooms.js';
 import { originSource, requiresRematchReady } from './origins.js';
 
 export default {
@@ -31,6 +31,8 @@ export class RoomHub extends DurableObject {
     const origin = request.headers.get('Origin');
     this.rooms.attach(pair[1], {
       restartBarrier: requiresRematchReady(origin),
+      // Where the player is (set by the site's /play function from Cloudflare's own view of the request, never by the client).
+      geo: parseGeo(request.headers.get('x-geo')) ?? (request.cf?.latitude && request.cf?.longitude ? parseGeo(request.cf.latitude + ',' + request.cf.longitude) : undefined),
       bombEffects: originSource(origin) === 'site' && new URL(request.url).searchParams.get('bomb') === '1'
     });
     return new Response(null, { status: 101, webSocket: pair[0] });

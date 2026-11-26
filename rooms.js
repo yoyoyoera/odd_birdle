@@ -7,7 +7,32 @@ const maxQueue = 200;
 // the hitter's display delay (buffer up to 250ms) plus the time their input takes to arrive.
 export const lagWindowMs = 500;
 
-export function createRooms(randomIndex) {
+// A player who sends nothing for this long during a match has left (app in the background, tab hidden, phone locked): the
+// opponent is told, and the room closes. Every live client sends something many times a second.
+export const silentMs = 20000;
+
+// Quick match only pairs players who are near each other, so the connection is good for both. The reach grows while
+// someone waits (the search starts close and widens), up to a limit past which no match is made. Rooms made or joined with a
+// code are not limited. Players whose place is unknown are matched with anyone, so a missing location never blocks play.
+export const matchStartKm = 1500;
+export const matchGrowthKmPerSecond = 150;
+export const matchMaxKm = 5000;
+
+// Great-circle distance in kilometres between two { lat, lon } points.
+export function distanceKm(a, b) {
+  const radians = degrees => degrees * Math.PI / 180;
+  const dLat = radians(b.lat - a.lat);
+  const dLon = radians(b.lon - a.lon);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(radians(a.lat)) * Math.cos(radians(b.lat)) * Math.sin(dLon / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+export function parseGeo(text) {
+  const [lat, lon] = String(text ?? '').split(',').map(Number);
+  return Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180 ? { lat, lon } : undefined;
+}
+
+export function createRooms(randomIndex, { silenceMs = silentMs, checkMs = 5000, matchCheckMs = 1000 } = {}) {
   const rooms = new Map();
   const roomLifetime = 10 * 60 * 1000;
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -24,6 +49,8 @@ export function createRooms(randomIndex) {
   const queue = [];
   let tickTimer;
   let expiryTimer;
+  let silenceTimer;
+  let matchTimer;
 
   function send(peer, message) {
     if (peer.readyState === 1 && (peer.bufferedAmount ?? 0) < 65536) {
@@ -86,13 +113,44 @@ export function createRooms(randomIndex) {
       return;
     }
     queue.push(peer);
-    send(peer, { type: 'queued' });
-    while (queue.length >= 2) {
-      const [left, right] = queue.splice(0, 2);
-      if (!isOpen(left) || !isOpen(right)) {
-        for (const peer of [left, right]) if (isOpen(peer)) queue.unshift(peer);
-        break;
+    state.queuedAt = Date.now();
+    // `located` says whether the server knows where this player is (it limits who they are matched with).
+    send(peer, { type: 'queued', located: Boolean(state.geo) });
+    pairQueue();
+  }
+
+  // How far apart two waiting players may be: the longer one of them has waited, the wider.
+  function reachKm(a, b) {
+    const waited = (Date.now() - Math.min(states.get(a).queuedAt, states.get(b).queuedAt)) / 1000;
+    return Math.min(matchMaxKm, matchStartKm + matchGrowthKmPerSecond * waited);
+  }
+
+  function near(a, b) {
+    const first = states.get(a)?.geo;
+    const second = states.get(b)?.geo;
+    return !first || !second || distanceKm(first, second) <= reachKm(a, b);
+  }
+
+  // Seats the oldest waiting players with the nearest partner within reach; the rest keep waiting.
+  function pairQueue() {
+    for (let i = 0; i < queue.length; i++) {
+      const left = queue[i];
+      if (!isOpen(left)) continue;
+      let best = -1;
+      let bestDistance = Infinity;
+      for (let j = i + 1; j < queue.length; j++) {
+        const right = queue[j];
+        if (!isOpen(right) || !near(left, right)) continue;
+        const a = states.get(left)?.geo;
+        const b = states.get(right)?.geo;
+        const distance = a && b ? distanceKm(a, b) : 0;
+        if (distance < bestDistance) { best = j; bestDistance = distance; }
       }
+      if (best < 0) continue;
+      const right = queue[best];
+      queue.splice(best, 1);
+      queue.splice(i, 1);
+      i--;
       const room = { code: newCode(), left, right, expiresAt: Date.now() + roomLifetime, game: newGame(left, right), quick: true };
       rooms.set(room.code, room);
       states.get(left).seat(room, 'left');
@@ -133,7 +191,7 @@ export function createRooms(randomIndex) {
     }
   }
 
-  function attach(peer, { restartBarrier = false, bombEffects = false } = {}) {
+  function attach(peer, { restartBarrier = false, bombEffects = false, geo } = {}) {
     peers.add(peer);
     startTimers();
     let room;
@@ -141,6 +199,9 @@ export function createRooms(randomIndex) {
     states.set(peer, {
       id: ++nextPeerId,
       bombEffects,
+      geo,
+      lastSeen: Date.now(),
+      queuedAt: 0,
       // Set by the server from a trusted request Origin, not by the client protocol.
       // This covers already-submitted portal builds which know only { type: 'restart' }.
       serverRestartBarrier: restartBarrier,
@@ -177,6 +238,8 @@ export function createRooms(randomIndex) {
         return;
       }
       if (!message || typeof message !== 'object') return;
+      const known = states.get(peer);
+      if (known) known.lastSeen = Date.now();
 
       // Lets a client measure its round trip (shown by ?debug=net).
       if (message.type === 'ping') {
@@ -301,11 +364,32 @@ export function createRooms(randomIndex) {
         if (!room.game && room.expiresAt <= now) closeRoom(room);
       }
     }, 30000);
+    silenceTimer = setInterval(checkSilence, checkMs);
+    matchTimer = setInterval(pairQueue, matchCheckMs);
+  }
+
+  // A player gone silent in a running match has left: the other is told, and both connections are closed.
+  function checkSilence() {
+    const now = Date.now();
+    for (const room of [...rooms.values()]) {
+      if (!room.game || !room.left || !room.right || room.game.view().phase === 'finished') continue;
+      for (const peer of [room.left, room.right]) {
+        const state = states.get(peer);
+        if (!state || now - state.lastSeen <= silenceMs) continue;
+        send(peer, { type: 'error', message: 'You were away too long.' });
+        closeRoom(room, peer);
+        peer.close();
+        break;
+      }
+    }
   }
 
   function stopTimers() {
     clearInterval(tickTimer);
     clearInterval(expiryTimer);
+    clearInterval(silenceTimer);
+    clearInterval(matchTimer);
+    silenceTimer = matchTimer = undefined;
     tickTimer = undefined;
     expiryTimer = undefined;
   }
