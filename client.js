@@ -1317,6 +1317,8 @@ function showLinkBars() {
   const level = online ? (known ? String(linkQuality.level) : '') : '3';
   const details = (online ? known : true) && (linkHover || performance.now() < linkNumberUntil);
   const text = !details ? '' : online ? linkQuality.rtt + ' ms (' + ['', 'Poor', 'Fair', 'Good'][linkQuality.level] + ')' : 'Offline (Good)';
+  // The app shows the bars only in an online match: nothing travels in a CPU game, and the menu column stays tidy.
+  if (portal === 'app') linkView.hidden = !online;
   if (linkView.dataset.level !== level) linkView.dataset.level = level;
   const word = linkView.querySelector('b');
   if (word.textContent !== text) word.textContent = text;

@@ -123,6 +123,7 @@ if (name === 'app') {
     html[data-portal="app"] .tune-step { font: 650 22px/1 "Space Grotesk", system-ui, sans-serif; cursor: pointer; }
     /* The connection bars are for online play only. */
     html[data-portal="app"]:not([data-features~="online"]) #link-own { display: none; }
+    html[data-portal="app"] #link-own[hidden] { display: none; }
     /* Pause covers the whole screen, the strips too. */
     html[data-portal="app"] #pause-overlay { position: fixed; inset: 0; z-index: 5; }
     /* The stage announcement before a match covers the whole screen too, not only the court. */

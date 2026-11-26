@@ -238,7 +238,10 @@ Android 실기기가 없는 동안 iOS로 같은 빌드 1을 병렬 진행한다
 
 ### 빌드 3 — ONLINE (방 코드 → QUICK MATCH)
 
-#### Step C1. 방 코드 ⬜
+#### Step C1. 방 코드 ✅ (코드·서버 배포·시뮬레이터 확인, 2026-11-26, Mac 세션; 📱 실기기 조합은 남음)
+- 결과: 앱의 접속 출처는 Android `https://app.oddbirdle`, iOS `capacitor://app.oddbirdle`(capacitor.config.json의 server.hostname). `origins.js`가 정확히 이 둘만 `app`으로 허용하고(없는 도메인이라 웹사이트가 흉내 낼 수 없음) 재대결 준비 확인 대상에 넣는다. 실제 서버(`oddbridge-matchmaker`)에 배포했고, 실서버에 두 출처로 방을 만들 수 있고 다른 출처는 404로 막히는 것을 확인했다. 앱은 서버 주소가 https이면 항상 wss로 접속한다(앱 페이지의 scheme이 capacitor://라서 예전 코드는 ws로 접속하려 했다). 앱 빌드 기본 기능은 `stages,online`. 시험 빌드는 `--server=https://<preview>/`로 미리보기 사이트를 가리킬 수 있다. iOS 시뮬레이터 앱 ↔ 미리보기 웹: 방 코드로 대전 시작, QUICK MATCH 대기열 진입까지 확인. 연결 막대는 앱에서 온라인 대전 중에만 보인다.
+- 연결 상태 규칙(현재 동작): 백그라운드나 화면 잠금 → 앱이 일시정지(소리 끔), 온라인 경기는 서버에서 계속되고 이 화면만 멈춤. iOS는 돌아오면 연결이 끊겼을 수 있고, 끊기면 "Connection lost."와 함께 메뉴로 나간다. 상대에게는 연결 끊김으로 보인다.
+
 - 실기기 앱 WebView가 실제로 보내는 `Origin` 값을 서버 로그(`rejected websocket origin`)에서 확인한다. 그 값만 `origins.js`에 `app` 출처로 추가한다. 예상: Android `https://app.oddbirdle`, iOS `capacitor://app.oddbirdle`(비https라 `appOrigins` 정확 일치 목록으로). 재경기 준비 규칙(`requiresRematchReady`)을 앱에 적용할지도 정한다.
 - 매치메이커 배포는 사용자 확인 후 진행한다. 먼저 preview 매치메이커에서 시험한다.
 - 📱 실기기 조합: 앱↔앱, 앱↔현재 웹, 앱↔구버전 포털(itch·Y8·GamePix 제출본). 입장 → 경기(랜덤 효과·3터치 포함) → 재경기까지 시험한다.
@@ -249,7 +252,8 @@ Android 실기기가 없는 동안 iOS로 같은 빌드 1을 병렬 진행한다
 - 📱 실기기 조합에 iOS 앱을 더한다: iOS↔Android, iOS↔웹.
 - 서브에이전트: 사용 안 함(서버·클라이언트 프로토콜을 한 맥락에서 다룸).
 
-#### Step C2. QUICK MATCH ⬜
+#### Step C2. QUICK MATCH ✅ (코드, 2026-11-26) — 앱은 이미 같은 대기열을 쓴다. 📱 실기기 앱↔앱, 앱↔웹 짝짓기 확인은 남음
+
 - 방 코드에서 문제가 없으면 QUICK MATCH 대기열에 앱을 포함한다. 섞인 매칭(앱↔웹·포털)을 같은 방식으로 시험한다.
 - 끝 조건: 사용자 확인. **빌드 3 내부 테스트 후보.**
 
