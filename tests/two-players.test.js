@@ -58,3 +58,14 @@ test('the engine for one player keeps working the same way', () => {
   for (let i = 0; i < 400 && game.view().phase !== 'live'; i++) game.simulate(step);
   assert.equal(game.view().phase, 'live');
 });
+
+test('who serves first can be asked for, and by default it is the left', () => {
+  const first = side => {
+    const game = createGame({ twoPlayers: true });
+    game.restart(0, undefined, null, side ? { touchLimit: 3, openingSide: side } : { touchLimit: 3 });
+    return game.view().message;
+  };
+  assert.match(first('right'), /^right serve/);
+  assert.match(first('left'), /^left serve/);
+  assert.match(first(undefined), /^left serve/);
+});

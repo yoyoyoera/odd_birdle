@@ -572,7 +572,9 @@ export function createGame({ withCpu = false, twoPlayers = false, quickEvents = 
     } : undefined;
     if (doubles) cpuLevel = Math.max(...doubles.opponents);
     rackets.left = rackets.right = undefined;
-    server = externallyDrivenCpu && rules?.openingSide === 'right' ? 'right' : 'left';
+    // Who serves first: asked for by the caller (two players on one device take turns), by a twin-shuttle round, or the left.
+    server = options.openingSide === 'left' || options.openingSide === 'right' ? options.openingSide
+      : externallyDrivenCpu && rules?.openingSide === 'right' ? 'right' : 'left';
     teamServer = { left: 'left', right: 'right' };
     pops = [];
     press = undefined;

@@ -184,6 +184,8 @@ let solo = singles;
 // 2 PLAYERS (the app): two people on one device. The same game without a CPU, each racket moved by its own half of the screen.
 const duoGame = createGame({ twoPlayers: true });
 let duo = false;
+// 2 PLAYERS: who serves the first point of a match. The first match is drawn at random, then the two take turns.
+let duoOpening;
 const demo = createDemo();
 const sound = createSound();
 const soundCues = createCueTracker();
@@ -1073,7 +1075,8 @@ function drawRacket(position, fill, stroke, side) {
   ctx.lineWidth = 2;
   ctx.strokeStyle = stroke;
   ctx.stroke();
-  if (portal === 'app' && side !== undefined && side === localSide) bleed.push({ x: mirrored() ? width - position.x : position.x, y: position.y, r, fill, stroke });
+  // Two players on one device: both rackets have a side that cannot be reached, so both show it.
+  if (portal === 'app' && side !== undefined && (side === localSide || duo)) bleed.push({ x: mirrored() ? width - position.x : position.x, y: position.y, r, fill, stroke });
 }
 
 function drawDoublesRackets(view) {
@@ -1847,7 +1850,8 @@ function restartCpu() {
     setMirroredShapes(false);
     duoTouch.reset();
     solo = duoGame;
-    duoGame.restart(3, undefined, null, { touchLimit: threeTouchLimit });
+    duoOpening = duoOpening === undefined ? (Math.random() < 0.5 ? 'left' : 'right') : duoOpening === 'left' ? 'right' : 'left';
+    duoGame.restart(3, undefined, null, { touchLimit: threeTouchLimit, openingSide: duoOpening });
     // Both rackets are on court from the start (each is moved by its own finger afterwards).
     for (const side of ['left', 'right']) duoGame.moveRacket(side, { ...duoTouch.down(-1, side === 'left' ? 0 : window.innerWidth, 0).racket, time: performance.now() });
     duoTouch.up(-1);
@@ -1864,6 +1868,7 @@ function restartCpu() {
 
 function startCpu({ duo: twoPlayers = false } = {}) {
   duo = twoPlayers;
+  if (duo) duoOpening = undefined;
   matchStats.reset();
   restartCpu();
   accumulator = 0;
