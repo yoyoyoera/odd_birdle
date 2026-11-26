@@ -21,7 +21,7 @@ import { launchConfetti, confettiAt } from './confetti.js';
 import { createPlayback, followStrikeClock, legacyTuning } from './playback.js';
 import { createRacketSender } from './net-send.js';
 import { createNetMeter } from './net-quality.js';
-import { normalizeRoomCode, roomFromLink, roomLink } from './room-link.js';
+import { inviteUrl, normalizeRoomCode, roomFromLink, roomLink, roomFromInvite } from './room-link.js';
 import { createDemo } from './demo.js';
 import { startHeartbeat, track, trackVisit } from './analytics.js';
 import { features } from './features.js';
@@ -2717,7 +2717,7 @@ function showCopyResult(label) {
 }
 copyLink.addEventListener('click', async () => {
   // On a portal, invite links stay on the portal (CrazyGames) or point at our site.
-  const link = portalInviteLink(roomCode.value) ?? roomLink(roomCode.value, portal ? siteUrl : location.href);
+  const link = canShareCard ? inviteUrl(roomCode.value, siteUrl) : portalInviteLink(roomCode.value) ?? roomLink(roomCode.value, portal ? siteUrl : location.href);
   if (canShareCard) {
     // The phone app: the system share sheet, with the room code and a link that opens the game in a browser.
     const outcome = await shareInvite({ text: `Play Odd Birdle with me! Room code: ${roomCode.value}`, url: link });
@@ -2814,6 +2814,20 @@ if (portal === 'app') {
     wakeAudio: () => sound.wake(),
     sleepAudio: () => sound.sleep()
   })).catch(error => console.error('Odd Birdle app shell failed', error));
+  // An invite link opened with the app installed (the site's /join/CODE address): straight into that room.
+  const openInvite = url => {
+    const room = roomFromInvite(url);
+    if (!room || !features.online) return;
+    if (socket) leave();
+    codeInput.value = room;
+    connect({ type: 'join', code: room }, 'link');
+  };
+  try {
+    const appPlugin = window.Capacitor?.Plugins?.App;
+    appPlugin?.addListener?.('appUrlOpen', event => openInvite(event?.url));
+    // The app was not running: the link that started it.
+    appPlugin?.getLaunchUrl?.()?.then?.(launch => { if (launch?.url) setTimeout(() => openInvite(launch.url), 600); }).catch?.(() => {});
+  } catch { /* no App plugin in a browser preview */ }
 }
 trackVisit();
 startHeartbeat(() => mode === 'solo' ? 'cpu' : mode === 'online' ? 'online' : 'menu');
