@@ -149,42 +149,18 @@ if (name === 'app') {
       mask-image: linear-gradient(to right, transparent 0, #000 var(--bleedL), #000 calc(100% - var(--bleedR)), transparent 100%); }
     html[data-portal="app"] #stage-list::-webkit-scrollbar { display: none; }
     /* DAILY and ACCOUNT: whole-screen sheets like the stage list, in the same square style. */
-    html[data-portal="app"] :is(#daily-panel, #account-panel) { position: fixed; inset: 0; z-index: 2; box-sizing: border-box;
+    html[data-portal="app"] #account-panel { position: fixed; inset: 0; z-index: 2; box-sizing: border-box;
       display: flex; flex-direction: column; gap: 14px; background: var(--court); color: var(--ink); overflow: hidden;
       --padL: max(calc(var(--app-safe-left) + 10px), 72px); --padR: max(calc(var(--app-safe-right) + 10px), 72px);
       padding: max(var(--app-safe-top), 28px) var(--padR) max(var(--app-safe-bottom), 14px) var(--padL); }
-    html[data-portal="app"] :is(#daily-panel, #account-panel)[hidden] { display: none; }
-    html[data-portal="app"] :is(#daily-panel, #account-panel) header { display: flex; align-items: center; justify-content: space-between;
+    html[data-portal="app"] #account-panel[hidden] { display: none; }
+    html[data-portal="app"] #account-panel header { display: flex; align-items: center; justify-content: space-between;
       min-height: 40px; gap: 12px; padding: 0; }
-    html[data-portal="app"] :is(#daily-panel, #account-panel) h2 { margin: 0; font-size: 32px; line-height: 1.15; }
-    html[data-portal="app"] :is(#daily-panel, #account-panel) button { min-height: 40px; padding: 0 16px; border: 0; border-radius: 0;
+    html[data-portal="app"] #account-panel h2 { margin: 0; font-size: 32px; line-height: 1.15; }
+    html[data-portal="app"] #account-panel button { min-height: 40px; padding: 0 16px; border: 0; border-radius: 0;
       background: color-mix(in srgb, var(--ink) 9%, transparent); color: var(--ink); font-family: inherit; font-weight: 650; font-size: 14px; letter-spacing: .06em; }
-    html[data-portal="app"] :is(#daily-panel, #account-panel) button:active:not(:disabled) { background: color-mix(in srgb, var(--ink) 22%, transparent); }
-    html[data-portal="app"] :is(#daily-panel, #account-panel) button:disabled { opacity: .45; }
-    html[data-portal="app"] #account-open { max-width: 46vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    html[data-portal="app"] #daily-body { flex: 1; min-height: 0; display: flex; gap: 28px; }
-    html[data-portal="app"] #daily-card { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 4px;
-      padding: 14px 18px; background: color-mix(in srgb, var(--ink) 7%, transparent); }
-    html[data-portal="app"] #daily-card p, html[data-portal="app"] #daily-board p { margin: 0; }
-    html[data-portal="app"] #dp-day { font-size: 13px; letter-spacing: .1em; opacity: .65; }
-    html[data-portal="app"] #dp-title { margin: 2px 0; font-size: 38px; line-height: 1.05; }
-    html[data-portal="app"] #dp-rule { font-size: 14px; font-weight: 650; letter-spacing: .08em; opacity: .75; }
-    html[data-portal="app"] #dp-tries { margin-top: 10px; font-size: 16px; font-weight: 650; }
-    html[data-portal="app"] #dp-streak { font-size: 14px; font-weight: 650; color: #a8791a; letter-spacing: .08em; }
-    html[data-portal="app"] #dp-go { margin-top: 14px; align-self: flex-start; min-height: 48px; padding: 0 26px; font-size: 16px;
-      background: var(--ink); color: var(--court); }
-    html[data-portal="app"] #dp-go:active:not(:disabled) { background: color-mix(in srgb, var(--ink) 80%, var(--court)); }
-    html[data-portal="app"] #daily-board { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 10px; }
-    html[data-portal="app"] #dp-board-title { font-size: 13px; letter-spacing: .1em; opacity: .65; }
-    html[data-portal="app"] #dp-board { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-    html[data-portal="app"] #dp-board li { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 0 0 10px; font-size: 18px;
-      background: color-mix(in srgb, var(--ink) 7%, transparent); }
-    html[data-portal="app"] #dp-board li[data-empty] { opacity: .45; }
-    html[data-portal="app"] #dp-board .place { width: 34px; font-weight: 650; opacity: .6; }
-    html[data-portal="app"] #dp-board .who { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 650; }
-    html[data-portal="app"] #dp-board .time { opacity: .75; font-variant-numeric: tabular-nums; }
-    html[data-portal="app"] #dp-board .flag { min-height: 40px; width: 40px; padding: 0; background: transparent; opacity: .45; font-size: 16px; }
-    html[data-portal="app"] #dp-message, html[data-portal="app"] #ac-message { margin: 0; min-height: 1.3em; font-size: 14px; font-weight: 650; white-space: pre-line; }
+    html[data-portal="app"] #account-panel button:active:not(:disabled) { background: color-mix(in srgb, var(--ink) 22%, transparent); }
+    html[data-portal="app"] #account-panel button:disabled { opacity: .45; }
     html[data-portal="app"] #account-body { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; overflow-y: auto;
       touch-action: pan-y; }
     html[data-portal="app"] #account-body p { margin: 0; }
@@ -198,6 +174,54 @@ if (name === 'app') {
     html[data-portal="app"] #ac-nick label { font-size: 13px; letter-spacing: .1em; opacity: .65; }
     html[data-portal="app"] #ac-nick input { flex: 1; min-width: 0; max-width: 260px; height: 40px; padding: 0 12px; border: 2px solid var(--ink);
       border-radius: 0; background: transparent; color: var(--ink); font-family: inherit; font-weight: 650; font-size: 16px; user-select: text; -webkit-user-select: text; }
+    /* The menu, Reddit style: the mode buttons in a column on the left, the daily card with the first five to clear it on the right.
+       --cw is one hundredth of the court's width (the court fills the screen's height), so sizes follow the court like on Reddit. */
+    html[data-portal="app"] { --cw: min(1.8vh, 1vw); }
+    html[data-portal="app"] #menu { top: 37.5%; left: 50%; transform: translateX(-50%); width: min(80%, 92vh * 1.6); display: grid; white-space: normal;
+      grid-template-columns: repeat(2, minmax(0, 1fr)) minmax(0, 2.6fr); grid-auto-rows: calc(var(--cw) * 4.6);
+      grid-template-areas: "quick quick card" "create join card" "stages stages card" "cpu cpu card" "duo duo card";
+      gap: calc(var(--cw) * 1) calc(var(--cw) * 1.8); align-items: stretch; }
+    html[data-portal="app"] #menu[hidden] { display: none; }
+    html[data-portal="app"] #menu-modes { display: contents; }
+    html[data-portal="app"] #quick { grid-area: quick; } html[data-portal="app"] #create { grid-area: create; } html[data-portal="app"] #join { grid-area: join; }
+    html[data-portal="app"] #stages-button { grid-area: stages; } html[data-portal="app"] #duo { grid-area: duo; }
+    html[data-portal="app"] #cpu-group { grid-area: cpu; position: static; display: flex; gap: calc(var(--cw) * .8); transform: none; }
+    html[data-portal="app"] #cpu-group #cpu { flex: 1 1 auto; }
+    html[data-portal="app"] #cpu-group #cpu-level { position: static; transform: none; flex: 0 0 34%; font-size: max(8px, calc(var(--cw) * 1.5)); opacity: .8; }
+    html[data-portal="app"] #menu button:not(#daily-button):not(#teaser-account):not(.flag) { width: 100%; height: 100%; min-height: 0; padding: 0 4px; border: 0; border-radius: 0;
+      font-size: max(9px, calc(var(--cw) * 2.1)); letter-spacing: .06em; white-space: nowrap; color: var(--ink);
+      background: color-mix(in srgb, var(--ink) 9%, transparent); }
+    html[data-portal="app"] #menu button:not(#daily-button):not(#teaser-account):not(.flag):active { background: color-mix(in srgb, var(--ink) 22%, transparent); }
+    html[data-portal="app"] #menu button[hidden] { display: none; }
+    html[data-portal="app"] #daily-teaser { grid-area: card; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto auto 1fr auto;
+      min-width: 0; padding: calc(var(--cw) * 1.2) calc(var(--cw) * 1.8); text-align: left; color: var(--ink);
+      background: color-mix(in srgb, var(--ink) 8%, var(--court)); }
+    html[data-portal="app"] #daily-teaser[hidden] { display: none; }
+    html[data-portal="app"] #daily-teaser > * { grid-column: 1 / -1; }
+    html[data-portal="app"] #teaser-head { display: flex; justify-content: space-between; gap: 8px; margin: 0; font-size: max(8px, calc(var(--cw) * 1.5)); font-weight: 650; letter-spacing: .08em; }
+    html[data-portal="app"] #teaser-day { opacity: .7; }
+    html[data-portal="app"] #teaser-name { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin: calc(var(--cw) * .2) 0 calc(var(--cw) * .1);
+      font-size: max(13px, calc(var(--cw) * 3.4)); line-height: 1.05; }
+    html[data-portal="app"] #teaser-streak { font-size: max(8px, calc(var(--cw) * 1.5)); font-weight: 650; letter-spacing: .08em; white-space: nowrap; color: #8a6a12; }
+    html[data-portal="app"] #teaser-rule { margin: 0 0 calc(var(--cw) * .7); font-size: max(8px, calc(var(--cw) * 1.5)); font-weight: 650; letter-spacing: .1em; opacity: .75; }
+    html[data-portal="app"] #teaser-board { list-style: none; margin: 0; padding: 0; display: grid; align-content: space-evenly; min-height: 0; }
+    html[data-portal="app"] #teaser-board li { display: flex; align-items: center; gap: calc(var(--cw) * 1.2); font-size: max(9px, calc(var(--cw) * 1.9)); line-height: 1.2; min-width: 0; }
+    html[data-portal="app"] #teaser-board .place { width: calc(var(--cw) * 3.4); font-weight: 650; opacity: .6; }
+    html[data-portal="app"] #teaser-board .who { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 650; }
+    html[data-portal="app"] #teaser-board .time { opacity: .75; font-variant-numeric: tabular-nums; }
+    html[data-portal="app"] #teaser-board li[data-empty] { opacity: .35; }
+    html[data-portal="app"] #teaser-board .flag { width: calc(var(--cw) * 3); height: calc(var(--cw) * 3); min-height: 0; padding: 0; border: 0; background: transparent;
+      color: var(--ink); opacity: .4; font-size: max(9px, calc(var(--cw) * 1.7)); }
+    html[data-portal="app"] #daily-button { grid-column: 1; grid-row: 5; display: flex; align-items: center; justify-content: center; gap: calc(var(--cw) * 1); width: 100%;
+      height: calc(var(--cw) * 4.4); min-height: 0; margin-top: calc(var(--cw) * .8); padding: 0; border: 0; border-radius: 0;
+      font-size: max(9px, calc(var(--cw) * 2)); letter-spacing: .12em; background: var(--ink); color: var(--court); }
+    html[data-portal="app"] #daily-button:disabled { opacity: .55; }
+    html[data-portal="app"] #daily-icon:not([hidden]) { display: block; width: calc(var(--cw) * 2.4); height: calc(var(--cw) * 2.4); }
+    html[data-portal="app"] #teaser-account { grid-column: 2; grid-row: 5; align-self: end; height: calc(var(--cw) * 4.4); min-height: 0; max-width: calc(var(--cw) * 15); margin: calc(var(--cw) * .8) 0 0 calc(var(--cw) * .8);
+      padding: 0 calc(var(--cw) * 1.2); border: 0; border-radius: 0; background: color-mix(in srgb, var(--ink) 12%, transparent); color: var(--ink);
+      font-size: max(8px, calc(var(--cw) * 1.5)); font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    html[data-portal="app"] #teaser-account[hidden] { display: none; }
+    html[data-portal="app"] #ac-message { margin: 0; min-height: 1.3em; font-size: 14px; font-weight: 650; white-space: pre-line; }
     html[data-portal="app"] #stage-prev { left: calc(var(--padL) + 4px); } html[data-portal="app"] #stage-next { right: calc(var(--padR) + 4px); }
     html[data-portal="app"] #guide { padding: calc(16px + var(--app-safe-top)) calc(16px + var(--app-safe-right))
       calc(16px + var(--app-safe-bottom)) calc(16px + var(--app-safe-left)); }

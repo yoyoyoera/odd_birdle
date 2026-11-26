@@ -94,7 +94,6 @@ const dailyButton = document.querySelector('#daily-button');
 const stageList = document.querySelector('#stage-list');
 const stageProgressLabel = document.querySelector('#stage-progress');
 // The phone app's DAILY and account screens.
-const dailyPanel = document.querySelector('#daily-panel');
 const accountPanel = document.querySelector('#account-panel');
 const byId = id => document.querySelector('#' + id);
 const stageCount = document.querySelector('#stage-count');
@@ -425,9 +424,8 @@ function setMode(next, message = '') {
   mode = next;
   menu.hidden = next !== 'menu';
   stagePanel.hidden = next !== 'stages';
-  dailyPanel.hidden = next !== 'daily';
   accountPanel.hidden = next !== 'account';
-  if (next === 'menu' && portal === 'reddit' && typeof refreshDaily === 'function' && dailyReady) refreshDaily();
+  if (next === 'menu' && (portal === 'reddit' || portal === 'app') && typeof refreshDaily === 'function' && dailyReady) refreshDaily();
   roomDisplay.hidden = next !== 'waiting';
   joinForm.hidden = next !== 'join';
   back.hidden = next === 'menu';
@@ -2023,7 +2021,6 @@ function currentStreak(state) {
 }
 
 function renderTeaser() {
-  if (portal === 'app') { renderDailyPanel(); return; }
   const state = dailyState;
   const button = dailyButton;
   dailyEl('teaser-day').textContent = state ? `DAILY #${state.plan.number} · ${dayLabel(state.plan.date)}` : 'DAILY';
@@ -2039,20 +2036,36 @@ function renderTeaser() {
     const entry = board.find(item => item.rank === index + 1);
     const li = document.createElement('li');
     const place = document.createElement('span'); place.className = 'place'; place.textContent = '#' + (index + 1);
-    const who = document.createElement('span'); who.className = 'who'; who.textContent = entry ? 'u/' + entry.name : (index === 0 && state ? 'be the first' : '—');
+    const who = document.createElement('span'); who.className = 'who'; who.textContent = entry ? (portal === 'app' ? entry.name : 'u/' + entry.name) : (index === 0 && state ? 'be the first' : '—');
     const time = document.createElement('span'); time.className = 'time'; time.textContent = entry ? entry.seconds + 's' : '';
     if (!entry) li.dataset.empty = '';
     li.append(place, who, time);
+    if (portal === 'app' && entry && state.cleared?.rank !== entry.rank) {
+      // Anyone's name can be reported (three reports from different players take a nickname down).
+      const flag = document.createElement('button');
+      flag.type = 'button';
+      flag.className = 'flag';
+      flag.textContent = '⚑';
+      flag.setAttribute('aria-label', 'Report ' + entry.name);
+      flag.addEventListener('click', async () => {
+        flag.disabled = true;
+        const answer = await appAccount.report(state.plan.date, entry.rank);
+        showNotice(answer.ok ? 'REPORTED' : 'COULD NOT REPORT');
+      });
+      li.append(flag);
+    }
     return li;
   }));
+  if (portal === 'app') dailyEl('account-name').textContent = appAccount?.profile?.name ?? 'ACCOUNT';
   const icon = dailyEl('daily-icon'), label = dailyEl('daily-label');
   icon.hidden = true;
   if (!state) { label.textContent = 'CHALLENGE'; button.disabled = true; }
   else if (state.cleared) {
     // Today is cleared: the button posts the card of that clear.
     icon.hidden = false;
-    const posted = dailyCardPosted || state.cardPosted;
-    label.textContent = posted ? 'POSTED ✓' : dailyCardPosting ? 'POSTING…' : 'POST CARD';
+    // In the app the card is shared as often as the player likes; on Reddit it is posted once.
+    const posted = !canShareCard && (dailyCardPosted || state.cardPosted);
+    label.textContent = canShareCard ? (dailyCardPosting ? 'PREPARING…' : 'SHARE CARD') : posted ? 'POSTED ✓' : dailyCardPosting ? 'POSTING…' : 'POST CARD';
     button.disabled = posted || dailyCardPosting;
   } else if (left === 0) { label.textContent = 'NO TRIES LEFT'; button.disabled = true; }
   else { label.textContent = 'CHALLENGE'; button.disabled = dailyPending; }
@@ -2170,59 +2183,7 @@ if (portal === 'reddit') {
   resultStagesButton.addEventListener('click', () => { if (selectedStage?.daily) leave(); else openStages(); });
 }
 
-// ---- The phone app's DAILY and account screens (app-account.js; docs/APP-API.md) ----------------------------------------
-function renderDailyPanel() {
-  const state = dailyState;
-  const challenge = state && playableDaily(state.plan);
-  byId('dp-day').textContent = state ? `DAILY #${state.plan.number} · ${dayLabel(state.plan.date)}` : 'DAILY';
-  byId('dp-title').textContent = challenge ? challenge.name : (dailyMessage || '…');
-  byId('dp-rule').textContent = challenge ? `${goalText(challenge)} · CPU LV.${state.plan.cpuLevel}` : '';
-  const left = dailyTriesLeft();
-  byId('dp-tries').textContent = !state ? '' : state.cleared ? `CLEARED ✓ · #${state.cleared.rank} TO CLEAR`
-    : left === 0 ? 'NO TRIES LEFT' : `${left} ${left === 1 ? 'TRY' : 'TRIES'} LEFT`;
-  const streak = state ? currentStreak(state) : 0;
-  byId('dp-streak').textContent = streak >= 2 ? `${streak}-DAY STREAK` : '';
-  byId('dp-streak').hidden = streak < 2;
-  const go = byId('dp-go');
-  if (!state) { go.textContent = dailyMessage ? 'TRY AGAIN' : 'CHALLENGE'; go.disabled = !dailyMessage; }
-  else if (state.cleared) { go.textContent = dailyCardPosting ? 'PREPARING…' : 'SHARE CARD'; go.disabled = dailyCardPosting; }
-  else if (left === 0) { go.textContent = 'NO TRIES LEFT'; go.disabled = true; }
-  else { go.textContent = 'CHALLENGE'; go.disabled = dailyPending; }
-  const board = state?.board ?? [];
-  byId('dp-board').replaceChildren(...Array.from({ length: 5 }, (_, index) => {
-    const entry = board.find(item => item.rank === index + 1);
-    const li = document.createElement('li');
-    const place = document.createElement('span'); place.className = 'place'; place.textContent = '#' + (index + 1);
-    const who = document.createElement('span'); who.className = 'who'; who.textContent = entry ? entry.name : (index === 0 && state ? 'be the first' : '—');
-    const time = document.createElement('span'); time.className = 'time'; time.textContent = entry ? entry.seconds + 's' : '';
-    li.append(place, who, time);
-    if (!entry) li.dataset.empty = '';
-    else if (state.cleared?.rank !== entry.rank) {
-      // Anyone's name can be reported (three reports from different players take a nickname down).
-      const flag = document.createElement('button');
-      flag.type = 'button';
-      flag.className = 'flag';
-      flag.textContent = '⚑';
-      flag.setAttribute('aria-label', 'Report ' + entry.name);
-      flag.addEventListener('click', async () => {
-        flag.disabled = true;
-        const answer = await appAccount.report(state.plan.date, entry.rank);
-        byId('dp-message').textContent = answer.ok ? 'Thanks, reported.' : 'Could not report right now.';
-      });
-      li.append(flag);
-    }
-    return li;
-  }));
-  byId('account-name').textContent = appAccount?.profile?.name ?? 'ACCOUNT';
-}
-
-function openDaily() {
-  leave();
-  setMode('daily');
-  byId('dp-message').textContent = '';
-  refreshDaily().then(() => appAccount?.me()).then(() => renderDailyPanel());
-}
-
+// ---- The phone app's account screen and its link to the daily card (app-account.js; docs/APP-API.md) -------------------
 const accountText = {
   'nickname-invalid': 'Use 3 to 16 letters, numbers, _ or -.',
   'nickname-banned': 'That name is not allowed.',
@@ -2264,10 +2225,13 @@ function initAppAccount(storage) {
   const platform = window.Capacitor?.getPlatform?.() ?? 'web';
   appAccount = createAccount({ base: serverBase, storage, plugins: window.Capacitor?.Plugins, platform });
   const say = text => { byId('ac-message').textContent = text; };
-  byId('daily-open').hidden = false;
-  byId('daily-open').addEventListener('click', openDaily);
-  byId('dp-go').addEventListener('click', onChallenge);
-  byId('account-open').addEventListener('click', openAccount);
+  // The daily card sits on the menu, with the first five to clear it; the account is one tap away from it.
+  byId('daily-teaser').hidden = false;
+  byId('teaser-account').hidden = false;
+  dailyButton.addEventListener('click', onChallenge);
+  byId('teaser-account').addEventListener('click', openAccount);
+  dailyReady = true;
+  appAccount.me().then(() => refreshDaily());
   for (const provider of ['apple', 'google']) {
     byId('ac-' + provider).addEventListener('click', async () => {
       say('Signing in…');
@@ -2330,7 +2294,7 @@ if (portal === 'app' && features.stages) {
     return features.daily ? initAppAccount(appStorage) : undefined;
   });
   stagesButton.addEventListener('click', openStages);
-  resultStagesButton.addEventListener('click', () => { if (selectedStage?.daily) openDaily(); else openStages(); });
+  resultStagesButton.addEventListener('click', () => { if (selectedStage?.daily) leave(); else openStages(); });
 }
 
 

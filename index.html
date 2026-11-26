@@ -562,7 +562,6 @@
           <button id="cpu-level" type="button">LV RANDOM</button>
         </span>
         <button id="duo" type="button" hidden>2 PLAYERS</button>
-        <button id="daily-open" type="button" hidden>DAILY</button>
       </span>
       <section id="daily-teaser" aria-label="Daily challenge" hidden>
         <p id="teaser-head"><span id="teaser-day">DAILY</span><span id="teaser-tries"></span></p>
@@ -570,6 +569,7 @@
         <p id="teaser-rule"></p>
         <ol id="teaser-board" aria-label="First to clear today"></ol>
         <button id="daily-button" type="button"><svg id="daily-icon" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5M5 14v5.5h14V14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="daily-label">CHALLENGE</span></button>
+        <button id="teaser-account" type="button" aria-label="Account" hidden><span id="account-name">ACCOUNT</span></button>
       </section>
     </nav>
     <section id="stage-panel" aria-label="Choose a stage" hidden>
@@ -582,27 +582,6 @@
       <button id="stage-prev" type="button" aria-label="Earlier stages" title="Earlier stages"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button id="stage-next" type="button" aria-label="Later stages" title="Later stages"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     </section>
     <!-- The phone app: today's daily challenge with the first five to clear it, and the player's account. -->
-    <section id="daily-panel" aria-label="Daily challenge" hidden>
-      <header>
-        <h2>DAILY</h2>
-        <button id="account-open" type="button" aria-label="Account"><span id="account-name">…</span></button>
-      </header>
-      <div id="daily-body">
-        <div id="daily-card">
-          <p id="dp-day"></p>
-          <h3 id="dp-title">…</h3>
-          <p id="dp-rule"></p>
-          <p id="dp-tries"></p>
-          <p id="dp-streak" hidden></p>
-          <button id="dp-go" type="button" disabled>CHALLENGE</button>
-        </div>
-        <div id="daily-board">
-          <p id="dp-board-title">FIRST TO CLEAR TODAY</p>
-          <ol id="dp-board" aria-label="First to clear today"></ol>
-        </div>
-      </div>
-      <p id="dp-message" role="status"></p>
-    </section>
     <section id="account-panel" aria-label="Account" hidden>
       <header><h2>ACCOUNT</h2></header>
       <div id="account-body">

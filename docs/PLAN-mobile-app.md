@@ -299,7 +299,7 @@ Android 실기기가 없는 동안 iOS로 같은 빌드 1을 병렬 진행한다
 - 서브에이전트: D3과 **병렬 2개**. 서버(`app-server/`) / 앱 DAILY 화면·통신 어댑터. 1번의 계약 문서가 확정된 뒤에 시작한다.
 
 #### Step D3. 앱 DAILY 화면 ✅ (코드·시뮬레이터 확인 2026-11-26, Mac 세션; 📱 실제 Apple·Google 로그인은 실기기에서 확인 필요)
-- 결과: 메뉴에 DAILY 버튼(앱 빌드 기능 `daily`, 기본 켜짐). `app-account.js`(손님 만들기, 비밀값 보관, 로그인, 닉네임, 삭제, 신고, 서버 호출)와 `createDailyClient`가 앱 서버를 부른다. 화면: DAILY(오늘 도전, 남은 횟수, 연승, 상위 5명 순위표와 ⚑ 신고 버튼, CHALLENGE/클리어 뒤 SHARE CARD), ACCOUNT(손님/로그인 상태, Apple·Google 로그인 버튼(Apple은 iPhone만), 닉네임 저장, 로그아웃, 삭제 코드 보기, DATA 삭제는 두 번 눌러야 지워짐). 도전은 기존 스테이지 경기 흐름(안내 화면, 결과, 다시 하기)을 그대로 쓴다. 웹 삭제 페이지 `/delete`는 사이트(main)에 배포됨.
+- 결과(2026-11-26 사용자 요청으로 Reddit 가로 스타일로 바꿈): **메뉴 왼쪽에 모드 버튼 5줄, 오른쪽에 DAILY 카드(오늘의 도전·남은 횟수·연승·상위 5명 순위표·CHALLENGE·계정 버튼)가 바로 보인다.** 따로 DAILY 화면을 열지 않는다(앱 빌드 기능 `daily`, 기본 켜짐). `app-account.js`(손님 만들기, 비밀값 보관, 로그인, 닉네임, 삭제, 신고, 서버 호출)와 `createDailyClient`가 앱 서버를 부른다. 화면: DAILY(오늘 도전, 남은 횟수, 연승, 상위 5명 순위표와 ⚑ 신고 버튼, CHALLENGE/클리어 뒤 SHARE CARD), ACCOUNT(손님/로그인 상태, Apple·Google 로그인 버튼(Apple은 iPhone만), 닉네임 저장, 로그아웃, 삭제 코드 보기, DATA 삭제는 두 번 눌러야 지워짐). 도전은 기존 스테이지 경기 흐름(안내 화면, 결과, 다시 하기)을 그대로 쓴다. 웹 삭제 페이지 `/delete`는 사이트(main)에 배포됨.
 - 로그인 플러그인: `@capgo/capacitor-social-login` 8.7.13(Firebase 없음). iOS는 Info.plist에 Google 되돌림 주소(iOS 클라이언트 ID를 뒤집은 값), `App.entitlements`의 Sign in with Apple, 프로젝트 설정 `CODE_SIGN_ENTITLEMENTS`. Android는 별도 설정 없이 빌드됨(웹 클라이언트 ID로 초기화).
 - 시험: `tests/app-account.test.js` 9개. 시뮬레이터에서 미리보기 서버로 DAILY·계정·삭제 코드·도전 시작 확인. **아직 못 한 것:** 실제 Apple/Google 로그인(시뮬레이터는 로그인 계정이 없어서), 클리어 후 SHARE CARD, 순위표 신고, 앱 안 삭제 끝까지.
 
