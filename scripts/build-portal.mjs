@@ -162,6 +162,9 @@ if (name === 'app') {
     html[data-portal="app"] #account-panel button:active:not(:disabled) { background: color-mix(in srgb, var(--ink) 22%, transparent); }
     html[data-portal="app"] #account-panel button:disabled { opacity: .45; }
     html[data-portal="app"] #stage[data-account] h1 { display: none; }
+    /* The notice sits beside the back button, in the same square style. */
+    html[data-portal="app"] #notice { position: fixed; top: 28px; left: 76px; min-height: 40px; background: color-mix(in srgb, var(--ink) 9%, var(--court)); }
+    html[data-portal="app"] #notice-close { width: 40px; height: 40px; }
     /* The title sits on its own soft tile, so it reads over the crowd; the demo match shows through everything else. */
     html[data-portal="app"] #account-panel header h2 { padding: 2px 14px; background: color-mix(in srgb, var(--court) 78%, transparent);
       backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
