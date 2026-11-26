@@ -15,7 +15,7 @@ if (!['crazygames', 'itch', 'newgrounds', 'gamepix', 'y8', 'gamedistribution', '
   console.error('Usage: node scripts/build-portal.mjs crazygames|itch|newgrounds|gamepix|y8|gamedistribution|app');
   process.exit(1);
 }
-const appFeatures = (process.argv.find(arg => arg.startsWith('--features='))?.slice('--features='.length) ?? '')
+const appFeatures = (process.argv.find(arg => arg.startsWith('--features='))?.slice('--features='.length) ?? 'stages')
   .split(',').map(feature => feature.trim().toLowerCase()).filter(Boolean);
 for (const feature of appFeatures) {
   if (!['stages', 'daily', 'online'].includes(feature)) throw new Error('Unknown feature: ' + feature);
@@ -87,6 +87,8 @@ if (name === 'app') {
     html[data-portal="app"], html[data-portal="app"] body, html[data-portal="app"] * { touch-action: none; -webkit-user-select: none; user-select: none;
       -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
     html[data-portal="app"] input, html[data-portal="app"] input[type="range"] { touch-action: none; }
+    /* The stage cards slide sideways with a finger. */
+    html[data-portal="app"] #stage-list, html[data-portal="app"] #stage-list * { touch-action: pan-x; }
     html[data-portal="app"] body { padding: var(--app-safe-top) var(--app-safe-right) var(--app-safe-bottom) var(--app-safe-left);
       overscroll-behavior: none; }
     /* Fill the screen: the court is as tall as the screen (9:5, centred left to right, running a little into the side safe

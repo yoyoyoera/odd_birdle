@@ -114,7 +114,7 @@ test('after a match there are buttons (and keys) to play again or go back to the
   assert.equal(element('#winner').textContent, 'You Lose..');
   assert.equal(actions.hidden, false);
   assert.equal(element('#play-again').hidden, false);
-  assert.equal(element('#play-again').textContent, 'PLAY AGAIN');
+  assert.equal(element('#play-again .label').textContent, 'PLAY AGAIN');
   assert.equal(element('#game-control').hidden, true, 'the small icon gives way to the words');
   await element('#play-again').click();
   await new Promise(resolve => setImmediate(resolve));
@@ -189,7 +189,7 @@ test('after a match there are buttons (and keys) to play again or go back to the
     frames(30);
     assert.equal(element('#winner').textContent, winner === 'right' ? 'You Win!' : 'You Lose..');
     assert.equal(actions.hidden, false);
-    assert.equal(element('#play-again').textContent, 'REMATCH');
+    assert.equal(element('#play-again .label').textContent, 'REMATCH');
     await element('#play-again').click();
     await new Promise(resolve => setImmediate(resolve));
     frames();

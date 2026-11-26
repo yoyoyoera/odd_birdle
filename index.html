@@ -63,6 +63,79 @@
     #sound-toggle .muted, #sound-toggle[aria-pressed="true"] .on { display: none; }
     #sound-toggle[aria-pressed="true"] .muted { display: inline; }
     #studio-links a:focus-visible { outline: 2px solid currentColor; outline-offset: -3px; }
+    /* On a phone, in the feed: the game itself opens full screen (the feed would scroll under a thumb). */
+    #expand-gate { display: none; }
+    [data-portal="reddit"] #expand-gate:not([hidden]) { position: fixed; inset: 0; z-index: 20; display: grid; place-content: center; justify-items: center; gap: 10px;
+      background: var(--court); color: var(--ink); text-align: center; }
+    [data-portal="reddit"] #expand-gate p { margin: 0; font-size: clamp(26px, 9vw, 52px); font-weight: 650; letter-spacing: -.03em; }
+    [data-portal="reddit"] #expand-gate button { min-height: 44px; padding: 0 22px; border: 0; background: var(--ink); color: var(--court); font: inherit; font-weight: 650; letter-spacing: .14em; cursor: pointer; }
+    [data-portal="reddit"] #expand-gate span { font-size: 12px; opacity: .7; }
+    [data-portal="reddit"] html, [data-portal="reddit"] body, html[data-portal="reddit"] body { overscroll-behavior: none; }
+    /* Phone held upright: the court is always at the top. On the menu, the two ways to play and the daily card (with the
+       leaderboard) fill the space under it; in a match it holds the sensitivity bar and the thumb pad; the stage list
+       takes the whole screen. */
+    /* The title is the first thing on a phone: bigger than on a wide screen. */
+    /* Reddit on a computer: the title is a good deal bigger, following the court's width (the phone in portrait keeps its own size below). */
+    [data-portal="reddit"] h1 { font-size: max(2rem, 10.5cqw); }
+    html[data-pad] h1 { top: 22%; font-size: clamp(2.35rem, 13vw, 4.15rem); }
+    /* The effect names the title-screen demo shows (GUST, BUMPER...) sit lower and a little bigger, to balance the title. */
+    html[data-pad] #stage[data-phase="ready"] #event-banner { top: 46%; font-size: clamp(1rem, 5.8vw, 2.2rem); }
+    html[data-pad] #stage-panel { position: fixed; inset: 0; }
+    /* The stage list on a phone: two cards across, scrolling up and down (the arrows are for the sideways list). */
+    html[data-pad] #stage-list { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: none; grid-auto-rows: 132px; grid-auto-columns: auto;
+      align-content: start; overflow-x: hidden; overflow-y: auto; touch-action: pan-y; padding: 4px 4px 24px; }
+    html[data-pad] #stage-prev, html[data-pad] #stage-next { display: none; }
+    html[data-pad] #stage-panel { padding-top: 12px; }
+    #pad-menu, #pad-tune { display: none; }
+    html[data-pad][data-pad-view="menu"] #pad-menu { display: flex; flex-direction: column; gap: 12px; box-sizing: border-box; width: calc(100% - 24px); margin: 12px; flex: 1; min-height: 0;
+      container-type: inline-size; }
+    html[data-pad][data-pad-view="menu"] #pad-menu #menu-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: start; }
+    /* On the phone menu the buttons sit on the dark page: quiet tiles only a little lighter than it, with bright words. */
+    html[data-pad] #pad-menu button { border: 0; color: var(--court); font: inherit; font-weight: 650; cursor: pointer; min-height: 0; padding: 0; }
+    html[data-pad] #pad-menu #menu-modes > button, html[data-pad] #pad-menu #menu-modes #cpu { background: color-mix(in srgb, var(--court) 13%, var(--page)); width: 100%; }
+    html[data-pad] #pad-menu #menu-modes > button:hover, html[data-pad] #pad-menu #menu-modes #cpu:hover { background: color-mix(in srgb, var(--court) 22%, var(--page)); }
+    html[data-pad] #pad-menu #menu-modes #cpu-level { width: 100%; background: transparent; color: var(--court); opacity: .85; }
+    html[data-pad] #pad-menu #daily-teaser { background: color-mix(in srgb, var(--court) 8%, var(--page)); color: var(--court); }
+    html[data-pad] #pad-menu #teaser-name { color: var(--court); }
+    html[data-pad] #pad-menu #daily-button { background: color-mix(in srgb, var(--court) 20%, var(--page)); color: var(--court); width: 100%; display: flex; align-items: center; justify-content: center;
+      box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--court) 38%, transparent); }
+    html[data-pad] #pad-menu #daily-button:disabled:hover { background: color-mix(in srgb, var(--court) 20%, var(--page)); }
+    html[data-pad] #pad-menu #daily-button:hover:not(:disabled) { background: color-mix(in srgb, var(--court) 28%, var(--page)); }
+    html[data-pad] #pad-menu #teaser-board li:nth-child(n+4) { display: flex; }
+    html[data-pad] #pad-menu #menu-modes > button, html[data-pad] #pad-menu #menu-modes #cpu { height: 56px; font-size: 16px; letter-spacing: .1em; }
+    html[data-pad] #pad-menu #menu-modes #cpu-level { font-size: 12px; margin-top: 4px; }
+    html[data-pad] #pad-menu #daily-teaser { flex: 1; min-height: 0; padding: 16px 18px 16px; }
+    html[data-pad] #pad-menu #teaser-head { font-size: 12px; }
+    html[data-pad] #pad-menu #teaser-name { font-size: 30px; margin: 6px 0 2px; }
+    html[data-pad] #pad-menu #teaser-streak { color: #e9c25a; font-size: 13px; }
+    html[data-pad] #pad-menu #teaser-rule { font-size: 12px; margin-bottom: 12px; }
+    html[data-pad] #pad-menu #teaser-board { gap: 4px; }
+    html[data-pad] #pad-menu #teaser-board li { font-size: 15px; gap: 10px; }
+    html[data-pad] #pad-menu #teaser-board .place { width: 28px; }
+    html[data-pad] #pad-menu #daily-button { height: 52px; font-size: 16px; margin-top: 14px; gap: 8px; }
+    html[data-pad][data-pad-view="solo"] #pad-tune { display: flex; align-items: center; gap: 10px; box-sizing: border-box; width: calc(100% - 24px); margin: 8px 12px 0;
+      color: var(--court); font-size: 11px; font-weight: 650; letter-spacing: .12em; }
+    /* The sensitivity bar in the game's own flat style: a thin line and a square handle, no system look. */
+    #pad-tune input { -webkit-appearance: none; appearance: none; flex: 1; min-width: 0; height: 32px; margin: 0; background: transparent; cursor: pointer; touch-action: pan-x; }
+    #pad-tune input::-webkit-slider-runnable-track { height: 4px; background: color-mix(in srgb, var(--court) 40%, transparent); border-radius: 0; }
+    #pad-tune input::-moz-range-track { height: 4px; background: color-mix(in srgb, var(--court) 40%, transparent); border-radius: 0; }
+    #pad-tune input::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 28px; margin-top: -12px; border: 0; border-radius: 0; background: var(--court); }
+    #pad-tune input::-moz-range-thumb { width: 16px; height: 28px; border: 0; border-radius: 0; background: var(--court); }
+    #pad-tune input:focus-visible { outline: 2px solid var(--court); outline-offset: 2px; }
+
+    #pad-tune output { min-width: 3.2em; text-align: right; font-variant-numeric: tabular-nums; opacity: .8; }
+    /* Thumb pad (Reddit, touch, portrait): the court stays on top and the rest of the page is where the thumb moves. */
+    html[data-pad] body { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; place-items: initial; }
+    html[data-pad] main { width: 100%; padding-block: 0; }
+    #pad { display: none; }
+    html[data-pad] #pad { display: grid; place-items: center; align-content: center; gap: 10px; box-sizing: border-box; width: calc(100% - 24px); margin: 12px;
+      border: 2px dashed color-mix(in srgb, var(--court) 28%, transparent); border-radius: 22px; color: var(--court); touch-action: none;
+      -webkit-user-select: none; user-select: none; cursor: grab; }
+    html[data-pad] #pad[hidden] { display: none; }
+    #pad-hint { margin: 0; max-width: 16em; text-align: center; font-size: 14px; font-weight: 650; letter-spacing: .04em; opacity: .75; }
+    #pad[data-used] #pad-icon { opacity: .22; }
+    #pad[data-used] #pad-hint { opacity: .28; }
+    #pad[data-held] { border-color: color-mix(in srgb, var(--court) 60%, transparent); }
     /* Phones on their side, and any wide window too short for the court plus a row below it (a portal's embed
        frame is often about 740x390): the buttons move to a column beside the court, so nothing is cut off. */
     @media (orientation: landscape) and ((pointer: coarse) or (max-height: 620px)) {
@@ -192,6 +265,119 @@
       #menu #cpu-level { min-height: 44px; }
       #result-actions button { min-height: 52px; padding: 0 18px; font-size: 1.1em; }
     }
+    /* The Reddit app plays against the computer only: no rooms, no online play, so no connection bars either. */
+    [data-portal="reddit"] #quick, [data-portal="reddit"] #create, [data-portal="reddit"] #join,
+    [data-portal="reddit"] #join-form, [data-portal="reddit"] .link { display: none !important; }
+    /* Reddit's expanded post is a small, nearly square frame: the court takes the full width and the buttons sit
+       in a row under it, unless the frame is really wide and short (a phone on its side). */
+    /* The only button left, sound, sits on the court's floor corner, so the page is just the court, centred. */
+    [data-portal="reddit"] main { display: grid; grid-template-columns: minmax(0, 1fr); column-gap: 0; padding-block: 0; width: min(100% - 8px, (100svh - 4px) * 1.8); }
+    [data-portal="reddit"] #stage, [data-portal="reddit"] #studio-links { grid-area: 1 / 1; }
+    [data-portal="reddit"] #studio-links { align-self: end; justify-self: end; margin: 0 4px 4px 0; z-index: 2; }
+    [data-portal="reddit"] #sound-toggle { color: var(--ink); opacity: .55; }
+    [data-portal="reddit"] #sound-toggle:hover { opacity: 1; background: transparent; }
+    @media (max-aspect-ratio: 8 / 5) {
+      [data-portal="reddit"] main { display: grid; width: calc(100% - 8px); padding-block: 4px; }
+      [data-portal="reddit"] #studio-links { flex-direction: row; margin-top: 0; }
+      [data-portal="reddit"] #studio-links .link { flex-direction: row; height: 44px; min-height: 0; gap: 6px; padding: 0 4px; }
+      [data-portal="reddit"] #studio-links .link b { position: absolute; transform: translateX(-50%); width: auto;
+        white-space: nowrap; font-size: .75rem; line-height: normal; letter-spacing: 0; }
+    }
+    /* A flat, scrollable stage sheet fits even Reddit's smallest inline court. */
+    :is([data-portal="reddit"], [data-portal="app"]) #stage-panel { position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column;
+      padding: 8px; background: var(--court); color: var(--ink); cursor: default; }
+    :is([data-portal="reddit"], [data-portal="app"]) #stage-panel header { flex: 0 0 auto; min-height: 44px; padding: 0 12px 0 48px;
+      display: flex; align-items: center; gap: 10px; }
+    /* How many of the twenty are cleared: a notch smaller than the title, with a thin bar under the row. */
+    :is([data-portal="reddit"], [data-portal="app"]) #stage-score { text-align: right; line-height: 1; min-width: 44px; margin-left: auto; }
+    :is([data-portal="reddit"], [data-portal="app"]) #stage-count { display: block; font-size: max(15px, 2.2cqw); font-weight: 650;
+      font-variant-numeric: tabular-nums; }
+    :is([data-portal="reddit"], [data-portal="app"]) #stage-bar { flex: 0 0 auto; height: 3px; margin: 0 12px 4px 48px; background: color-mix(in srgb, var(--ink) 15%, transparent); }
+    :is([data-portal="reddit"], [data-portal="app"]) #stage-bar i { display: block; height: 100%; width: 0; background: var(--ink); transition: width .4s ease; }
+    :is([data-portal="reddit"], [data-portal="app"]) #stage-panel h2 { margin: 0; font-size: max(16px, 2.7cqw); line-height: 1.15; }
+    :is([data-portal="reddit"], [data-portal="app"]) #stage-progress { display: block; margin: 3px 0 0; font-size: max(9px, 1cqw); letter-spacing: .08em; opacity: .65; text-transform: uppercase; }
+    /* The stages are cards in two rows that slide sideways (swipe, drag the bar, wheel or the arrow buttons). */
+    :is([data-portal="reddit"], [data-portal="app"]) #stage-panel { overflow: hidden; }
+    :is([data-portal="reddit"], [data-portal="app"]) #stage-list { flex: 1 1 auto; min-height: 0; display: grid; grid-auto-flow: column;
+      grid-template-rows: repeat(2, minmax(0, 1fr)); grid-auto-columns: clamp(132px, 31%, max(200px, 15cqw)); gap: 6px;
+      overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; touch-action: pan-x;
+      scrollbar-width: thin; padding: 2px 2px 6px; }
+    :is([data-portal="reddit"], [data-portal="app"]) #stage-list button { display: flex; flex-direction: column; align-items: stretch; gap: 2px; min-height: 0; overflow: hidden;
+      padding: max(6px, .7cqw) max(9px, 1cqw) max(7px, .8cqw); text-align: left; border: 0; color: var(--ink); font: inherit;
+      background: color-mix(in srgb, var(--court-hover) 55%, var(--court)); cursor: pointer; }
+    :is([data-portal="reddit"], [data-portal="app"]) #stage-list button:hover { background: var(--court-hover); }
+    :is([data-portal="reddit"], [data-portal="app"]) #stage-list button:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
+    :is([data-portal="reddit"], [data-portal="app"]) #stage-list button[data-cleared] { background: color-mix(in srgb, var(--ink) 14%, var(--court)); }
+    /* Boss stages: dark cards with a gold edge and a BOSS tag, so they stand out in the row. */
+    :is([data-portal="reddit"], [data-portal="app"]) #stage-list button[data-boss] { background: var(--ink); color: var(--court); box-shadow: inset 3px 0 0 #e9c25a; }
+    :is([data-portal="reddit"], [data-portal="app"]) #stage-list button[data-boss]:hover { background: color-mix(in srgb, var(--ink) 88%, var(--court)); }
+    :is([data-portal="reddit"], [data-portal="app"]) #stage-list button[data-boss][data-cleared] { background: color-mix(in srgb, var(--ink) 70%, #e9c25a); color: var(--court); }
+    :is([data-portal="reddit"], [data-portal="app"]) #stage-list button[data-boss] .stage-number { opacity: .75; }
+    :is([data-portal="reddit"], [data-portal="app"]) .stage-boss { margin-left: auto; margin-right: 6px; padding: 1px 5px; font-size: max(8.5px, .95cqw); font-weight: 650; letter-spacing: .12em; background: #e9c25a; color: var(--ink); }
+    :is([data-portal="reddit"], [data-portal="app"]) .stage-top { display: flex; justify-content: space-between; align-items: baseline; }
+    :is([data-portal="reddit"], [data-portal="app"]) .stage-number { font-size: max(19px, 2.1cqw); font-weight: 650; line-height: 1; opacity: .55; font-variant-numeric: tabular-nums; }
+    :is([data-portal="reddit"], [data-portal="app"]) .stage-secret { font-size: max(11px, 1.35cqw); letter-spacing: .08em; opacity: .85; white-space: nowrap; }
+    :is([data-portal="reddit"], [data-portal="app"]) .stage-check { font-size: max(20px, 2.2cqw); line-height: 1; min-width: 14px; text-align: right; }
+    :is([data-portal="reddit"], [data-portal="app"]) .stage-copy { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 3px; }
+    :is([data-portal="reddit"], [data-portal="app"]) .stage-copy strong { display: block; font-size: max(13px, 1.45cqw); line-height: 1.2; }
+    :is([data-portal="reddit"], [data-portal="app"]) .stage-copy > span { display: block; font-size: max(10.5px, 1.2cqw); line-height: 1.3; opacity: .75; }
+    :is([data-portal="reddit"], [data-portal="app"]) .stage-copy > span:nth-child(2) { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; flex: 0 1 auto; min-height: 0; max-height: 2.6em; }
+    :is([data-portal="reddit"], [data-portal="app"]) .stage-copy > .stage-goal { margin-top: auto; flex: 0 0 auto; font-weight: 650; font-size: max(9.5px, 1.05cqw); letter-spacing: .06em; opacity: .9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    /* Arrows sit over the two edges of the cards, halfway down, see-through until pointed at. */
+    :is([data-portal="reddit"], [data-portal="app"]) #stage-prev, :is([data-portal="reddit"], [data-portal="app"]) #stage-next { position: absolute; z-index: 4; top: 50%; transform: translateY(-50%);
+      width: 30px; height: 64px; display: grid; place-items: center; border: 0; color: var(--ink); cursor: pointer;
+      background: color-mix(in srgb, var(--court) 60%, transparent); opacity: .55; transition: opacity .15s; }
+    :is([data-portal="reddit"], [data-portal="app"]) #stage-prev { left: 8px; } :is([data-portal="reddit"], [data-portal="app"]) #stage-next { right: 8px; }
+    :is([data-portal="reddit"], [data-portal="app"]) #stage-prev:hover, :is([data-portal="reddit"], [data-portal="app"]) #stage-next:hover { opacity: 1; }
+    :is([data-portal="reddit"], [data-portal="app"]) #stage-prev:disabled, :is([data-portal="reddit"], [data-portal="app"]) #stage-next:disabled { opacity: 0; pointer-events: none; }
+    :is([data-portal="reddit"], [data-portal="app"]) #back { z-index: 4; }
+    /* PC in Reddit: a corner button on the main menu opens the bigger window (and brings it back). */
+    #view-toggle { position: absolute; top: 8px; right: 8px; z-index: 4; width: 36px; min-width: 0; height: 36px; padding: 0; display: grid; place-items: center; border: 0; color: var(--ink);
+      background: color-mix(in srgb, var(--court) 60%, transparent); opacity: .85; cursor: pointer; transition: opacity .15s; }
+    #view-toggle:hover { opacity: 1; background: color-mix(in srgb, var(--court) 60%, transparent); }
+    #view-toggle[hidden] { display: none; }
+    /* Reddit's main menu: the two ways to play on the left, stacked; today's daily challenge on the right with the first
+       five to clear it and a button. Sizes follow the court's width (cqw), so it scales with the frame. */
+    #menu-modes { display: contents; }
+    :is([data-portal="reddit"], [data-portal="app"]) #stage { container-type: inline-size; }
+    [data-portal="reddit"] #menu { top: 61%; width: 62%; display: grid; grid-template-columns: 20cqw minmax(0, 1fr); gap: 3cqw; align-items: stretch; white-space: normal; }
+    [data-portal="reddit"] #menu[hidden] { display: none; }
+    [data-portal="reddit"] #menu-modes { display: flex; flex-direction: column; justify-content: center; gap: 1.6cqw; }
+    [data-portal="reddit"] #menu-modes > button, [data-portal="reddit"] #menu-modes #cpu { width: 100%; min-height: 0; height: 6cqw; padding: 0; font-size: max(9px, 2.2cqw); letter-spacing: .08em;
+      background: color-mix(in srgb, var(--court-hover) 55%, var(--court)); }
+    [data-portal="reddit"] #menu-modes #cpu-group { position: relative; display: block; }
+    [data-portal="reddit"] #menu-modes #cpu-level { position: static; transform: none; display: block; width: 100%; min-height: 0; margin-top: .8cqw; font-size: max(8px, 1.7cqw); opacity: .7; }
+    [data-portal="reddit"] #menu-modes > button:hover, [data-portal="reddit"] #menu-modes #cpu:hover { background: var(--court-hover); }
+    [data-portal="reddit"] #daily-teaser { display: flex; flex-direction: column; min-width: 0; padding: 1.3cqw 1.8cqw 1.5cqw; text-align: left; color: var(--ink);
+      /* See-through: the court (and the demo shuttle) shows faintly behind the card. */
+      background: color-mix(in srgb, var(--court-hover) 62%, transparent); backdrop-filter: blur(1.5px); }
+    [data-portal="reddit"] #daily-teaser[hidden] { display: none; }
+    [data-portal="reddit"] #teaser-head { display: flex; justify-content: space-between; gap: 1cqw; margin: 0; font-size: max(8px, 1.5cqw); font-weight: 650; letter-spacing: .08em; }
+    [data-portal="reddit"] #teaser-day { opacity: .7; }
+    [data-portal="reddit"] #teaser-name { display: flex; justify-content: space-between; align-items: baseline; gap: 1cqw; }
+    [data-portal="reddit"] #teaser-streak { font-size: max(8px, 1.5cqw); font-weight: 650; letter-spacing: .08em; white-space: nowrap; color: #8a6a12; }
+    [data-portal="reddit"] #teaser-name { margin: .3cqw 0 .2cqw; font-size: max(13px, 3.4cqw); line-height: 1.05; color: var(--ink); }
+    [data-portal="reddit"] #teaser-rule { margin: 0 0 .9cqw; font-size: max(8px, 1.5cqw); font-weight: 650; letter-spacing: .1em; opacity: .75; }
+    [data-portal="reddit"] #teaser-board { list-style: none; margin: 0 0 auto; padding: 0; display: grid; gap: .1cqw; }
+    [data-portal="reddit"] #teaser-board li { display: flex; gap: 1.2cqw; align-items: baseline; font-size: max(8px, 1.75cqw); line-height: 1.2; min-width: 0; }
+    [data-portal="reddit"] #teaser-board .place { width: 3.2cqw; font-weight: 650; opacity: .6; }
+    [data-portal="reddit"] #teaser-board .who { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 650; }
+    [data-portal="reddit"] #teaser-board .time { opacity: .75; font-variant-numeric: tabular-nums; }
+    [data-portal="reddit"] #teaser-board li[data-empty] { opacity: .35; }
+    [data-portal="reddit"] #daily-button { display: flex; align-items: center; justify-content: center; gap: 1cqw; width: 100%; min-height: 0; height: 5cqw; margin-top: 1cqw; padding: 0;
+      font-size: max(9px, 2.1cqw); letter-spacing: .14em; background: var(--ink); color: var(--court); }
+    [data-portal="reddit"] #daily-icon:not([hidden]) { display: block; width: 2.4cqw; height: 2.4cqw; }
+    [data-portal="reddit"] #daily-button:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 82%, var(--court)); }
+    [data-portal="reddit"] #daily-button:disabled { opacity: .55; cursor: default; }
+    [data-portal="reddit"] #menu #daily-button:disabled:hover { background: var(--ink); }
+    /* Small frames (a phone held upright) show the first three only. */
+    @container (max-width: 420px) { [data-portal="reddit"] #teaser-board li:nth-child(n+4) { display: none; } }
+    :is([data-portal="reddit"], [data-portal="app"]) #stage-intro { position: absolute; inset: 0; z-index: 3; display: grid; place-content: center;
+      padding: 20px 48px; text-align: center; background: var(--court); color: var(--ink); pointer-events: none; }
+    :is([data-portal="reddit"], [data-portal="app"]) #stage-intro-number { margin: 0 0 6px; opacity: .65; font-size: 12px; letter-spacing: .12em; }
+    :is([data-portal="reddit"], [data-portal="app"]) #stage-intro-name { margin: 0; font-size: clamp(22px, 5vw, 40px); line-height: 1.1; }
+    :is([data-portal="reddit"], [data-portal="app"]) #stage-intro-goal { margin: 12px 0 0; font-size: clamp(12px, 3vw, 18px); font-weight: 650; letter-spacing: .12em; }
+    :is([data-portal="reddit"], [data-portal="app"]) #stage-intro-description { margin: 9px 0 0; font-size: clamp(11px, 2.7vw, 16px); line-height: 1.4; }
     canvas { display: block; width: 100%; aspect-ratio: 9 / 5; background: var(--court);
       touch-action: none; cursor: none; }
     #stage[data-phase="ready"] canvas, #stage[data-phase="finished"] canvas { cursor: default; }
@@ -203,11 +389,28 @@
       left: 50%; transform: translateX(-50%); color: var(--ink);
       font-size: clamp(.7rem, 2.2vw, calc(1rem * var(--grow, 1))); font-weight: 700;
       letter-spacing: .08em; white-space: nowrap; pointer-events: none; }
+    /* Reddit: what the match is played to, small under the score while it is on. */
+    #goal { position: absolute; left: 50%; top: calc(50% + clamp(1.1rem, 4.4vw, 2.5rem)); transform: translateX(-50%); margin: 0;
+      color: var(--ink); opacity: .45; font-size: clamp(.6rem, 1.6vw, .8rem); font-weight: 650; letter-spacing: .14em;
+      white-space: nowrap; pointer-events: none; }
+    #goal[hidden], #stage[data-phase="ready"] #goal, #stage[data-phase="finished"] #goal { display: none; }
     #side-label, #cpu-label { position: absolute; top: 5%; left: 25%; transform: translateX(-50%);
       color: var(--ink); font-size: clamp(.65rem, 1.7vw, calc(.875rem * var(--grow, 1))); font-weight: 650;
       letter-spacing: .08em; pointer-events: none; }
+    [data-portal="reddit"] #side-label, [data-portal="reddit"] #cpu-label { font-size: max(11px, 1.55cqw); }
     #side-label[data-side="right"], #cpu-label { left: 75%; }
     #cpu-label[data-side="left"] { left: 25%; }
+    .shuttle-lights { position: absolute; top: calc(5% + max(15px, 2.1cqw)); left: 25%; transform: translateX(-50%);
+      display: flex; gap: max(4px, .6cqw); color: var(--ink); pointer-events: none; }
+    .shuttle-lights[hidden] { display: none; }
+    .shuttle-lights[data-side="right"] { left: 75%; }
+    .shuttle-lights i { box-sizing: border-box; width: max(8px, 1.15cqw); aspect-ratio: 1;
+      border: 1px solid currentColor; border-radius: 50%; opacity: .5; }
+    .shuttle-lights[data-wins="1"] i:first-child, .shuttle-lights[data-wins="2"] i {
+      background: currentColor; opacity: 1; }
+    [data-portal="reddit"] #doubles-turn { position: absolute; top: 12%; left: 25%; transform: translateX(-50%);
+      color: var(--ink); font-size: max(10px, 1.4cqw); font-weight: 650; white-space: nowrap; pointer-events: none; }
+    [data-portal="reddit"] #doubles-turn[data-side="right"] { left: 75%; }
     /* For a moment as each match starts: which half is yours (it changes from match to match). */
     #you-flag { position: absolute; top: 50%; left: 25%; transform: translate(-50%, -50%); color: var(--ink);
       font-size: clamp(1.5rem, 7vw, calc(4rem * var(--grow, 1))); font-weight: 650; letter-spacing: .08em; pointer-events: none;
@@ -244,6 +447,11 @@
     #event-banner[data-wind] { font-size: clamp(1.4rem, 6vw, calc(3.6rem * var(--grow, 1))); }
     #event-banner[data-bomb-urgent] { color: #a82f23; }
     #event-banner[data-touch-fault] { top: 12%; color: #a82f23; }
+    #event-banner[data-wind] { font-size: clamp(1.4rem, 6vw, 3.6rem); }
+    #event-banner[data-bomb-urgent] { color: #a82f23; }
+    #shuttle-calls { position: absolute; top: 22%; left: 50%; transform: translateX(-50%);
+      color: var(--ink); font-size: clamp(.66rem, 2.2cqw, 1.2rem); font-weight: 650;
+      white-space: pre; pointer-events: none; }
     #stage[data-phase="ready"] #event-banner { top: 33.5%; transform: translate(-50%, -50%); opacity: .75;
       font-size: clamp(.75rem, 3.2vw, calc(1.9rem * var(--grow, 1))); }
     #game-control { position: absolute; top: 8px; right: 8px; display: grid; place-items: center;
@@ -260,6 +468,25 @@
       min-height: 44px; padding: 0 12px; font: inherit; font-weight: 650; cursor: pointer; }
     #result-actions button:hover { background: var(--court-hover); }
     #result-actions button:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+    /* The end-of-match buttons carry a word and an icon in the markup. Everywhere but Reddit the word shows; on Reddit
+       they are icon tiles (the words stay as labels for screen readers and tooltips), faintly tinted, fully tinted
+       under the pointer. */
+    #result-actions .icon, #result-actions [data-posted] { display: none; }
+    [data-portal="reddit"] #result-actions { gap: 8px; }
+    [data-portal="reddit"] #result-actions .icon { display: block; }
+    [data-portal="reddit"] #result-actions .label { display: none; }
+    [data-portal="reddit"] #result-actions [data-posted] { display: none; }
+    [data-portal="reddit"] #result-actions button { display: grid; place-items: center; width: 44px; height: 44px; min-height: 0; padding: 0;
+      border: 0; background: color-mix(in srgb, var(--court-hover) 55%, var(--court)); }
+    [data-portal="reddit"] #result-actions button:hover:not(:disabled) { background: var(--court-hover); }
+    [data-portal="reddit"] #result-actions button[hidden] { display: none; }
+    [data-portal="reddit"] #card-button[data-state="posting"] { opacity: .6; cursor: default; animation: card-pulse 1s ease-in-out infinite; }
+    [data-portal="reddit"] #card-button[data-state="posted"] .icon:not([data-posted]) { display: none; }
+    [data-portal="reddit"] #card-button[data-state="posted"] [data-posted] { display: block; }
+    [data-portal="reddit"] #card-button[data-state="failed"] { outline: 2px solid currentColor; outline-offset: -3px; }
+    @keyframes card-pulse { 50% { opacity: .35; } }
+    #result-actions #card-button:disabled { cursor: default; }
+    #result-actions #card-button[hidden] { display: none; }
     #menu, #join-form, #room-display { position: absolute; top: 50%; left: 50%;
       transform: translate(-50%, -50%); white-space: nowrap; }
     #menu, #join-form { display: flex; align-items: center; gap: clamp(4px, 2vw, 16px); }
@@ -304,24 +531,56 @@
     <canvas id="court" aria-label="Badminton court. Use your pointer to hit the shuttle."></canvas>
     <output id="score" aria-label="Left and right scores" hidden>0:0</output>
     <span id="touch-rule" hidden></span>
+    <p id="goal" hidden></p>
     <span id="side-label" hidden>YOU</span>
     <span id="cpu-label" hidden></span>
+    <span id="you-shuttle-lights" class="shuttle-lights" role="img" hidden><i></i><i></i></span>
+    <span id="cpu-shuttle-lights" class="shuttle-lights" role="img" hidden><i></i><i></i></span>
+    <span id="doubles-turn" hidden role="status"></span>
     <span id="you-flag" aria-hidden="true" hidden>YOU</span>
     <p id="winner" role="status" hidden></p>
     <p id="record" hidden></p>
     <p id="rematch-status" role="status" hidden></p>
     <span id="status" class="sr-only" role="status"></span>
     <div id="event-banner" role="status" hidden></div>
+    <div id="shuttle-calls" role="status" hidden></div>
     <p id="queue-status" role="status" hidden></p>
     <nav id="menu" aria-label="Game mode">
       <button id="quick" type="button">QUICK MATCH</button>
       <button id="create" type="button">CREATE</button>
       <button id="join" type="button">JOIN</button>
-      <span id="cpu-group">
-        <button id="cpu" type="button">CPU</button>
-        <button id="cpu-level" type="button">LV RANDOM</button>
+      <span id="menu-modes">
+        <button id="stages-button" type="button" hidden>STAGES</button>
+        <span id="cpu-group">
+          <button id="cpu" type="button">CPU</button>
+          <button id="cpu-level" type="button">LV RANDOM</button>
+        </span>
       </span>
+      <section id="daily-teaser" aria-label="Daily challenge" hidden>
+        <p id="teaser-head"><span id="teaser-day">DAILY</span><span id="teaser-tries"></span></p>
+        <h3 id="teaser-name"><span id="teaser-title">…</span><span id="teaser-streak" hidden></span></h3>
+        <p id="teaser-rule"></p>
+        <ol id="teaser-board" aria-label="First to clear today"></ol>
+        <button id="daily-button" type="button"><svg id="daily-icon" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5M5 14v5.5h14V14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="daily-label">CHALLENGE</span></button>
+      </section>
     </nav>
+    <section id="stage-panel" aria-label="Choose a stage" hidden>
+      <header>
+        <h2>STAGES</h2>
+        <div id="stage-score" role="status"><strong id="stage-count">0/20</strong><span id="stage-progress"></span></div>
+      </header>
+      <div id="stage-bar" aria-hidden="true"><i></i></div>
+      <div id="stage-list" aria-label="Available stages"></div>
+      <button id="stage-prev" type="button" aria-label="Earlier stages" title="Earlier stages"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button id="stage-next" type="button" aria-label="Later stages" title="Later stages"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </section>
+    <div id="expand-gate" hidden>
+      <p>ODD BIRDLE</p>
+      <button type="button">TAP TO PLAY</button>
+      <span>Opens full screen, so your thumb can slide</span>
+    </div>
+    <section id="stage-intro" role="status" aria-live="polite" hidden>
+      <p id="stage-intro-number"></p><h2 id="stage-intro-name"></h2><p id="stage-intro-description"></p><p id="stage-intro-goal"></p>
+    </section>
     <div id="room-display" hidden>
       <span>Room code:</span>
       <output id="room-code" aria-label="Room code" aria-live="polite"></output>
@@ -335,6 +594,7 @@
     </form>
     <p id="lobby-message" role="status" hidden></p>
     <button id="back" type="button" aria-label="Main menu" title="Main menu" hidden>←</button>
+    <button id="view-toggle" type="button" hidden></button>
     <button id="game-control" type="button" aria-label="Restart" title="Restart" hidden>
       <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
         <path d="M4 5v5h5M4.7 10a7.5 7.5 0 1 1 .7 7" fill="none" stroke="currentColor"
@@ -342,8 +602,11 @@
       </svg>
     </button>
     <div id="result-actions" hidden>
-      <button id="play-again" type="button">PLAY AGAIN</button>
-      <button id="to-menu" type="button">MENU</button>
+      <button id="play-again" type="button" aria-label="Play again" title="Play again"><svg class="icon" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5v5h5M4.7 10a7.5 7.5 0 1 1 .7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="label">PLAY AGAIN</span></button>
+      <button id="next-stage" type="button" aria-label="Next stage" title="Next stage" hidden><svg class="icon" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6l7 6-7 6M13 6l7 6-7 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="label">NEXT</span></button>
+      <button id="result-stages" type="button" aria-label="Stages" title="Stages" hidden><svg class="icon" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="label">STAGES</span></button>
+      <button id="to-menu" type="button" aria-label="Menu" title="Menu"><svg class="icon" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7M6 10v10h12V10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="label">MENU</span></button>
+      <button id="card-button" type="button" aria-label="Post card" title="Post card" hidden><svg class="icon" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5M5 14v5.5h14V14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><svg class="icon" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" data-posted><path d="M5 12.5l4.5 4.5L19 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="card-label" class="label">POST CARD</span></button>
     </div>
     <div id="pause-overlay" role="status" aria-live="polite" hidden>
       <div><h2 id="pause-title">PAUSED</h2><p id="pause-detail">Resume to continue.</p></div>

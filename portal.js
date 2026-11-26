@@ -4,9 +4,34 @@ import { createGdAds, showGdContinue } from './gd-ads.js';
 
 export const portal = document.documentElement.dataset.portal ?? '';
 export const siteUrl = 'https://oddbirdle.pages.dev/';
+
+// The Reddit name of whoever is playing inside Reddit (empty anywhere else, or if Reddit does not say). Reddit's
+// client library is only loaded in the Reddit build, where the build tooling bundles it.
+let redditUser = '';
+// Reddit's app scrolls the feed when a thumb drags up or down inside an inline post, so on a phone the game opens in
+// Reddit's full-screen ("expanded") view, where the drags belong to the game. These tell the page which view it is in.
+let redditClient;
+const viewListeners = [];
+const redditIdentityReady = portal === 'reddit'
+  ? import('@devvit/web/client').then(module => {
+    redditClient = module;
+    redditUser = module.context.username ?? '';
+    module.addWebViewModeListener?.(() => viewListeners.forEach(listener => listener()));
+    viewListeners.forEach(listener => listener());
+    return module.context.userId ?? '';
+  }).catch(() => '')
+  : Promise.resolve('');
+export const redditViewMode = () => redditClient?.getWebViewMode?.() ?? 'expanded';
+export const onRedditViewMode = listener => { viewListeners.push(listener); };
+export const expandRedditView = event => redditClient?.requestExpandedMode?.(event, 'game');
+export const exitRedditExpanded = event => redditClient?.exitExpandedMode?.(event);
+export const redditIdentity = () => redditIdentityReady;
+export const redditName = () => redditUser;
+// Whether this build can post a card to Reddit.
+export const canPostCard = portal === 'reddit';
 // Portals that allow no links out of the game and no analytics of our own: invites are the room code, nothing is
-// counted, and the debug and test pages are off. The Android app is the same: everything it needs is inside it.
-export const closedPortal = ['gamepix', 'y8', 'gamedistribution', 'app'].includes(portal);
+// counted, and the debug and test pages are off. The apps are the same: everything they need is inside them.
+export const closedPortal = ['gamepix', 'y8', 'gamedistribution', 'app', 'reddit'].includes(portal);
 export const coordinatedBreak = ['gamepix', 'gamedistribution'].includes(portal);
 // Portal builds are served from the portal's domain but play on our server.
 export const serverBase = portal ? siteUrl : new URL('./', location.href).href;

@@ -1,11 +1,19 @@
 import {
-  center, clamp, createGame, floor, height, leftLine, netTop, racketRadius, rightLine, setMirroredShapes, shuttleOutline,
+  center, clamp, createGame, createTwinShuttleGame, floor, height, leftLine, netTop, racketRadius, rightLine, setMirroredShapes, shuttleOutline,
   step, width, contactMotion, isSwing, projectStrike, forceAt, effectIds, shapeCount, shuttleSizeOptions, racketTouches,
   posesBetween, sweptTouch, supportedShuttleY, swingMotion, trialEffectIds, trialEffectLabels, trampolineLift,
-  trampolineDent, threeTouchLimit, touchLimitFault
+  trampolineDent, threeTouchLimit, touchLimitReason, touchLimitFault
 } from './game.js';
 import { makeStands, drawStands, createBombCrowdMotion, standsBottom, standsWall, mix } from './stands.js';
 import { createCrowd } from './crowd.js';
+import { drawCard, cardWidth, cardHeight } from './card.js';
+import { bonusUnlocked, visibleStages } from './stages.js';
+import { createStageProgress } from './stage-progress.js';
+import { verdictFor } from './card-lines.js';
+import { createMatchStats } from './match-stats.js';
+import { createDailyClient, streakOf } from './daily-client.js';
+import { playableDaily } from './daily.js';
+import { dayLabel } from './card-rank.js';
 import { createLinkQuality } from './link-quality.js';
 import { createFrameMeter } from './frame-meter.js';
 import { fullscreenElement, fullscreenSupported, toggleFullscreen } from './fullscreen.js';
@@ -17,6 +25,9 @@ import { normalizeRoomCode, roomFromLink, roomLink } from './room-link.js';
 import { createDemo } from './demo.js';
 import { startHeartbeat, track, trackVisit } from './analytics.js';
 import { features } from './features.js';
+import { createAppStorage } from './app-storage.js';
+// The stage list and its saved clears: in the Reddit app always, in the phone app when it is built with `stages`.
+const stagesOn = portal === 'reddit' || (portal === 'app' && features.stages);
 import { landscapeOnly, touchLayout } from './touch-layout.js';
 import { createSound } from './sound.js';
 import { createCueTracker } from './sound-cues.js';
@@ -26,7 +37,7 @@ import {
 } from './juice.js';
 import {
   initPortal, isInstantMultiplayer, loadingStart, loadingStop, matchBreak, matchEnded, onJoinRoom, onPortalMute, onPortalPause,
-  closedPortal, coordinatedBreak, portal, portalInviteLink, portalInviteRoom, portalMuted, roomFull, roomLeft, roomOpen, serverBase, setAppPaused,
+  canPostCard, closedPortal, expandRedditView, exitRedditExpanded, onRedditViewMode, redditName, redditViewMode, redditIdentity, coordinatedBreak, portal, portalInviteLink, portalInviteRoom, portalMuted, roomFull, roomLeft, roomOpen, serverBase, setAppPaused,
   setPlaying, siteUrl
 } from './portal.js';
 
@@ -49,6 +60,11 @@ const scoreboard = document.querySelector('#score');
 const touchRule = document.querySelector('#touch-rule');
 const sideLabel = document.querySelector('#side-label');
 const cpuLabel = document.querySelector('#cpu-label');
+const shuttleLights = [
+  { element: document.querySelector('#you-shuttle-lights'), side: 'left', label: 'You' },
+  { element: document.querySelector('#cpu-shuttle-lights'), side: 'right', label: 'CPU' }
+];
+const doublesTurnLabel = document.querySelector('#doubles-turn');
 const youFlag = document.querySelector('#you-flag');
 const winnerLabel = document.querySelector('#winner');
 const recordLabel = document.querySelector('#record');
@@ -58,12 +74,32 @@ const pauseTitle = document.querySelector('#pause-title');
 const pauseDetail = document.querySelector('#pause-detail');
 const status = document.querySelector('#status');
 const eventBanner = document.querySelector('#event-banner');
+const shuttleCallsLabel = document.querySelector('#shuttle-calls');
 const gameControl = document.querySelector('#game-control');
 const resultActions = document.querySelector('#result-actions');
 const playAgainButton = document.querySelector('#play-again');
+const playAgainLabel = playAgainButton.querySelector('.label');
+const nextStageButton = document.querySelector('#next-stage');
 const toMenuButton = document.querySelector('#to-menu');
+const cardButton = document.querySelector('#card-button');
+const cardLabel = document.querySelector('#card-label');
 const menu = document.querySelector('#menu');
 const cpuLevelButton = document.querySelector('#cpu-level');
+const stagesButton = document.querySelector('#stages-button');
+const stagePanel = document.querySelector('#stage-panel');
+const dailyButton = document.querySelector('#daily-button');
+const stageList = document.querySelector('#stage-list');
+const stageProgressLabel = document.querySelector('#stage-progress');
+const stageCount = document.querySelector('#stage-count');
+const stageScore = document.querySelector('#stage-score');
+const stageBar = document.querySelector('#stage-bar i');
+const stageIntro = document.querySelector('#stage-intro');
+const stageIntroNumber = document.querySelector('#stage-intro-number');
+const stageIntroName = document.querySelector('#stage-intro-name');
+const stageIntroDescription = document.querySelector('#stage-intro-description');
+const stageIntroGoal = document.querySelector('#stage-intro-goal');
+const goalLabel = document.querySelector('#goal');
+const resultStagesButton = document.querySelector('#result-stages');
 const back = document.querySelector('#back');
 const roomDisplay = document.querySelector('#room-display');
 const roomCode = document.querySelector('#room-code');
@@ -125,10 +161,11 @@ const racketSender = createRacketSender(message => send(message), { interval: ()
 const testJuice = testParams.get('test') === 'juice';
 const testThreeTouches = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname) && testParams.get('test') === 'touches';
 // The Android app plays the website's FREE PLAY as it is, bomb included; the other portal builds keep theirs without it.
-const solo = createGame({
+const singles = createGame({
   withCpu: true, bombEffects: !portal || portal === 'app', touchLimit: threeTouchLimit,
   quickEvents: (testEffects || onlyEffectTest) && testParams.get('fast') === '1'
 });
+let solo = singles;
 const demo = createDemo();
 const sound = createSound();
 const soundCues = createCueTracker();
@@ -169,6 +206,8 @@ async function afterMatchBreak(action, options) {
 let joinVia = 'create';
 let finishedNoted = false;
 let selectedCpuLevel;
+let selectedStage;
+let stageIntroRemaining = 0;
 let localSide = 'left';
 // CPU games: the game itself always has the player on the left (the CPU plays the right), and half the matches are
 // shown mirrored so that the player appears on the right.
@@ -366,9 +405,13 @@ function setMode(next, message = '') {
   if (next !== mode) soundCues.reset();
   mode = next;
   menu.hidden = next !== 'menu';
+  stagePanel.hidden = next !== 'stages';
+  if (next === 'menu' && portal === 'reddit' && typeof refreshDaily === 'function' && dailyReady) refreshDaily();
   roomDisplay.hidden = next !== 'waiting';
   joinForm.hidden = next !== 'join';
   back.hidden = next === 'menu';
+  if (typeof layoutPad === 'function') layoutPad();
+  if (typeof updateViewToggle === 'function') updateViewToggle();
   lobbyMessage.hidden = !message;
   setText(lobbyMessage, message);
   showPauseState();
@@ -408,6 +451,9 @@ function leave(message = '', stay = false) {
   localSide = 'left';
   if (stay) return;
   if (guideOpen) closeGuide();
+  selectedStage = undefined;
+  stageIntroRemaining = 0;
+  stageIntro.hidden = true;
   youFlag.hidden = true;
   quick.on = false;
   showQueueStatus();
@@ -415,6 +461,8 @@ function leave(message = '', stay = false) {
 }
 
 function connect(request, via = request.type === 'join' ? 'code' : 'create') {
+  // The Reddit build never opens a connection to a match server (Devvit apps make no outside connections).
+  if (portal === 'reddit') return;
   const join = request.type === 'join';
   const queueing = request.type === 'queue';
   // Builds without ONLINE (the first Android app) never open a connection.
@@ -529,17 +577,41 @@ function connect(request, via = request.type === 'join' ? 'code' : 'create') {
   });
 }
 
+const matchStats = createMatchStats();
 function updateHud(view) {
+  if (mode === 'solo') matchStats.update(view);
   const { phase, score, eventText = '', eventWind = false, winner, message = '' } = view;
   if (stage.dataset.phase !== phase) stage.dataset.phase = phase;
   scoreboard.hidden = !score;
   touchRule.hidden = phase !== 'starting' || !score;
   if (!touchRule.hidden) setText(touchRule, view.touchLimit === threeTouchLimit ? '3 TOUCH LIMIT' : 'UNLIMITED TOUCHES');
+  // The target is on screen all match (Reddit): "FIRST TO 5", under the score.
+  const goalShown = (portal === 'reddit' || (stagesOn && !!selectedStage)) && !!score && Number.isInteger(view.pointsToWin);
+  // The 3 TOUCH LIMIT line and the goal share the spot under the score: the goal waits until the rule has gone.
+  goalLabel.hidden = !goalShown || !touchRule.hidden;
+  if (goalShown) setText(goalLabel, 'FIRST TO ' + view.pointsToWin);
   sideLabel.hidden = mode !== 'online' && mode !== 'solo';
   sideLabel.dataset.side = shownSide();
   cpuLabel.dataset.side = shownSide() === 'left' ? 'right' : 'left';
+  // Inside Reddit the player's own name stands where YOU does.
+  const redditUser = portal === 'reddit' ? redditName() : '';
+  sideLabel.textContent = redditUser ? 'u/' + (redditUser.length > 14 ? redditUser.slice(0, 13) + '…' : redditUser) : 'YOU';
   cpuLabel.hidden = mode !== 'solo' || !view.cpuLevel;
-  setText(cpuLabel, view.cpuLevel ? 'CPU Lv. ' + view.cpuLevel : '');
+  setText(cpuLabel, view.doubles ? 'CPU TEAM' : view.cpuLevel ? 'CPU Lv. ' + view.cpuLevel : '');
+  for (const { element, side, label } of shuttleLights) {
+    element.hidden = !view.shuttleWins || stageIntroRemaining > 0;
+    if (element.hidden) continue;
+    element.dataset.side = mirrored() ? (side === 'left' ? 'right' : 'left') : side;
+    const wins = String(view.shuttleWins[side]);
+    if (element.dataset.wins === wins) continue;
+    element.dataset.wins = wins;
+    element.setAttribute('aria-label', label + ': ' + wins + ' of 2 shuttles won');
+  }
+  doublesTurnLabel.dataset.side = shownSide();
+  const turnMessage = view.fault ? (view.fault === 'left' ? 'WRONG PARTNER' : view.fault === 'leftB' ? 'PARTNER FAULT' : 'CPU TEAM FAULT')
+    : '';
+  doublesTurnLabel.hidden = !view.turn || !view.fault || stageIntroRemaining > 0;
+  if (!doublesTurnLabel.hidden) setText(doublesTurnLabel, turnMessage);
   if (score) {
     const value = mirrored() ? score.right + ':' + score.left : score.left + ':' + score.right;
     if (scoreboard.value !== value) scoreboard.value = value;
@@ -547,7 +619,7 @@ function updateHud(view) {
   winnerLabel.hidden = !winner;
   setText(winnerLabel, winner ? (winner === localSide ? 'You Win!' : 'You Lose..') : '');
   if (phase !== 'finished') recordNoted = false;
-  const record = phase === 'finished' && juice.record ? recordText : '';
+  const record = phase === 'finished' && (juice.record || selectedStage) ? recordText : '';
   recordLabel.hidden = !record;
   setText(recordLabel, record);
   setText(status, message);
@@ -555,17 +627,32 @@ function updateHud(view) {
   setText(rematchLabel, rematchStatus);
   const banner = view.bomb?.lit ? 'BOMB'
     : view.bomb && eventText === 'out' ? 'OUT' : eventText;
-  eventBanner.hidden = !banner;
+  eventBanner.hidden = !banner || stageIntroRemaining > 0;
   eventBanner.toggleAttribute('data-wind', eventWind);
   eventBanner.toggleAttribute('data-bomb-urgent', !!view.bomb?.lit && view.bomb.secondsLeft <= 2);
   eventBanner.toggleAttribute('data-touch-fault', banner === touchLimitFault);
   setText(eventBanner, mirrored() ? banner.replace(/[←→]/g, arrow => arrow === '←' ? '→' : '←') : banner);
+  const calls = view.shuttleCalls?.flatMap(({ reason }, index) =>
+    reason && (index > 0 || view.firstCallVisible) ? [`${index + 1} · ${(reason === touchLimitReason ? touchLimitFault : reason.toUpperCase())}`] : []).join('   /   ');
+  shuttleCallsLabel.hidden = !calls || stageIntroRemaining > 0;
+  setText(shuttleCallsLabel, calls ?? '');
   // During a CPU match the small restart icon; once any match is over, worded buttons to play again or leave.
   const finished = (mode === 'solo' || mode === 'online') && phase === 'finished';
-  gameControl.hidden = mode !== 'solo' || finished;
+  gameControl.hidden = mode !== 'solo' || finished || stageIntroRemaining > 0;
+  resultStagesButton.hidden = !stagesOn || !finished;
   resultActions.hidden = !finished;
-  playAgainButton.hidden = mode === 'online' && rematchReady;
-  setText(playAgainButton, mode === 'online' ? 'REMATCH' : 'PLAY AGAIN');
+  playAgainButton.hidden = (mode === 'online' && rematchReady) || (mode === 'solo' && finished && !!selectedStage?.daily && !dailyCanRetry());
+  setText(playAgainLabel, mode === 'online' ? 'REMATCH' : 'PLAY AGAIN');
+  const againName = mode === 'online' ? 'Rematch' : 'Play again';
+  playAgainButton.setAttribute('aria-label', againName);
+  playAgainButton.title = againName;
+  // After winning a stage, a button goes straight to the next one that is open.
+  const following = stagesOn && mode === 'solo' && finished && selectedStage && !selectedStage.daily && view.winner === 'left' ? nextStageAfter(selectedStage) : undefined;
+  nextStageButton.hidden = !following;
+  // A card is for random matches, and for beating a boss; every ordinary stage would only flood the comments.
+  const cardVisible = canPostCard && mode === 'solo' && finished && !!view.winner &&
+    (selectedStage?.daily ? !!dailyResult : !selectedStage || cardStageIds.has(selectedStage.id));
+  if (cardButton.hidden === cardVisible) { cardButton.hidden = !cardVisible; if (cardVisible) setCardState('ready'); }
 }
 
 // Counts each match that reaches its final point once.
@@ -575,6 +662,13 @@ function noteFinish(view) {
   if (mode === 'online') reportNet();
   const result = view.winner === (mode === 'solo' ? 'left' : localSide) ? 'win' : 'lose';
   noteRecord(view, result);
+  if (mode === 'solo' && selectedStage?.daily) reportDailyTry(view, result === 'win');
+  else if (mode === 'solo' && selectedStage && result === 'win') {
+    const cleared = stageProgress?.cleared ?? [];
+    const unlocked = !bonusUnlocked(cleared) && bonusUnlocked([...cleared, selectedStage.id]);
+    recordText = unlocked ? 'SECRET STAGE UNLOCKED' : stageLabel(selectedStage) + ' CLEARED ✓';
+    stageProgress?.record(selectedStage.id);
+  }
   matchEnded(result === 'win');
   track('game_finish', mode === 'solo'
     ? { mode: 'cpu', level: String(view.cpuLevel), result }
@@ -690,7 +784,7 @@ function predictedView(view, time) {
 }
 
 function setRacket(input) {
-  if (mode === 'solo') solo.moveRacket('left', input);
+  if (mode === 'solo' && !stageIntroRemaining) solo.moveRacket('left', input);
   if (mode === 'online') {
     const previous = localRacket;
     const motion = input && !displayedFrozen ? swingMotion(previous ?? input, input) : { vx: 0, vy: 0 };
@@ -752,6 +846,7 @@ function moveRacket(event) {
 // var: setMode() can run before this part of the file has (the test pages), and only lays out touch once it has.
 var touchReady = false;
 const touchGainKey = 'oddbirdle-pad-gain';
+var deviceStorage; // the phone app's saved settings once they are read (app-storage.js)
 let touchGain = 1.5;
 try {
   const saved = Number(localStorage.getItem(touchGainKey));
@@ -842,6 +937,7 @@ touchGainInput.addEventListener('input', () => {
   touchGain = Number(touchGainInput.value);
   touchGainValue.textContent = touchGain.toFixed(1) + '×';
   try { localStorage.setItem(touchGainKey, String(touchGain)); } catch { /* until this page closes */ }
+  deviceStorage?.setItem(touchGainKey, String(touchGain));
 });
 showTouchGain();
 touchReady = true;
@@ -922,7 +1018,7 @@ function drawRacket(position, fill, stroke, side) {
   const squash = squashes[side];
   const amount = squash && juice.squash && !reduceMotion.matches ? squashAmount(performance.now() - squash.start) : 0;
   // Squash: a little flatter along the way the shuttle was sent, a little wider across it.
-  const r = position.r ?? racketRadius;
+  const r = position.radius ?? position.r ?? racketRadius;
   if (amount) ctx.ellipse(position.x, position.y, r * (1 - amount), r * (1 + amount * 0.6), squash.angle, 0, Math.PI * 2);
   else ctx.arc(position.x, position.y, r, 0, Math.PI * 2);
   ctx.fillStyle = fill;
@@ -931,6 +1027,34 @@ function drawRacket(position, fill, stroke, side) {
   ctx.strokeStyle = stroke;
   ctx.stroke();
   if (portal === 'app' && side !== undefined && side === localSide) bleed.push({ x: mirrored() ? width - position.x : position.x, y: position.y, r, fill, stroke });
+}
+
+function drawDoublesRackets(view) {
+  const active = view.phase === 'starting' || view.phase === 'live';
+  for (const [key, team, fill, stroke] of [
+    ['leftB', 'left', '#a9d67844', palette.ink],
+    ['rightB', 'right', '#cf936b66', '#774935'],
+    ['right', 'right', '#cf936b99', '#774935'],
+    ['left', 'left', '#a9d67899', palette.ink]
+  ]) {
+    const racket = view[key];
+    if (racket) drawRacket(racket, fill, stroke, key === team ? key : undefined);
+    if (active && view.turn[team] === key) {
+      // A dashed outline marks the player's starting spot until a mouse or touch supplies a position.
+      const { x, y } = racket ?? { x: 245, y: 300 };
+      ctx.save();
+      if (!racket) ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      ctx.arc(x, y, racketRadius + 6, 0, Math.PI * 2);
+      ctx.strokeStyle = palette.court;
+      ctx.lineWidth = 7;
+      ctx.stroke();
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = 3.5;
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
 }
 
 function drawCourt(view) {
@@ -1067,16 +1191,33 @@ function draw(view, scenery = false) {
   if (view.force?.type === 'wind') drawWind(view.force);
   if (view.phase !== 'ready') {
     if (scenery) ctx.globalAlpha = demoAlpha.racket;
-    const other = localSide === 'left' ? 'right' : 'left';
-    if (view[other]) drawRacket(view[other], '#cf936b99', '#774935', scenery ? undefined : other);
-    // Online matches draw the locally predicted racket; a quick-match CPU game (which also
-    // has a connection open while waiting) draws the game's own racket.
-    const ownRacket = mode === 'online' && !scenery ? localRacket : view[localSide];
-    if (ownRacket && view.phase !== 'finished') drawRacket(ownRacket, '#a9d67877', palette.ink, scenery ? undefined : localSide);
+    if (view.turn && !scenery) drawDoublesRackets(view);
+    else {
+      const other = localSide === 'left' ? 'right' : 'left';
+      if (view[other]) drawRacket(view[other], '#cf936b99', '#774935', scenery ? undefined : other);
+      // Online matches draw the locally predicted racket; a quick-match CPU game (which also
+      // has a connection open while waiting) draws the game's own racket.
+      const ownRacket = mode === 'online' && !scenery ? localRacket : view[localSide];
+      if (ownRacket && view.phase !== 'finished') drawRacket(ownRacket, '#a9d67877', palette.ink, scenery ? undefined : localSide);
+    }
     if (view.bumper) drawBumper(view.bumper);
     if (view.bomb && view.shuttle) drawBomb(view.shuttle, view.bomb);
-    else if (view.shuttle) drawShuttle(view, (scenery ? demoAlpha.bird : 1) * (view.shuttleAlpha ?? 1));
+    else if (view.shuttles) {
+      for (const shuttle of view.shuttles) drawShuttle({ shuttle, phase: view.phase, flash: shuttle.flash });
+      if (view.settledShuttle) drawShuttle({ shuttle: view.settledShuttle, phase: view.phase, flash: 0 });
+    } else if (view.shuttle) drawShuttle(view, (scenery ? demoAlpha.bird : 1) * (view.shuttleAlpha ?? 1));
     ctx.globalAlpha = 1;
+    if (view.shuttleClash) {
+      const { x, y, age } = view.shuttleClash;
+      ctx.save();
+      ctx.globalAlpha = 0.7 * (1 - age / 0.22);
+      ctx.strokeStyle = palette.ink;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(x, y, reduceMotion.matches ? 14 : 7 + age * 74, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
     if (view.bombBurst) drawBombBurst(view.bombBurst);
     drawDecoys(view);
     if (view.pops) drawPops(view.pops);
@@ -1186,9 +1327,12 @@ let stands;
 let standsScore = -1;
 let confetti;
 // A new crowd for every match: the score going back down means a new one began.
+// The deeper into the stages, the fuller the stands: nearly empty for stage 1, packed from the bosses on. (Practice
+// matches keep their random crowd.)
+const stageCrowd = id => Math.min(1, 0.12 + 0.88 * (id - 1) / 19);
 function standsFor(view) {
   const total = view.score ? view.score.left + view.score.right : 0;
-  if (!stands || total < standsScore) stands = makeStands();
+  if (!stands || total < standsScore) stands = makeStands(undefined, selectedStage ? (selectedStage.daily ? 0.85 : stageCrowd(selectedStage.id)) : undefined);
   standsScore = total;
   return stands;
 }
@@ -1346,7 +1490,8 @@ function drawShuttle({ flash, phase, shuttle, frozen }, alpha = 1) {
     ctx.globalAlpha = alpha;
   }
   ctx.beginPath();
-  for (const ring of shuttleOutline(shuttle)) {
+  const rings = shuttleOutline(shuttle);
+  for (const ring of rings) {
     ring.forEach((point, index) => {
       const x = shuttle.x + point.x;
       const y = shuttle.y + point.y;
@@ -1357,7 +1502,7 @@ function drawShuttle({ flash, phase, shuttle, frozen }, alpha = 1) {
   }
   // FREEZE: the shuttle fades to a paler version of its own colour, in keeping with the palette.
   ctx.globalAlpha = frozen ? alpha * 0.4 : alpha;
-  ctx.fillStyle = phase === 'live' ? palette.ink : palette.net;
+  ctx.fillStyle = shuttle.color ?? (phase === 'live' ? palette.ink : palette.net);
   ctx.fill('evenodd');
 }
 
@@ -1394,7 +1539,11 @@ function advanceFrame(time) {
   if (debugNet) netDebug.frames.push(time);
   if (mode === 'online') netMeter.frame(time);
   const scenery = demoShowing();
-  if ((mode === 'solo' || scenery) && lastFrame !== undefined && !gamePaused && !(guideHold && !scenery)) {
+  if (stageIntroRemaining > 0 && lastFrame !== undefined && !gamePaused) {
+    stageIntroRemaining = Math.max(0, stageIntroRemaining - Math.min((time - lastFrame) / 1000, 0.05));
+    if (!stageIntroRemaining) { stageIntro.hidden = true; accumulator = 0; flagYou(); }
+  }
+  if ((mode === 'solo' || scenery) && lastFrame !== undefined && !gamePaused && !(guideHold && !scenery) && !stageIntroRemaining) {
     accumulator += Math.min((time - lastFrame) / 1000, 0.05);
     while (accumulator >= step) {
       if (scenery) demo.advance(step);
@@ -1436,8 +1585,13 @@ function advanceFrame(time) {
   updateHud(demoBanner ? { ...view, eventText: demoView.eventText, eventWind: demoView.eventWind } : view);
   showLinkBars();
   let drawing = mode === 'online' ? predictedView(view, time) : view;
-  if (mode === 'solo' || mode === 'online') {
-    for (const cue of soundCues.cues(drawing, time, mode === 'solo' ? 'left' : localSide)) sound.play(cue);
+  // Windy Day: a quiet wind bed runs under the whole stage.
+  sound.setBed('wind', mode === 'solo' && selectedStage?.rules.permanent === 'wind' && !stageIntroRemaining && !gamePaused && view.phase !== 'finished');
+  if ((mode === 'solo' || mode === 'online') && !stageIntroRemaining) {
+    for (const cue of soundCues.cues(drawing, time, mode === 'solo' ? 'left' : localSide)) {
+      sound.play(cue, Boolean(view.shuttleCalls) &&
+        (cue.startsWith('shuttle') || cue === 'pointWon' || cue === 'pointLost' || cue === 'win' || cue === 'lose'));
+    }
   }
   const pose = drawing.shuttle;
   if (mode === 'online' && !view.frozen && pose && localRacket &&
@@ -1561,6 +1715,56 @@ cpuLevelButton.addEventListener('click', () => {
   }
   showCpuLevel();
 });
+const cardStageIds = new Set([10, 16, 20, 21]);
+const cardNames = { ready: 'Post card', posting: 'Posting…', posted: 'Posted', failed: 'Could not post, try again' };
+function setCardState(state) {
+  cardButton.dataset.state = state;
+  cardButton.disabled = state === 'posting' || state === 'posted';
+  cardButton.setAttribute('aria-label', cardNames[state]);
+  cardButton.title = cardNames[state];
+  cardLabel.textContent = state === 'ready' ? 'POST CARD' : cardNames[state].toUpperCase();
+}
+
+// Posts the full-time card as a comment from inside Reddit (the app's own server does the posting, as the player).
+cardButton.addEventListener('click', async () => {
+  const view = currentView();
+  if (!view?.winner || cardButton.disabled) return;
+  const cardStage = selectedStage;
+  cardButton.disabled = true;
+  setCardState('posting');
+  try {
+    const summary = matchStats.summary(view);
+    const seed = Math.floor(Date.now() / 1000);
+    const line = verdictFor(summary, seed);
+    const user = redditName();
+    const canvas = document.createElement('canvas');
+    canvas.width = cardWidth; canvas.height = cardHeight;
+    try { await document.fonts.load('650 40px "Space Grotesk"'); } catch { /* the card falls back to the system font */ }
+    const dailyCard = cardStage?.daily && dailyResult ? {
+      number: cardStage.number, key: cardStage.key, title: cardStage.name, seconds: dailyResult.seconds, attempt: dailyResult.attempt,
+      attempts: cardStage.attempts, rank: dailyResult.rank, date: dailyResult.date,
+      streak: streakOf([...(dailyState?.calendar ?? []), dailyResult.date], dailyResult.date)
+    } : undefined;
+    const label = cardStage && !cardStage.daily ? stageLabel(cardStage) : undefined;
+    drawCard(canvas.getContext('2d'), { ...summary, palette, stageLabel: label,
+      stageName: cardStage?.daily ? undefined : cardStage?.name, daily: dailyCard, line, seed, name: user ? 'u/' + user : '' });
+    const text = dailyCard
+      ? `DAILY #${dailyCard.number} ${dailyCard.date}: ${dailyCard.title}. CLEARED in ${dailyCard.seconds}s, #${dailyCard.rank} to clear today. ${line}`
+      : `FULL-TIME ${summary.mine}:${summary.theirs} vs CPU Lv.${summary.cpuLevel}. ${label ? `${label}: ${cardStage.name}. ` : ''}${line}`;
+    const response = await fetch('/api/card', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ image: canvas.toDataURL('image/jpeg', 0.9), ...(dailyCard ? { daily: true } : { text }) })
+    });
+    const result = await response.json();
+    setCardState(result.ok || result.posted ? 'posted' : 'failed');
+    cardButton.disabled = !!(result.ok || result.posted);
+    if ((result.ok || result.posted) && dailyCard && dailyState) { dailyState.cardPosted = true; renderTeaser(); }
+  } catch {
+    setCardState('failed');
+    cardButton.disabled = false;
+  }
+});
+
 // Shows YOU over the player's half for a moment as a match starts.
 let youFlagTimer;
 function flagYou() {
@@ -1577,24 +1781,317 @@ function flagYou() {
 
 // Each CPU match puts the player on a random side (the ?test= pages keep the left).
 function restartCpu() {
+  stands = undefined; // a new crowd for the new match, sized for the stage
   cpuMirrored = !testParams.has('test') && Math.random() < 0.5;
   // Before the restart, so the first serve's outline is already built for this court.
   setMirroredShapes(cpuMirrored);
-  solo.restart(3, selectedCpuLevel);
+  const rules = selectedStage?.rules;
+  const touchLimit = (portal === 'reddit' || portal === 'app') && !selectedStage?.daily ? threeTouchLimit : undefined;
+  solo = rules?.twinShuttles ? createTwinShuttleGame() : singles;
+  solo.restart(3, rules?.cpuLevel ?? selectedCpuLevel, rules ?? null, { touchLimit });
 }
 
 function startCpu() {
+  matchStats.reset();
   restartCpu();
   accumulator = 0;
   setMode('solo');
-  flagYou();
+  if (selectedStage) showStageIntro();
+  else flagYou();
   finishedNoted = false;
   track('game_start', { mode: 'cpu', level: String(selectedCpuLevel ?? 'random') });
 }
 document.querySelector('#cpu').addEventListener('click', () => afterMatchBreak(() => {
+  selectedStage = undefined;
   startCpu();
   guideBeforeCountdown();
 }));
+
+// What a stage is played to, said plainly: "FIRST TO 5", and the head start (or deficit) when there is one.
+const goalText = challenge => {
+  const { points, startScore } = challenge.rules;
+  const behind = startScore && startScore.right > startScore.left ? ` · YOU START ${startScore.left}:${startScore.right}` : '';
+  return `FIRST TO ${points}${behind}`;
+};
+
+// Stage UI is exclusive to Reddit. Random CPU matches remain available as practice.
+const stageLabel = challenge => challenge.hidden ? 'SECRET STAGE' : 'STAGE ' + challenge.id;
+let stageProgress;
+function renderStages(cleared, online) {
+  if (!stagesOn) return;
+  const done = cleared.filter(id => id <= 20).length;
+  stageCount.textContent = `${done}/20`;
+  stageBar.style.width = `${done * 5}%`;
+  stageProgressLabel.textContent = 'cleared';
+  stageScore.title = online ? 'Saved to Reddit' : 'Saved on this device only';
+  const buttons = visibleStages(cleared).map(challenge => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.stageId = challenge.id;
+    const top = document.createElement('span'); top.className = 'stage-top';
+    const number = document.createElement('span');
+    number.className = challenge.hidden ? 'stage-number stage-secret' : 'stage-number';
+    number.textContent = challenge.hidden ? stageLabel(challenge) : String(challenge.id).padStart(2, '0');
+    const check = document.createElement('span'); check.className = 'stage-check';
+    check.textContent = cleared.includes(challenge.id) ? '✓' : '';
+    top.append(number, check);
+    if (cleared.includes(challenge.id)) button.dataset.cleared = '';
+    if (challenge.boss) {
+      button.dataset.boss = '';
+      const tag = document.createElement('span'); tag.className = 'stage-boss'; tag.textContent = 'BOSS';
+      top.insertBefore(tag, check);
+    }
+    const copy = document.createElement('span'); copy.className = 'stage-copy';
+    const name = document.createElement('strong'); name.textContent = challenge.name;
+    const description = document.createElement('span'); description.textContent = challenge.description;
+    const goal = document.createElement('span'); goal.className = 'stage-goal'; goal.textContent = goalText(challenge).replace('YOU START', 'START');
+    copy.append(name, description, goal);
+    button.setAttribute('aria-label', `${stageLabel(challenge)}: ${challenge.name}. ${challenge.description} ${goalText(challenge).toLowerCase()}.${cleared.includes(challenge.id) ? ' Cleared.' : ''}`);
+    button.append(top, copy);
+    button.addEventListener('click', () => afterMatchBreak(() => {
+      selectedStage = challenge;
+      startCpu();
+    }));
+    return button;
+  });
+  const focused = document.activeElement?.dataset?.stageId;
+  const scroll = stageList.scrollTop;
+  stageList.replaceChildren(...buttons);
+  stageList.scrollTop = scroll;
+  if (focused) stageList.querySelector(`[data-stage-id="${focused}"]`)?.focus({ preventScroll: true });
+  requestAnimationFrame(updateStageArrows);
+}
+// The stage that follows `challenge` among those the player can see (the hidden one appears once every other is cleared).
+function nextStageAfter(challenge) {
+  return visibleStages(stageProgress?.cleared ?? []).find(candidate => candidate.id > challenge.id);
+}
+nextStageButton.addEventListener('click', () => {
+  const following = selectedStage && nextStageAfter(selectedStage);
+  if (!following) return;
+  afterMatchBreak(() => { selectedStage = following; startCpu(); });
+});
+function showStageIntro() {
+  soundCues.reset();
+  stageIntroRemaining = 1.8;
+  stageIntroNumber.textContent = selectedStage.daily ? `DAILY #${selectedStage.number} · TRY ${selectedStage.tryNumber}/${selectedStage.attempts}` : stageLabel(selectedStage);
+  stageIntroName.textContent = selectedStage.name;
+  stageIntroDescription.textContent = selectedStage.rules.doubles ? 'Take turns hitting with your partner.' : selectedStage.description;
+  stageIntroGoal.textContent = goalText(selectedStage);
+  stageIntro.hidden = false;
+  youFlag.hidden = true;
+}
+function openStages() {
+  leave();
+  setMode('stages');
+  stageList.querySelector('button')?.focus({ preventScroll: true });
+  requestAnimationFrame(updateStageArrows);
+}
+// The cards slide sideways: arrow buttons (shown only where there is more to see), and the mouse wheel for desktop.
+const stagePrev = document.querySelector('#stage-prev');
+const stageNext = document.querySelector('#stage-next');
+function updateStageArrows() {
+  const max = stageList.scrollWidth - stageList.clientWidth;
+  stagePrev.disabled = stageList.scrollLeft < 4;
+  stageNext.disabled = stageList.scrollLeft > max - 4;
+}
+stageList.addEventListener('scroll', updateStageArrows, { passive: true });
+stagePrev.addEventListener('click', () => stageList.scrollBy({ left: -stageList.clientWidth * 0.85, behavior: 'smooth' }));
+stageNext.addEventListener('click', () => stageList.scrollBy({ left: stageList.clientWidth * 0.85, behavior: 'smooth' }));
+// The mouse wheel slides the cards: one card column per notch, smoothly (a free scroll, so nothing snaps back).
+let wheelAt = 0;
+stageList.addEventListener('wheel', event => {
+  const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+  if (!delta) return;
+  event.preventDefault();
+  const now = performance.now();
+  if (now - wheelAt < 120) return;
+  wheelAt = now;
+  const column = stageList.querySelector('button')?.getBoundingClientRect().width ?? 150;
+  stageList.scrollBy({ left: Math.sign(delta) * (column + 6) * (Math.abs(delta) > 200 ? 2 : 1), behavior: 'smooth' });
+}, { passive: false });
+// ---- Daily challenge (Reddit): the server says what today's challenge is and keeps the tries and the clear. ----
+const dailyClient = createDailyClient();
+const dailyEl = id => document.querySelector('#' + id);
+let dailyState;       // the server's answer for today: { plan, attemptsUsed, cleared?, calendar }
+let dailyToken;       // the try in progress
+let dailyResult;      // the clear this try earned (from the server)
+let dailyPending = false;
+let dailyMessage = '';
+let dailyReady = false; // set once the daily block below has run
+let dailyCardPosting = false;
+let dailyCardPosted = false;
+
+const dailyTriesLeft = () => dailyState ? Math.max(0, dailyState.plan.attempts - dailyState.attemptsUsed) : 0;
+function dailyCanRetry() {
+  return !dailyPending && !dailyResult && !dailyState?.cleared && dailyTriesLeft() > 0;
+}
+
+// The main menu's daily card: today's challenge, the tries left, the first five to clear it, and one button.
+// The run of days cleared in a row: through today once today is cleared, otherwise through yesterday (still alive).
+function currentStreak(state) {
+  const calendar = state.calendar ?? [];
+  if (state.cleared) return streakOf(calendar, state.plan.date);
+  const yesterday = new Date(state.plan.date + 'T00:00:00Z');
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+  return streakOf(calendar, yesterday.toISOString().slice(0, 10));
+}
+
+function renderTeaser() {
+  const state = dailyState;
+  const button = dailyButton;
+  dailyEl('teaser-day').textContent = state ? `DAILY #${state.plan.number} · ${dayLabel(state.plan.date)}` : 'DAILY';
+  dailyEl('teaser-title').textContent = state ? playableDaily(state.plan).name : (dailyMessage || '…');
+  dailyEl('teaser-rule').textContent = state ? `${goalText(playableDaily(state.plan))} · CPU LV.${state.plan.cpuLevel}` : '';
+  const left = dailyTriesLeft();
+  const streak = state ? currentStreak(state) : 0;
+  dailyEl('teaser-streak').textContent = streak >= 2 ? `${streak}-DAY STREAK` : '';
+  dailyEl('teaser-streak').hidden = streak < 2;
+  dailyEl('teaser-tries').textContent = !state ? '' : (state.cleared ? 'CLEARED ✓' : left === 0 ? 'NO TRIES LEFT' : `${left} ${left === 1 ? 'TRY' : 'TRIES'} LEFT`);
+  const board = state?.board ?? [];
+  dailyEl('teaser-board').replaceChildren(...Array.from({ length: 5 }, (_, index) => {
+    const entry = board.find(item => item.rank === index + 1);
+    const li = document.createElement('li');
+    const place = document.createElement('span'); place.className = 'place'; place.textContent = '#' + (index + 1);
+    const who = document.createElement('span'); who.className = 'who'; who.textContent = entry ? 'u/' + entry.name : (index === 0 && state ? 'be the first' : '—');
+    const time = document.createElement('span'); time.className = 'time'; time.textContent = entry ? entry.seconds + 's' : '';
+    if (!entry) li.dataset.empty = '';
+    li.append(place, who, time);
+    return li;
+  }));
+  const icon = dailyEl('daily-icon'), label = dailyEl('daily-label');
+  icon.hidden = true;
+  if (!state) { label.textContent = 'CHALLENGE'; button.disabled = true; }
+  else if (state.cleared) {
+    // Today is cleared: the button posts the card of that clear.
+    icon.hidden = false;
+    const posted = dailyCardPosted || state.cardPosted;
+    label.textContent = posted ? 'POSTED ✓' : dailyCardPosting ? 'POSTING…' : 'POST CARD';
+    button.disabled = posted || dailyCardPosting;
+  } else if (left === 0) { label.textContent = 'NO TRIES LEFT'; button.disabled = true; }
+  else { label.textContent = 'CHALLENGE'; button.disabled = dailyPending; }
+}
+const renderDaily = renderTeaser;
+
+// The button: start a try right away, or (today already cleared) post the card of the clear.
+function onChallenge() {
+  if (dailyState?.cleared) postDailyPanelCard();
+  else startDaily();
+}
+
+async function refreshDaily() {
+  const before = dailyState?.plan.date;
+  dailyState = await dailyClient.today();
+  if (dailyState && before && before !== dailyState.plan.date) { dailyCardPosted = false; dailyCardPosting = false; }
+  if (!dailyState) dailyMessage = 'Daily unavailable';
+  else dailyMessage = '';
+  renderTeaser();
+}
+
+async function startDaily() {
+  if (dailyPending) return;
+  dailyPending = true;
+  renderTeaser();
+  const result = await dailyClient.start();
+  dailyPending = false;
+  if (!result.ok) {
+    dailyMessage = result.reason === 'offline' ? 'Could not reach Reddit' : '';
+    await refreshDaily();
+    return;
+  }
+  dailyToken = result.token;
+  dailyResult = undefined;
+  dailyMessage = '';
+  const challenge = playableDaily(result.plan);
+  afterMatchBreak(() => {
+    selectedStage = { ...challenge, id: 'daily', daily: true, tryNumber: result.attempt };
+    startCpu();
+  });
+}
+
+// Tells the server how a daily try ended; the server decides (and times) a clear and gives it its place in the order.
+async function reportDailyTry(view, won) {
+  const token = dailyToken;
+  dailyToken = undefined;
+  dailyPending = true;
+  recordText = 'SAVING…';
+  const answer = token ? await dailyClient.finish(token, { won, mine: view.score.left, theirs: view.score.right }) : { ok: false, reason: 'offline' };
+  dailyPending = false;
+  if (answer.ok && answer.cleared) {
+    dailyResult = answer.record;
+    recordText = `DAILY CLEARED · #${answer.record.rank} TO CLEAR`;
+    refreshDaily();
+  } else if (answer.ok) {
+    dailyState = answer.state;
+    const left = dailyTriesLeft();
+    recordText = left > 0 ? `${left} ${left === 1 ? 'TRY' : 'TRIES'} LEFT` : 'NO TRIES LEFT TODAY';
+    renderDaily();
+  } else {
+    recordText = answer.reason === 'too-fast' ? 'RESULT NOT COUNTED' : 'COULD NOT SAVE THE RESULT';
+    refreshDaily();
+  }
+}
+
+// The card of a clear, posted from the daily panel (a later visit, no live match behind it).
+async function postDailyPanelCard() {
+  const record = dailyState?.cleared;
+  if (!record || dailyCardPosting || dailyCardPosted || dailyState.cardPosted) return;
+  dailyCardPosting = true;
+  renderTeaser();
+  try {
+    const challenge = playableDaily(dailyState.plan);
+    const seed = Math.floor(Date.now() / 1000);
+    const summary = { won: true, mine: record.mine, theirs: record.theirs, cpuLevel: dailyState.plan.cpuLevel, rally: 0, effects: [] };
+    const line = verdictFor(summary, seed);
+    const user = redditName();
+    const canvas = document.createElement('canvas');
+    canvas.width = cardWidth; canvas.height = cardHeight;
+    try { await document.fonts.load('650 40px "Space Grotesk"'); } catch { /* system font */ }
+    const daily = { number: challenge.number, key: challenge.key, title: challenge.name, seconds: record.seconds, attempt: record.attempt,
+      attempts: challenge.attempts, rank: record.rank, date: record.date,
+      streak: streakOf([...(dailyState.calendar ?? []), record.date], record.date) };
+    drawCard(canvas.getContext('2d'), { ...summary, palette, daily, line, seed, name: user ? 'u/' + user : '' });
+    const response = await fetch('/api/card', { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ image: canvas.toDataURL('image/jpeg', 0.9), daily: true }) });
+    const result = await response.json();
+    // 'posted' (409): the server already has a card for this clear, so it is done either way.
+    dailyCardPosted = !!result.ok || !!result.posted;
+  } catch {
+    dailyCardPosted = false;
+  }
+  dailyCardPosting = false;
+  renderTeaser();
+}
+
+if (portal === 'reddit') {
+  layoutPad();
+  dailyEl('daily-teaser').hidden = false;
+  dailyButton.addEventListener('click', onChallenge);
+  dailyReady = true;
+  refreshDaily();
+  stagesButton.hidden = false;
+  document.querySelector('#cpu').textContent = 'FREE PLAY';
+  stageProgress = createStageProgress({ storage, identity: redditIdentity(), onChange: renderStages });
+  renderStages([], false);
+  stagesButton.addEventListener('click', openStages);
+  resultStagesButton.addEventListener('click', () => { if (selectedStage?.daily) leave(); else openStages(); });
+}
+
+// The phone app: the same stage list, saved on the device only (no account, no server).
+if (portal === 'app' && features.stages) {
+  stagesButton.hidden = false;
+  document.querySelector('#cpu').textContent = 'FREE PLAY';
+  createAppStorage().then(appStorage => {
+    // Nothing is sent anywhere: the request below always fails, so the clears stay on this device.
+    stageProgress = createStageProgress({ storage: appStorage, request: () => Promise.reject(new Error('device only')), onChange: renderStages });
+    renderStages([], false);
+    const savedGain = Number(appStorage.getItem(touchGainKey));
+    if (savedGain >= 0.8 && savedGain <= 3) { touchGain = savedGain; showTouchGain(); }
+    deviceStorage = appStorage;
+  });
+  stagesButton.addEventListener('click', openStages);
+  resultStagesButton.addEventListener('click', openStages);
+}
+
 
 // Declared before the test pages below, which start a CPU game (and so read it) while the file is still loading.
 const quick = { on: false, queued: false, found: undefined, finished: false };
@@ -1977,7 +2474,12 @@ joinForm.addEventListener('submit', event => {
 codeInput.addEventListener('input', () => {
   if (mode === 'join' && !socket) setMode('join');
 });
-back.addEventListener('click', () => leave());
+// Inside a stage, back returns to the stage cards, not the main menu.
+back.addEventListener('click', () => {
+  if (stagesOn && mode === 'solo' && selectedStage?.daily) leave();
+  else if (stagesOn && mode === 'solo' && selectedStage) openStages();
+  else leave();
+});
 
 // GamePix has no links out of the game, so there the room code itself is what gets copied.
 const copyLabel = closedPortal ? 'COPY CODE' : 'COPY LINK';
@@ -2115,6 +2617,8 @@ if (!portal && fullscreenSupported()) {
 }
 function playAgain() {
   if (gamePaused || breakPending || rematchReady) return;
+  // A daily try is a new try on the server (it counts), not a plain restart.
+  if (mode === 'solo' && selectedStage?.daily) { startDaily(); return; }
   const rematch = currentView().phase === 'finished' || onlineView?.phase === 'finished';
   const restart = () => {
     if (currentView().phase === 'finished' || onlineView?.phase === 'finished') {
@@ -2124,8 +2628,10 @@ function playAgain() {
     // Online restarts arrive as a new 'start' message; CPU ones are counted here.
     if (mode === 'solo') track('game_start', { mode: 'cpu', level: selectedCpuLevel ?? 'random' });
     if (mode === 'solo') {
+      matchStats.reset();
       restartCpu();
-      flagYou();
+      if (selectedStage) showStageIntro();
+      else flagYou();
     }
     else {
       rematchReady = true;

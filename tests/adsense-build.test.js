@@ -21,14 +21,14 @@ test('standalone site has the connection tag, while every portal build excludes 
 });
 
 // The Android app build. Kept in this file so its builds never run alongside the ones above (both rewrite dist/).
-test('app build: marked, offline, no ads or analytics, ONLINE and the rest off unless asked for', () => {
+test('app build: marked, offline, no ads or analytics, STAGES on, ONLINE and the rest off unless asked for', () => {
   const root = fileURLToPath(new URL('../', import.meta.url));
   const run = args => execFileSync(process.execPath, args, { cwd: root, stdio: 'pipe' });
   const out = new URL('../portal/app/', import.meta.url);
   run(['scripts/build-portal.mjs', 'app']);
   const html = readFileSync(new URL('index.html', out), 'utf8');
   // Landscape only (touch-layout.js): the column beside the court whatever the window's shape, never the upright pad.
-  assert.match(html, /<html lang="en" data-portal="app" data-orientation="landscape" data-features="">/);
+  assert.match(html, /<html lang="en" data-portal="app" data-orientation="landscape" data-features="stages">/);
   // The court fills the screen's height; the icon column floats over the side strip.
   assert.match(html, /html\[data-portal="app"\]\[data-orientation="landscape"\] main \{ display: block;/);
   assert.match(html, /html\[data-portal="app"\]\[data-orientation="landscape"\] #studio-links \{ position: fixed;/);

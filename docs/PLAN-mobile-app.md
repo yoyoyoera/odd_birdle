@@ -214,7 +214,9 @@ Android 실기기가 없는 동안 iOS로 같은 빌드 1을 병렬 진행한다
 - 서브에이전트: **사용 안 함(순차).** 모두 `game.js` 한 파일에 몰려 있어 병렬로 하면 충돌만 늘어난다. 이식이 끝난 뒤 **코드 리뷰 에이전트** 1개로 회귀를 점검한다.
 - 끝 조건: 이식한 테스트와 기존 테스트가 모두 통과하고, `tools/stage-difficulty.mjs`로 측정한 결과가 reddit판과 비슷한 범위에 든다.
 
-#### Step B2. STAGES 화면 + 기기 저장 ⬜
+#### Step B2. STAGES 화면 + 기기 저장 ✅ (2026-11-26, Mac 세션, `app-b1-engine`; Android 실기기 점검은 폰 연결 후)
+- 결과: `client.js`·`index.html`·`crowd.js`·`stands.js`·소리 파일을 reddit과 3-way 병합(앱 터치 조작은 앱 쪽 유지). 스테이지 목록은 앱에서 `features.stages`일 때만 열린다(앱 빌드 기본값 `stages`). 저장은 `app-storage.js`(Capacitor Preferences, 브라우저는 localStorage)로 클리어 목록과 터치 감도를 기기에만 보관, 서버·계정 없음. iOS 개인정보 매니페스트에 UserDefaults 사유 CA92.1 추가. iOS 시뮬레이터에서 스테이지 목록·카드 슬라이드·1판 시작을 확인했다. Reddit 전용 데일리·카드 게시 코드는 들어왔지만 앱에서는 동작하지 않는다(B3·D에서 다룸).
+
 - 스테이지 목록·안내·✓·숨김 21 UI를 가져와 `STAGES` 기능 스위치 아래에 둔다(Reddit 전용 부분은 제외).
 - 저장 어댑터 `app-storage.js`:
   - 앱에서는 Capacitor Preferences, 브라우저 미리보기에서는 localStorage를 쓴다.

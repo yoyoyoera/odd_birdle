@@ -155,7 +155,7 @@ test('real client pauses CPU/search, rejects a late match, and resumes online fr
   assert.equal(element('#score').value, '5:2', 'resume immediately shows the latest authoritative score');
   assert.equal(element('#stage').dataset.phase, 'finished');
   assert.equal(element('#result-actions').hidden, false, 'worded buttons after an online match');
-  assert.equal(element('#play-again').textContent, 'REMATCH');
+  assert.equal(element('#play-again .label').textContent, 'REMATCH');
   assert.equal(element('#game-control').hidden, true);
   await element('#back').click();
   matched.receive({ type: 'state', time: 10000, state: latest });

@@ -48,16 +48,22 @@ export function createCueTracker() {
         if ((view.cord?.count ?? 0) > (previous.cords ?? 0)) cues.push('cord');
         const pressAge = view.trampoline?.press?.age;
         if (pressAge !== undefined && (previous.pressAge === undefined || pressAge < previous.pressAge)) cues.push('boing');
+        if (view.shuttleCalls?.length > previous.shuttleCallCount) {
+          const [first, second] = view.shuttleCalls;
+          if (!second) cues.push(first.winner === localSide ? 'shuttleWon' : 'shuttleLost');
+          else if (first.winner !== second.winner) cues.push('shuttleTie');
+          else cues.push(second.winner === localSide ? 'pointWon' : 'pointLost');
+        }
         if (view.phase === 'finished' && previous.phase !== 'finished' && view.winner) {
           cues.push(view.winner === localSide ? 'win' : 'lose');
-        } else if (view.score && previous.score) {
+        } else if (!view.shuttleCalls && view.score && previous.score) {
           // Every point gets its own sound; the match point is covered by the jingle above.
           const other = localSide === 'left' ? 'right' : 'left';
           if (view.score[localSide] > previous.score[localSide]) cues.push('pointWon');
           else if (view.score[other] > previous.score[other]) cues.push('pointLost');
         }
       }
-      previous = { cords: view.cord?.count ?? 0, flash: view.flash ?? 0, text, ring: view.bumper?.ring ?? 0, fresh, pressAge: view.trampoline?.press?.age, phase: view.phase, score: view.score && { ...view.score }, fuse: view.bomb?.fuse, bombBurst: view.bombBurst };
+      previous = { cords: view.cord?.count ?? 0, flash: view.flash ?? 0, text, ring: view.bumper?.ring ?? 0, fresh, pressAge: view.trampoline?.press?.age, phase: view.phase, score: view.score && { ...view.score }, fuse: view.bomb?.fuse, bombBurst: view.bombBurst, shuttleCallCount: view.shuttleCalls?.length ?? 0 };
       return cues;
     }
   };
