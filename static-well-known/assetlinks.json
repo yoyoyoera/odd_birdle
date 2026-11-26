@@ -1,0 +1,15 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.yoyoyo.oddbirdle",
+      "sha256_cert_fingerprints": [
+        "37:9D:E8:B2:AA:32:DE:EE:96:86:5E:63:2C:34:03:D8:F3:B8:EF:78:27:77:BB:4A:47:59:73:AC:87:13:DC:48",
+        "D7:BD:1A:E0:E6:D3:9E:0F:C6:84:92:2B:BE:4A:66:E6:D3:F8:C0:E7:A1:BE:21:81:85:9C:11:BB:37:16:77:E5"
+      ]
+    }
+  }
+]
