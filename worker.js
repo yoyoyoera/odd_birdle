@@ -14,7 +14,9 @@ export default {
       console.log('rejected websocket origin', origin);
       return new Response('Not found', { status: 404 });
     }
-    return env.ROOMS.getByName('lobby').fetch(request);
+    // A running Durable Object keeps the code it started with while anyone is connected, so a change that must reach
+    // everyone at once moves the lobby to a new name (rooms only live for one visit anyway).
+    return env.ROOMS.getByName('lobby-2').fetch(request);
   }
 };
 

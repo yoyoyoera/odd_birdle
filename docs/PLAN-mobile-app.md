@@ -240,7 +240,9 @@ Android 실기기가 없는 동안 iOS로 같은 빌드 1을 병렬 진행한다
 
 #### Step C1. 방 코드 ✅ (코드·서버 배포·시뮬레이터 확인, 2026-11-26, Mac 세션; 📱 실기기 조합은 남음)
 - 결과: 앱의 접속 출처는 Android `https://app.oddbirdle`, iOS `capacitor://app.oddbirdle`(capacitor.config.json의 server.hostname). `origins.js`가 정확히 이 둘만 `app`으로 허용하고(없는 도메인이라 웹사이트가 흉내 낼 수 없음) 재대결 준비 확인 대상에 넣는다. 실제 서버(`oddbridge-matchmaker`)에 배포했고, 실서버에 두 출처로 방을 만들 수 있고 다른 출처는 404로 막히는 것을 확인했다. 앱은 서버 주소가 https이면 항상 wss로 접속한다(앱 페이지의 scheme이 capacitor://라서 예전 코드는 ws로 접속하려 했다). 앱 빌드 기본 기능은 `stages,online`. 시험 빌드는 `--server=https://<preview>/`로 미리보기 사이트를 가리킬 수 있다. iOS 시뮬레이터 앱 ↔ 미리보기 웹: 방 코드로 대전 시작, QUICK MATCH 대기열 진입까지 확인. 연결 막대는 앱에서 온라인 대전 중에만 보인다.
-- 연결 상태 규칙(현재 동작): 백그라운드나 화면 잠금 → 앱이 일시정지(소리 끔), 온라인 경기는 서버에서 계속되고 이 화면만 멈춤. iOS는 돌아오면 연결이 끊겼을 수 있고, 끊기면 "Connection lost."와 함께 메뉴로 나간다. 상대에게는 연결 끊김으로 보인다.
+- 연결 상태 규칙(2026-11-26 확정·배포, 사이트와 앱 공통): **서버는 방에서 20초(확인 간격 5초) 동안 아무 메시지도 안 보낸 사람을 나간 것으로 본다.** 살아 있는 클라이언트는 초당 수십 번 보내므로, 앱이 백그라운드로 가거나 화면이 잠기거나 탭이 숨겨지면 해당한다. 남은 사람에게는 `left`가 가고 화면에 OPPONENT LEFT가 뜬다(퀵매치는 CPU 게임과 대기열로 돌아감). 나간 사람이 돌아오면 "You were away too long."을 보고 메뉴로 간다. 연결이 끊기면 CONNECTION LOST가 뜬다. 끝난 경기(재대결 대기)나 상대를 기다리는 방은 대상이 아니다.
+- 퀵매치 거리 규칙(배포됨, JOIN/CREATE에는 적용 안 함): Cloudflare가 아는 접속 위치로 거리를 재서, 대기 시작은 반경 1,500km, 기다릴수록 초당 150km씩 넓어져 최대 5,000km에서 멈춘다(서울 기준 도쿄·상하이·싱가포르는 되고 미국·유럽은 안 됨). 가장 오래 기다린 사람부터 가장 가까운 상대와 짝짓는다. 위치를 모르면 누구와도 맺는다(위치 정보 문제로 아예 못 하는 일은 없게). 확인: 접속 위치는 `functions/play.js`가 Cloudflare의 값을 `x-geo` 헤더로 넘기며 클라이언트가 보낼 수 없다. 실서버에서 `queued` 응답의 `located`가 true로 확인됨.
+- 배포 메모: 실행 중인 Durable Object는 연결이 있는 동안 옛 코드를 쓴다. 한 번에 모두에게 적용해야 할 때는 `worker.js`의 로비 이름을 바꾼다(지금은 `lobby-2`).
 
 - 실기기 앱 WebView가 실제로 보내는 `Origin` 값을 서버 로그(`rejected websocket origin`)에서 확인한다. 그 값만 `origins.js`에 `app` 출처로 추가한다. 예상: Android `https://app.oddbirdle`, iOS `capacitor://app.oddbirdle`(비https라 `appOrigins` 정확 일치 목록으로). 재경기 준비 규칙(`requiresRematchReady`)을 앱에 적용할지도 정한다.
 - 매치메이커 배포는 사용자 확인 후 진행한다. 먼저 preview 매치메이커에서 시험한다.
