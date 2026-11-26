@@ -4,7 +4,7 @@ import {
   posesBetween, sweptTouch, supportedShuttleY, swingMotion, trialEffectIds, trialEffectLabels, trampolineLift,
   trampolineDent, threeTouchLimit, touchLimitFault
 } from './game.js';
-import { makeStands, drawStands, createBombCrowdMotion } from './stands.js';
+import { makeStands, drawStands, createBombCrowdMotion, standsBottom, standsWall, mix } from './stands.js';
 import { createCrowd } from './crowd.js';
 import { createLinkQuality } from './link-quality.js';
 import { createFrameMeter } from './frame-meter.js';
@@ -214,8 +214,149 @@ function resize() {
   // How much bigger than the old 940 wide court this one is: the words over the court grow with it (index.html).
   const grow = Math.min(Math.max(bounds.width / 940, 1), 1.4).toFixed(3);
   if (grow !== shownGrow) document.documentElement.style.setProperty('--grow', shownGrow = grow);
+  if (portal === 'app') { courtBounds = bounds; sizeBleed(); paintAppBackground(bounds); }
 }
 let shownGrow;
+
+// The app: no dark margins. The page behind the court is painted in the court's own bands (wall behind the crowd, court,
+// floor), lined up with the canvas, so the court seems to run out to every edge of the screen, the notch sides and the
+// home-indicator strip included. The play area itself is unchanged.
+let shownBands = '';
+let shownProps = '';
+let courtBounds;
+
+// The app: where the player's racket cannot go (the strip past the court's outer edge, which its centre may not enter) turns
+// a soft translucent red as the racket comes near the edge, deeper the closer it is, and clears as it moves away. Only the
+// edge on the player's own side: the net side is plain to see. This canvas covers the whole screen and carries just that tint.
+const bleed = [];
+let bleedCanvas, bleedCtx, bleedDirty = false;
+const bleedReach = 80; // court units from the edge where the tint starts
+const bleedAlpha = 0.3;
+function ensureBleed() {
+  if (bleedCanvas) return;
+  bleedCanvas = document.createElement('canvas');
+  bleedCanvas.setAttribute('aria-hidden', 'true');
+  bleedCanvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;aspect-ratio:auto;background:transparent;pointer-events:none;z-index:2';
+  document.body.append(bleedCanvas);
+  bleedCtx = bleedCanvas.getContext('2d');
+}
+function sizeBleed() {
+  ensureBleed();
+  const ratio = Math.min(devicePixelRatio || 1, 2);
+  bleedCanvas.width = Math.round(innerWidth * ratio);
+  bleedCanvas.height = Math.round(innerHeight * ratio);
+  bleedCtx.setTransform(ratio, 0, 0, ratio, 0, 0);
+}
+// What the app lays over the whole screen, the strips beside the court included: the bomb's red wash on its half, the soft red
+// where the player's racket cannot go, the racket's own part past the edge, and last the shock veil.
+let overlayFx = {};
+function drawOverlay() {
+  if (!bleedCtx || !courtBounds) return;
+  if (!bleed.length && !overlayFx.bomb && !overlayFx.veil && !bleedDirty) return;
+  bleedCtx.clearRect(0, 0, innerWidth, innerHeight);
+  bleedDirty = false;
+  const b = courtBounds;
+  if (overlayFx.bomb) {
+    const mid = b.left + center * (b.width / width), floorY = b.top + floor * (b.height / height);
+    const red = bleedCtx.createLinearGradient(0, 0, 0, floorY);
+    red.addColorStop(0, '#d334337f');
+    red.addColorStop(0.43, '#d33433');
+    bleedCtx.save();
+    bleedCtx.fillStyle = red;
+    bleedCtx.globalAlpha = overlayFx.bomb.alpha;
+    if (overlayFx.bomb.x < center) bleedCtx.fillRect(0, 0, mid, floorY);
+    else bleedCtx.fillRect(mid, 0, innerWidth - mid, floorY);
+    bleedCtx.restore();
+    bleedDirty = true;
+  }
+  for (const racket of bleed) {
+    const fromLeft = racket.x < width / 2;
+    const distance = fromLeft ? racket.x : width - racket.x;
+    const near = Math.min(1, Math.max(0, 1 - distance / bleedReach));
+    if (near <= 0) continue;
+    bleedCtx.fillStyle = `rgba(214, 72, 72, ${(bleedAlpha * near * near).toFixed(3)})`;
+    if (fromLeft) bleedCtx.fillRect(0, 0, b.left, innerHeight);
+    else bleedCtx.fillRect(b.right, 0, innerWidth - b.right, innerHeight);
+    bleedDirty = true;
+    // The racket is still a whole circle: the part that goes past the court edge is drawn here, over the tint.
+    const sx = b.width / width, sy = b.height / height;
+    const cx = b.left + racket.x * sx, cy = b.top + racket.y * sy, r = racket.r * sx;
+    if (cx - r < b.left || cx + r > b.right) {
+      bleedCtx.save();
+      bleedCtx.beginPath();
+      bleedCtx.rect(0, 0, b.left, innerHeight);
+      bleedCtx.rect(b.right, 0, innerWidth - b.right, innerHeight);
+      bleedCtx.clip();
+      bleedCtx.beginPath();
+      bleedCtx.arc(cx, cy, r, 0, Math.PI * 2);
+      bleedCtx.fillStyle = racket.fill;
+      bleedCtx.fill();
+      bleedCtx.lineWidth = 2;
+      bleedCtx.strokeStyle = racket.stroke;
+      bleedCtx.stroke();
+      bleedCtx.restore();
+    }
+  }
+  if (overlayFx.veil) {
+    for (const [color, alpha] of [['#0b1410', overlayFx.veil.dark], ['#ffffff', overlayFx.veil.light]]) {
+      if (alpha <= 0) continue;
+      bleedCtx.fillStyle = color;
+      bleedCtx.globalAlpha = alpha;
+      bleedCtx.fillRect(0, 0, innerWidth, innerHeight);
+    }
+    bleedCtx.globalAlpha = 1;
+    bleedDirty = true;
+  }
+}
+// Props on the floor beside the court, drawn in court units (scale) so they keep the court's proportions.
+function paintAppProps(bounds, scale) {
+  // (An HTML container, so the parser puts the <svg> in its own namespace: the app build lists no web addresses.)
+  let box = document.querySelector('#app-props');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'app-props';
+    box.setAttribute('aria-hidden', 'true');
+    box.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:-1';
+    document.body.prepend(box);
+  }
+  const strip = bounds.left;
+  const floorTop = bounds.top + floor * scale;
+  const frame = palette.court, ink = palette.ink;
+  const wood = mix(frame, ink, 0.42), soft = mix(frame, ink, 0.28), bag = mix(frame, ink, 0.62);
+  // Sized to fit the strip with a margin (never cut by the screen edge or the court), the chair behind and the bag in front.
+  const fit = Math.min(scale * 0.8, (strip - 14) / 74);
+  const chairX = 8 + 27 * fit, chairBase = Math.round(floorTop + 24 * scale);
+  const bagX = Math.min(strip - 8 - 28 * fit, chairX + 27 * fit + 4 + 26 * fit), bagBase = Math.round(floorTop + 44 * scale);
+  const markup = strip < 46 ? '' : `
+    <g transform="translate(${chairX} ${chairBase}) scale(${fit})" fill="${wood}">
+      <rect x="-23" y="-110" width="5" height="110"/><rect x="18" y="-110" width="5" height="110"/>
+      <rect x="-27" y="-118" width="54" height="8"/><rect x="-23" y="-152" width="5" height="34"/><rect x="-23" y="-152" width="30" height="5"/>
+      <rect x="-18" y="-60" width="36" height="4" fill="${soft}"/><rect x="-18" y="-84" width="36" height="4" fill="${soft}"/><rect x="-18" y="-36" width="36" height="4" fill="${soft}"/>
+      <rect x="-19" y="-127" width="38" height="9" rx="4" fill="${bag}"/>
+    </g>
+    <g transform="translate(${bagX} ${bagBase}) scale(${fit})">
+      <rect x="-26" y="-27" width="40" height="27" rx="9" fill="${bag}"/>
+      <rect x="-17" y="-35" width="22" height="10" rx="5" fill="none" stroke="${bag}" stroke-width="3"/>
+      <rect x="19" y="-25" width="9" height="25" rx="3" fill="#7fae94"/><rect x="20.5" y="-29" width="6" height="5" rx="2" fill="${wood}"/>
+    </g>`;
+  if (markup === shownProps) return;
+  shownProps = markup;
+  box.innerHTML = `<svg width="${innerWidth}" height="${innerHeight}">${markup}</svg>`;
+}
+function paintAppBackground(bounds) {
+  const scale = bounds.height / height;
+  const wallEnd = Math.round(bounds.top + standsBottom * scale);
+  const floorTop = Math.round(bounds.top + floor * scale);
+  const bands = `linear-gradient(to bottom, ${standsWall(palette)} 0 ${wallEnd}px, ${palette.court} ${wallEnd}px ${floorTop}px, ${palette.floor} ${floorTop}px)`;
+  // The strips beside the court are out of play: a few things stand on the floor out there (an umpire chair, a racket bag),
+  // so it reads as the side of the hall. (A racket that goes to the edge shows what it cannot reach in red: see drawRacketBleed.)
+  paintAppProps(bounds, scale);
+  const painted = bands;
+  if (painted === shownBands) return;
+  shownBands = painted;
+  document.documentElement.style.background = painted;
+  document.documentElement.style.setProperty('--app-court-ink', palette.ink);
+}
 
 function setText(element, text) {
   if (element.textContent !== text) element.textContent = text;
@@ -624,6 +765,25 @@ const touchTuneToggle = document.querySelector('#touch-tune-toggle');
 const touchTune = document.querySelector('#touch-tune');
 const touchGainInput = document.querySelector('#touch-gain');
 const touchGainValue = document.querySelector('#touch-gain-value');
+// The app: touch speed is set with two square buttons (+ and −) around the value, instead of a slider.
+if (portal === 'app') {
+  const step = (name, label, change) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'tune-step';
+    button.id = name;
+    button.textContent = label;
+    button.setAttribute('aria-label', change > 0 ? 'Faster touch' : 'Slower touch');
+    button.addEventListener('click', () => {
+      const next = Math.round(Math.min(Number(touchGainInput.max), Math.max(Number(touchGainInput.min), Number(touchGainInput.value) + change)) * 20) / 20;
+      touchGainInput.value = String(next);
+      touchGainInput.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    return button;
+  };
+  touchTune.prepend(step('touch-gain-up', '+', 0.1));
+  touchTune.append(step('touch-gain-down', '−', -0.1));
+}
 const padHintKey = 'oddbirdle-pad-hint-done';
 let padActive = false;
 let touchTuneOpen = false;
@@ -770,6 +930,7 @@ function drawRacket(position, fill, stroke, side) {
   ctx.lineWidth = 2;
   ctx.strokeStyle = stroke;
   ctx.stroke();
+  if (portal === 'app' && side !== undefined && side === localSide) bleed.push({ x: mirrored() ? width - position.x : position.x, y: position.y, r, fill, stroke });
 }
 
 function drawCourt(view) {
@@ -779,6 +940,10 @@ function drawCourt(view) {
   ctx.fillStyle = palette.floor;
   ctx.fillRect(0, floor, width, height - floor);
   const liveBomb = view.bomb?.lit && view.shuttle;
+  const bombWash = liveBomb && portal !== 'app';
+  if (liveBomb && portal === 'app') {
+    overlayFx.bomb = { x: mirrored() ? width - liveBomb.x : liveBomb.x, alpha: 0.14 + 0.08 * (1 - clamp(view.bomb.fuse / 2.4, 0, 1)) };
+  }
   const now = performance.now();
   const bombDuck = bombCrowdMotion.update(now, reduceMotion.matches ? undefined : liveBomb?.x);
   drawStands(ctx, standsFor(view), {
@@ -786,7 +951,7 @@ function drawCourt(view) {
     boo: reduceMotion.matches ? undefined : crowdNow.boo,
     jolt: reduceMotion.matches ? 0 : shockJolt(view.shake), bombDuck: reduceMotion.matches ? undefined : bombDuck
   });
-  if (liveBomb) {
+  if (bombWash) {
     const left = liveBomb.x < center ? 0 : center;
     const red = ctx.createLinearGradient(0, 0, 0, floor);
     red.addColorStop(0, '#d334337f');
@@ -887,6 +1052,8 @@ function drawPops(pops) {
 
 function draw(view, scenery = false) {
   ctx.clearRect(0, 0, width, height);
+  bleed.length = 0;
+  overlayFx = {};
   ctx.save();
   if (!scenery && mirrored()) {
     ctx.translate(width, 0);
@@ -920,7 +1087,9 @@ function draw(view, scenery = false) {
     }
   }
   ctx.restore();
-  if (view.shake && !reduceMotion.matches) {
+  // The app lays the shock veil and the bomb wash over the whole screen (the strips beside the court too), from drawOverlay.
+  if (view.shake && !reduceMotion.matches && portal === 'app') overlayFx.veil = shockFlicker(view.shake);
+  if (view.shake && !reduceMotion.matches && portal !== 'app') {
     const veil = shockFlicker(view.shake);
     for (const [color, alpha] of [['#0b1410', veil.dark], ['#ffffff', veil.light]]) {
       if (alpha <= 0) continue;
@@ -930,6 +1099,7 @@ function draw(view, scenery = false) {
     }
     ctx.globalAlpha = 1;
   }
+  drawOverlay();
 }
 
 function drawDust() {

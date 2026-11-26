@@ -44,7 +44,7 @@
 | 랭킹 이름 | **자동 별칭**(예: `Swift Plover 42`). 자유 닉네임은 1.0 범위에서 제외한다 |
 | 온라인 순서 | **방 코드 먼저**, QUICK MATCH는 그다음. 실제 Android가 보내는 `Origin` 값을 확인한 뒤 그 값만 허용한다 |
 | 광고 | 1.0 내부 테스트에는 넣지 않는다 |
-| 패키지 이름 | 첫 Play 업로드 전에 확정한다(가칭 `com.oddbirdle.app`). 업로드 뒤에는 바꿀 수 없다. iOS 번들 ID도 같은 값으로 맞춘다 |
+| 패키지 이름 | 첫 Play 업로드 전에 확정한다(가칭 `com.yoyoyo.oddbirdle`). 업로드 뒤에는 바꿀 수 없다. iOS 번들 ID도 같은 값으로 맞춘다 |
 | 화면 방향 (개정 3) | **Android·iOS 모두 가로 전용**(왼쪽·오른쪽 가로 둘 다 허용, 세로 금지). 앱에서는 세로 엄지 패드·세로 배치를 쓰지 않고, 웹판의 "옆으로 든 폰" 조작(화면 전체 패드)이 앱의 기본 조작이다. 웹사이트·포털은 지금처럼 세로도 지원한다 |
 | iOS 기기 범위 | 1.0은 **iPhone 전용**(iPad는 iPhone 앱 호환 모드로만 실행). iPad 전용 배치·스크린샷은 범위 밖 |
 | iOS 최소 버전 | Capacitor 8 iOS 최소 배포 버전 **iOS 15.0**(`@capacitor/ios` 8.6.2 podspec에서 확인) |
@@ -81,7 +81,7 @@
 - 끝 조건: 기준 소스가 공개판과 같은 동작(랜덤 효과 전체 포함)을 하고, 테스트가 통과한다.
 
 #### Step A1. `app` 빌드 대상 + Capacitor 껍데기 ✅
-- 결과: `node scripts/build-portal.mjs app [--features=...]` → `portal/app/`(외부 주소 검사, 랜덤 폭탄 포함 FREE PLAY만). `app-shell.js`: 경기 중 뒤로 가기 = PAUSED 화면(탭하면 재개, 다시 뒤로 = 메뉴), 메뉴에서 뒤로 = 종료, 백그라운드 = 일시정지·소리 정지. `mobile-app/`: Capacitor 8.6.2, `@capacitor/app` 8.1.2, appId `com.oddbirdle.app`, WebView Origin `https://app.oddbirdle`, compile/targetSdk 36, minSdk 24, 화면 켜짐 유지·몰입형·가장자리 그리기, SystemBars `insetsHandling: css`. 배치 스크린샷 기준: `tools/app-layout/`. 테스트 207개 통과.
+- 결과: `node scripts/build-portal.mjs app [--features=...]` → `portal/app/`(외부 주소 검사, 랜덤 폭탄 포함 FREE PLAY만). `app-shell.js`: 경기 중 뒤로 가기 = PAUSED 화면(탭하면 재개, 다시 뒤로 = 메뉴), 메뉴에서 뒤로 = 종료, 백그라운드 = 일시정지·소리 정지. `mobile-app/`: Capacitor 8.6.2, `@capacitor/app` 8.1.2, appId `com.yoyoyo.oddbirdle`, WebView Origin `https://app.oddbirdle`, compile/targetSdk 36, minSdk 24, 화면 켜짐 유지·몰입형·가장자리 그리기, SystemBars `insetsHandling: css`. 배치 스크린샷 기준: `tools/app-layout/`. 테스트 207개 통과.
 - `scripts/build-portal.mjs app` 빌드를 추가한다.
   - 외부 링크·분석·포털 SDK·AdSense는 넣지 않는다.
   - 폰트와 사운드는 내장한다.
@@ -136,7 +136,7 @@
 Android 실기기가 없는 동안 iOS로 같은 빌드 1을 병렬 진행한다. 웹 게임(`portal/app/`)은 Android와 같은 파일을 쓴다. 이 트랙의 실기기 결과는 공통 웹 코드(조작감·소리·복귀)에 대한 첫 실기기 판정이기도 하다.
 
 #### Step I0. 준비 (사용자) 🔄
-- 2026-11-25 확인: 사용자는 **이미 iOS 앱 4개를 출시한 Apple Developer Program 계정**이 있다 → 무료 Apple ID 경로는 쓰지 않는다. 빌드 1부터 **TestFlight 내부 테스트**로 설치한다(F1을 앞당김). 남은 준비: 번들 ID `com.oddbirdle.app` 사용 가능 여부 확인·등록, App Store Connect에 앱 레코드 생성, CI 업로드용 **App Store Connect API 키**(Admin 또는 App Manager, `.p8`)를 GitHub 시크릿으로 등록.
+- 2026-11-25 확인: 사용자는 **이미 iOS 앱 4개를 출시한 Apple Developer Program 계정**이 있다 → 무료 Apple ID 경로는 쓰지 않는다. 빌드 1부터 **TestFlight 내부 테스트**로 설치한다(F1을 앞당김). 남은 준비: 번들 ID `com.yoyoyo.oddbirdle` 사용 가능 여부 확인·등록, App Store Connect에 앱 레코드 생성, CI 업로드용 **App Store Connect API 키**(Admin 또는 App Manager, `.p8`)를 GitHub 시크릿으로 등록.
 - Mac에 최신 Xcode 설치(제출 시점에 Apple이 요구하는 최소 Xcode·iOS SDK 버전을 E단계 전에 다시 확인).
 - 실기기 설치 방식 선택:
   - (가) **무료 Apple ID**: Xcode에서 자기 iPhone에 직접 설치. 7일마다 다시 설치해야 하고 TestFlight는 못 쓴다. 빌드 1 조작감 판정에는 충분.
@@ -297,7 +297,7 @@ Android 실기기가 없는 동안 iOS로 같은 빌드 1을 병렬 진행한다
 - 완료 조건(별도): 비공개 테스트 요건 충족 → 프로덕션 신청 → 공개.
 
 #### Step F1. [iOS] TestFlight 내부 테스트 ⬜
-- 전제(개정 3-1: 계정은 이미 있음, 업로드 자동화는 I2b로 앞당김): Apple Developer Program 가입, 번들 ID `com.oddbirdle.app`(Android 패키지 이름과 함께 확정) 등록, App Store Connect에 앱 생성.
+- 전제(개정 3-1: 계정은 이미 있음, 업로드 자동화는 I2b로 앞당김): Apple Developer Program 가입, 번들 ID `com.yoyoyo.oddbirdle`(Android 패키지 이름과 함께 확정) 등록, App Store Connect에 앱 생성.
 - 서명: 처음엔 사용자 Mac의 Xcode 자동 서명으로 Archive → 업로드. CI 업로드는 App Store Connect API 키(GitHub 시크릿)로 나중에 붙인다.
 - 내부 테스터(같은 팀, 최대 100명)는 심사 없이 바로 설치. 외부 테스터는 베타 앱 심사가 필요.
 - Android와 달리 **12명·14일 비공개 테스트 같은 출시 전 의무 요건은 없다.**

@@ -1,10 +1,16 @@
 apply plugin: 'com.android.application'
 
+// Release signing: the upload key lives outside the repository (default ~/.oddbirdle-keys/keystore.properties, or the file named in
+// ODDBIRDLE_KEYSTORE_PROPS). Without it the release build is left unsigned, so CI and other machines still build.
+def keystoreProps = new Properties()
+def keystoreFile = file(System.getenv('ODDBIRDLE_KEYSTORE_PROPS') ?: "${System.getProperty('user.home')}/.oddbirdle-keys/keystore.properties")
+if (keystoreFile.exists()) keystoreFile.withInputStream { keystoreProps.load(it) }
+
 android {
-    namespace = "com.oddbirdle.app"
+    namespace = "com.yoyoyo.oddbirdle"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.oddbirdle.app"
+        applicationId "com.yoyoyo.oddbirdle"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
@@ -16,8 +22,19 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (keystoreProps['storeFile']) {
+                storeFile file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
+        }
+    }
     buildTypes {
         release {
+            if (keystoreProps['storeFile']) signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

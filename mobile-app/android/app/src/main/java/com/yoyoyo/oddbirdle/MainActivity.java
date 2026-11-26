@@ -1,4 +1,4 @@
-package com.oddbirdle.app;
+package com.yoyoyo.oddbirdle;
 
 import android.os.Build;
 import android.os.Bundle;

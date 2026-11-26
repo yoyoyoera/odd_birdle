@@ -29,7 +29,9 @@ test('app build: marked, offline, no ads or analytics, ONLINE and the rest off u
   const html = readFileSync(new URL('index.html', out), 'utf8');
   // Landscape only (touch-layout.js): the column beside the court whatever the window's shape, never the upright pad.
   assert.match(html, /<html lang="en" data-portal="app" data-orientation="landscape" data-features="">/);
-  assert.match(html, /html\[data-portal="app"\]\[data-orientation="landscape"\] main \{ display: grid;/);
+  // The court fills the screen's height; the icon column floats over the side strip.
+  assert.match(html, /html\[data-portal="app"\]\[data-orientation="landscape"\] main \{ display: block;/);
+  assert.match(html, /html\[data-portal="app"\]\[data-orientation="landscape"\] #studio-links \{ position: fixed;/);
   assert.ok(existsSync(new URL('touch-layout.js', out)));
   assert.match(html, /viewport-fit=cover/);
   assert.match(html, /@font-face[^}]*url\(fonts\/space-grotesk-650-latin\.woff2\)/);

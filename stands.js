@@ -34,6 +34,9 @@ export function makeStands(seed = Math.random() * 2147483646) {
   return { people, fill };
 }
 
+// The wall colour behind the crowd (the app paints its page in bands that carry on from the court).
+export const standsWall = palette => mix(palette.court, palette.ink, 0.05);
+
 const tonesFor = palette => {
   const m = amount => mix(palette.court, palette.ink, amount);
   return {

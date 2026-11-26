@@ -81,14 +81,45 @@ if (name === 'app') {
       --app-safe-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
       --app-safe-left: var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
       --app-safe-block: calc(var(--app-safe-top) + var(--app-safe-bottom)); overscroll-behavior: none; }
+    /* No dark margins: the page is painted by client.js in the court's bands; body and the icon column let it show. */
+    html[data-portal="app"] body { background: transparent; }
+    /* A game, not a page: nothing to zoom, select or look up with a long press or a double tap. */
+    html[data-portal="app"], html[data-portal="app"] body, html[data-portal="app"] * { touch-action: none; -webkit-user-select: none; user-select: none;
+      -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+    html[data-portal="app"] input, html[data-portal="app"] input[type="range"] { touch-action: none; }
     html[data-portal="app"] body { padding: var(--app-safe-top) var(--app-safe-right) var(--app-safe-bottom) var(--app-safe-left);
       overscroll-behavior: none; }
-    html[data-portal="app"][data-orientation="landscape"] main { display: grid; grid-template-columns: minmax(0, 1fr) 44px;
-      align-items: center; column-gap: 8px; padding-block: 6px;
-      width: min(1312px, 100% - 24px, calc((100svh - 12px - var(--app-safe-block)) * 1.8 + 52px)); }
-    html[data-portal="app"][data-orientation="landscape"][data-touch-tune-open] main { grid-template-columns: minmax(0, 1fr) 44px 64px;
-      width: min(1384px, 100% - 24px, calc((100svh - 12px - var(--app-safe-block)) * 1.8 + 124px)); }
-    html[data-portal="app"][data-orientation="landscape"] #studio-links { flex-direction: column; margin-top: 0; }
+    /* Fill the screen: the court is as tall as the screen (9:5, centred left to right, running a little into the side safe
+       areas where the notch side only covers a small corner); the icon column and the speed slider float over the side
+       strips on the right. */
+    html[data-portal="app"][data-orientation="landscape"] body { padding: 0; }
+    html[data-portal="app"][data-orientation="landscape"] main { display: block; padding: 0; margin: 0 auto;
+      width: min(1400px, 100svh * 1.8, calc(100vw - 2 * max(var(--app-safe-left), var(--app-safe-right)) + 32px)); }
+    html[data-portal="app"][data-orientation="landscape"] main { position: relative; }
+    /* Odd Birdle's buttons are square. Sound, speed, back and restart sit out in the side strips, low down on the right (the
+       notch is in the middle of a short side). The speed setting opens above them as + / value / − . */
+    html[data-portal="app"][data-orientation="landscape"] #studio-links { position: fixed; right: 20px; bottom: 36px; top: auto; gap: 8px;
+      flex-direction: column-reverse; margin: 0; z-index: 3; transform: none; }
+    html[data-portal="app"] #studio-links a, html[data-portal="app"] #sound-toggle, html[data-portal="app"] #touch-tune-toggle,
+    html[data-portal="app"][data-orientation="landscape"] #back, html[data-portal="app"][data-orientation="landscape"] #stage #game-control,
+    html[data-portal="app"] .tune-step {
+      width: 40px; height: 40px; min-width: 0; padding: 0; border: 0; border-radius: 0; opacity: 1; color: var(--ink);
+      background: color-mix(in srgb, var(--ink) 9%, transparent); transition: background .15s; }
+    html[data-portal="app"] #sound-toggle:active, html[data-portal="app"] #touch-tune-toggle:active, html[data-portal="app"] #back:active,
+    html[data-portal="app"] #game-control:active, html[data-portal="app"] .tune-step:active { background: color-mix(in srgb, var(--ink) 22%, transparent); }
+    html[data-portal="app"] #touch-tune-toggle[aria-expanded="true"] { background: color-mix(in srgb, var(--ink) 20%, transparent); }
+    html[data-portal="app"][data-orientation="landscape"] #back { position: fixed; left: 20px; top: 28px; z-index: 3; font-size: 20px; }
+    html[data-portal="app"][data-orientation="landscape"] #stage #game-control { position: fixed; right: 20px; left: auto; top: 28px; bottom: auto;
+      transform: none; z-index: 3; display: grid; place-items: center; }
+    html[data-portal="app"][data-orientation="landscape"] #touch-tune { position: fixed; right: 20px; bottom: 132px; top: auto; transform: none;
+      z-index: 3; width: 40px; padding: 0; flex-direction: column; gap: 4px; align-items: stretch; background: none; color: var(--ink); }
+    html[data-portal="app"] #touch-tune label, html[data-portal="app"] #touch-tune input { display: none; }
+    html[data-portal="app"] #touch-tune output { min-width: 0; text-align: center; font: 650 13px "Space Grotesk", system-ui, sans-serif; }
+    html[data-portal="app"] .tune-step { font: 650 22px/1 "Space Grotesk", system-ui, sans-serif; cursor: pointer; }
+    /* The connection bars are for online play only. */
+    html[data-portal="app"]:not([data-features~="online"]) #link-own { display: none; }
+    /* Pause covers the whole screen, the strips too. */
+    html[data-portal="app"] #pause-overlay { position: fixed; inset: 0; z-index: 5; }
     html[data-portal="app"] #guide { padding: calc(16px + var(--app-safe-top)) calc(16px + var(--app-safe-right))
       calc(16px + var(--app-safe-bottom)) calc(16px + var(--app-safe-left)); }
   </style>`);
