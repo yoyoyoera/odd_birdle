@@ -3,10 +3,12 @@
 // crazygames.com origins; itch.io serves HTML games from *.itch.zone; Newgrounds frames uploaded
 // HTML5 games into its pages from uploads.ungrounded.net (that one host, not the whole domain).
 // The CrazyGames iOS app embeds games from this (non-https) page; it is allowed as one exact origin.
-const appOrigins = new Map([['capacitor://app.crazygames.com', 'crazygames']]);
+// The Odd Birdle phone app: its WebView page is https://app.oddbirdle on Android and capacitor://app.oddbirdle on iOS
+// (capacitor.config.json server.hostname). ".oddbirdle" is not a real domain, so no website can claim this origin.
+const appOrigins = new Map([['capacitor://app.crazygames.com', 'crazygames'], ['capacitor://app.oddbirdle', 'app']]);
 
 export function requiresRematchReady(origin) {
-  return ['site', 'itch', 'y8', 'gamepix', 'gamedistribution'].includes(originSource(origin));
+  return ['site', 'app', 'itch', 'y8', 'gamepix', 'gamedistribution'].includes(originSource(origin));
 }
 
 export function originSource(origin) {
@@ -20,6 +22,7 @@ export function originSource(origin) {
   if (url.protocol !== 'https:') return undefined;
   const host = url.hostname;
   const within = domain => host === domain || host.endsWith('.' + domain);
+  if (host === 'app.oddbirdle') return 'app';
   if (within('oddbirdle.pages.dev')) return 'site';
   if (within('crazygames.com')) return 'crazygames';
   // GamePix support confirmed HTTPS gamepix.com subdomains for game frames.

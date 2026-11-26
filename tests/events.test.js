@@ -77,6 +77,12 @@ test('heartbeat only takes known screens', () => {
 test('only our site and the portals are allowed, by source', () => {
   assert.equal(originSource('https://oddbirdle.pages.dev'), 'site');
   assert.equal(originSource('https://abc123.oddbirdle.pages.dev'), 'site');
+  // The phone app (Android https, iOS capacitor://), the exact host only.
+  assert.equal(originSource('https://app.oddbirdle'), 'app');
+  assert.equal(originSource('capacitor://app.oddbirdle'), 'app');
+  assert.equal(originSource('http://app.oddbirdle'), undefined);
+  assert.equal(originSource('https://evil.app.oddbirdle'), undefined);
+  assert.equal(originSource('capacitor://localhost'), undefined);
   assert.equal(originSource('https://games.crazygames.com'), 'crazygames');
   assert.equal(originSource('https://www.crazygames.com'), 'crazygames');
   assert.equal(originSource('https://html-classic.itch.zone'), 'itch');

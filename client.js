@@ -474,7 +474,8 @@ function connect(request, via = request.type === 'join' ? 'code' : 'create') {
   quick.queued = false;
   const url = new URL('play', serverBase);
   if (!portal) url.searchParams.set('bomb', '1');
-  url.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  // Secure whenever the server is (the app's own page is served under its own scheme, never from the server's address).
+  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
   const connection = new WebSocket(url);
   socket = connection;
   connection.addEventListener('open', () => {

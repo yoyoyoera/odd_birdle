@@ -15,11 +15,14 @@ if (!['crazygames', 'itch', 'newgrounds', 'gamepix', 'y8', 'gamedistribution', '
   console.error('Usage: node scripts/build-portal.mjs crazygames|itch|newgrounds|gamepix|y8|gamedistribution|app');
   process.exit(1);
 }
-const appFeatures = (process.argv.find(arg => arg.startsWith('--features='))?.slice('--features='.length) ?? 'stages')
+const appFeatures = (process.argv.find(arg => arg.startsWith('--features='))?.slice('--features='.length) ?? 'stages,online')
   .split(',').map(feature => feature.trim().toLowerCase()).filter(Boolean);
 for (const feature of appFeatures) {
   if (!['stages', 'daily', 'online'].includes(feature)) throw new Error('Unknown feature: ' + feature);
 }
+// A test build of the app can play on another copy of the site (a preview deploy) instead of the live one.
+const serverArg = process.argv.find(arg => arg.startsWith('--server='))?.slice('--server='.length);
+if (serverArg && (name !== 'app' || !/^https:\/\/[a-z0-9.-]+\/$/.test(serverArg))) throw new Error('--server=https://host/ is for the app build only');
 const gdPreview = name === 'gamedistribution' && process.argv.includes('--preview');
 const diagnostics = name === 'gamedistribution' && process.argv.includes('--diagnostics');
 const gameId = process.env.GD_GAME_ID ?? '';
@@ -209,6 +212,10 @@ if (ownFont.includes(name)) {
 if (!html.includes(`data-portal="${name}"`)) throw new Error('Could not mark index.html for the portal.');
 writeFileSync(indexUrl, html);
 
+if (name === 'app' && serverArg) {
+  const portalFile = new URL('portal.js', out);
+  writeFileSync(portalFile, readFileSync(portalFile, 'utf8').replace("'https://oddbirdle.pages.dev/'", `'${serverArg}'`));
+}
 if (name === 'app') {
   // Inside the APK nothing is fetched from the web: every file is checked, not only the page. The one address allowed is
   // the match server's (portal.js siteUrl), and it is only used by ONLINE, which this build can leave off.
@@ -217,7 +224,7 @@ if (name === 'app') {
     if (!/\.(?:html|js|css)$/.test(file)) continue;
     const text = readFileSync(new URL(file, out), 'utf8');
     for (const match of text.matchAll(/https?:\/\/[^"'\s)<>`]+/g)) {
-      if (!(file === 'portal.js' && match[0] === 'https://oddbirdle.pages.dev/')) outside.push(file + ': ' + match[0]);
+      if (!(file === 'portal.js' && match[0] === (serverArg ?? 'https://oddbirdle.pages.dev/'))) outside.push(file + ': ' + match[0]);
     }
   }
   if (outside.length) throw new Error('app build still reaches outside: ' + outside.join(', '));
