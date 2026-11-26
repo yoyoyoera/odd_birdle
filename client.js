@@ -372,7 +372,7 @@ function connect(request, via = request.type === 'join' ? 'code' : 'create') {
         showNotice('OPPONENT LEFT');
         // A quick-match opponent leaving just sends you back to the CPU game and the queue.
         if (queueing) backToQuick(quick.finished ? undefined : 'opponent left');
-        else leave('Opponent left.');
+        else leave();
         break;
     }
   });
