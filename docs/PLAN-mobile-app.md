@@ -226,7 +226,10 @@ Android 실기기가 없는 동안 iOS로 같은 빌드 1을 병렬 진행한다
 - `[iOS]` Preferences는 UserDefaults에 저장된다(앱 삭제 전까지 유지). iOS WKWebView의 localStorage는 저장 공간 압박 때 지워질 수 있으므로 앱에서는 localStorage를 기록 저장소로 쓰지 않는다. 개인정보 매니페스트에 UserDefaults 사유 추가. Xcode로 다시 설치·TestFlight 새 빌드 설치 후 유지 확인.
 - 서브에이전트: B3과 **병렬 2개.** (a) 스테이지 UI + 저장 어댑터, (b) 결과 카드 공유.
 
-#### Step B3. 결과 카드 공유 ⬜
+#### Step B3. 결과 카드 공유 ✅ (코드·자동 테스트, 2026-11-26, Mac 세션; 📱 실기기 확인 남음)
+- 결과: 앱에서는 결과 화면(랜덤 대결과 보스 클리어)에 SHARE CARD 버튼이 뜬다. `app-share.js`가 카드를 PNG로 앱 캐시 폴더(`@capacitor/filesystem`)에 쓰고 `@capacitor/share`로 이미지와 문구("FULL-TIME 3:1 vs CPU Lv.5 ...")를 시스템 공유 시트에 넘긴다. 시트를 그냥 닫으면 실패로 보지 않고, 플러그인이 없는 브라우저 미리보기에서는 PNG를 내려받는다. 링크는 문구에 넣지 않았다(스토어 주소가 생기면 추가). `NSPhotoLibraryAddUsageDescription`은 Info.plist에 이미 있다. 자동 테스트: `tests/app-share.test.js`, `tests/app-card-share.test.js`(실제 client.js로 한 판을 끝내고 버튼 → 쓰기 → 공유 호출까지).
+- 남은 것: 실제 기기에서 메신저·사진 저장·Reddit 앱으로 이미지와 문구가 어떻게 전달되는지, 가로 화면에서 공유 시트가 가려지지 않는지.
+
 - `card.js`로 카드 이미지를 만든다.
 - 앱 캐시 폴더에 PNG로 저장한 뒤 `@capacitor/share`로 이미지와 문구를 공유한다. 브라우저 미리보기에서는 다운로드한다.
 - 📱 실기기 확인: 메신저, 갤러리 저장, Reddit 앱 등 실제 공유 대상에 이미지와 문구가 어떻게 전달되는지.

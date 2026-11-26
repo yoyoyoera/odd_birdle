@@ -29,6 +29,8 @@ export const redditIdentity = () => redditIdentityReady;
 export const redditName = () => redditUser;
 // Whether this build can post a card to Reddit.
 export const canPostCard = portal === 'reddit';
+// Whether this build can hand a card to the phone's share sheet.
+export const canShareCard = portal === 'app';
 // Portals that allow no links out of the game and no analytics of our own: invites are the room code, nothing is
 // counted, and the debug and test pages are off. The apps are the same: everything they need is inside them.
 export const closedPortal = ['gamepix', 'y8', 'gamedistribution', 'app', 'reddit'].includes(portal);

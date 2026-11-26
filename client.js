@@ -26,6 +26,7 @@ import { createDemo } from './demo.js';
 import { startHeartbeat, track, trackVisit } from './analytics.js';
 import { features } from './features.js';
 import { createAppStorage } from './app-storage.js';
+import { shareCardImage } from './app-share.js';
 // The stage list and its saved clears: in the Reddit app always, in the phone app when it is built with `stages`.
 const stagesOn = portal === 'reddit' || (portal === 'app' && features.stages);
 import { landscapeOnly, touchLayout } from './touch-layout.js';
@@ -37,7 +38,7 @@ import {
 } from './juice.js';
 import {
   initPortal, isInstantMultiplayer, loadingStart, loadingStop, matchBreak, matchEnded, onJoinRoom, onPortalMute, onPortalPause,
-  canPostCard, closedPortal, expandRedditView, exitRedditExpanded, onRedditViewMode, redditName, redditViewMode, redditIdentity, coordinatedBreak, portal, portalInviteLink, portalInviteRoom, portalMuted, roomFull, roomLeft, roomOpen, serverBase, setAppPaused,
+  canPostCard, canShareCard, closedPortal, expandRedditView, exitRedditExpanded, onRedditViewMode, redditName, redditViewMode, redditIdentity, coordinatedBreak, portal, portalInviteLink, portalInviteRoom, portalMuted, roomFull, roomLeft, roomOpen, serverBase, setAppPaused,
   setPlaying, siteUrl
 } from './portal.js';
 
@@ -650,7 +651,7 @@ function updateHud(view) {
   const following = stagesOn && mode === 'solo' && finished && selectedStage && !selectedStage.daily && view.winner === 'left' ? nextStageAfter(selectedStage) : undefined;
   nextStageButton.hidden = !following;
   // A card is for random matches, and for beating a boss; every ordinary stage would only flood the comments.
-  const cardVisible = canPostCard && mode === 'solo' && finished && !!view.winner &&
+  const cardVisible = (canPostCard || canShareCard) && mode === 'solo' && finished && !!view.winner &&
     (selectedStage?.daily ? !!dailyResult : !selectedStage || cardStageIds.has(selectedStage.id));
   if (cardButton.hidden === cardVisible) { cardButton.hidden = !cardVisible; if (cardVisible) setCardState('ready'); }
 }
@@ -1716,13 +1717,15 @@ cpuLevelButton.addEventListener('click', () => {
   showCpuLevel();
 });
 const cardStageIds = new Set([10, 16, 20, 21]);
-const cardNames = { ready: 'Post card', posting: 'Posting…', posted: 'Posted', failed: 'Could not post, try again' };
+const cardNames = canShareCard
+  ? { ready: 'Share card', posting: 'Preparing…', posted: 'Shared', failed: 'Could not share, try again' }
+  : { ready: 'Post card', posting: 'Posting…', posted: 'Posted', failed: 'Could not post, try again' };
 function setCardState(state) {
   cardButton.dataset.state = state;
   cardButton.disabled = state === 'posting' || state === 'posted';
   cardButton.setAttribute('aria-label', cardNames[state]);
   cardButton.title = cardNames[state];
-  cardLabel.textContent = state === 'ready' ? 'POST CARD' : cardNames[state].toUpperCase();
+  cardLabel.textContent = cardNames[state].toUpperCase();
 }
 
 // Posts the full-time card as a comment from inside Reddit (the app's own server does the posting, as the player).
@@ -1751,6 +1754,13 @@ cardButton.addEventListener('click', async () => {
     const text = dailyCard
       ? `DAILY #${dailyCard.number} ${dailyCard.date}: ${dailyCard.title}. CLEARED in ${dailyCard.seconds}s, #${dailyCard.rank} to clear today. ${line}`
       : `FULL-TIME ${summary.mine}:${summary.theirs} vs CPU Lv.${summary.cpuLevel}. ${label ? `${label}: ${cardStage.name}. ` : ''}${line}`;
+    if (canShareCard) {
+      // The phone app: the share sheet, as often as the player likes.
+      const outcome = await shareCardImage({ canvas, text });
+      setCardState(outcome === 'failed' ? 'failed' : 'ready');
+      cardButton.disabled = false;
+      return;
+    }
     const response = await fetch('/api/card', {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ image: canvas.toDataURL('image/jpeg', 0.9), ...(dailyCard ? { daily: true } : { text }) })
