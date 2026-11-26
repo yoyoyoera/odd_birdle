@@ -44,7 +44,7 @@
 | 랭킹 이름 | **자동 별칭**(예: `Swift Plover 42`). 자유 닉네임은 1.0 범위에서 제외한다 |
 | 온라인 순서 | **방 코드 먼저**, QUICK MATCH는 그다음. 실제 Android가 보내는 `Origin` 값을 확인한 뒤 그 값만 허용한다 |
 | 광고 | 1.0 내부 테스트에는 넣지 않는다 |
-| 패키지 이름 | 첫 Play 업로드 전에 확정한다(가칭 `com.yoyoyo.oddbirdle`). 업로드 뒤에는 바꿀 수 없다. iOS 번들 ID도 같은 값으로 맞춘다 |
+| 패키지 이름 | **확정: `com.yoyoyo.oddbirdle`**(Android 패키지·iOS 번들 ID 공통, 사용자의 다른 studiyo 앱과 같은 규칙). Play 비공개 테스트에 versionCode 1로 업로드됨(11/25). 이후 업로드는 versionCode 2 이상 |
 | 화면 방향 (개정 3) | **Android·iOS 모두 가로 전용**(왼쪽·오른쪽 가로 둘 다 허용, 세로 금지). 앱에서는 세로 엄지 패드·세로 배치를 쓰지 않고, 웹판의 "옆으로 든 폰" 조작(화면 전체 패드)이 앱의 기본 조작이다. 웹사이트·포털은 지금처럼 세로도 지원한다 |
 | iOS 기기 범위 | 1.0은 **iPhone 전용**(iPad는 iPhone 앱 호환 모드로만 실행). iPad 전용 배치·스크린샷은 범위 밖 |
 | iOS 최소 버전 | Capacitor 8 iOS 최소 배포 버전 **iOS 15.0**(`@capacitor/ios` 8.6.2 podspec에서 확인) |
