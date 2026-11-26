@@ -27,6 +27,7 @@ import { startHeartbeat, track, trackVisit } from './analytics.js';
 import { features } from './features.js';
 import { createAppStorage } from './app-storage.js';
 import { shareCardImage } from './app-share.js';
+import { createDuoTouch } from './duo-touch.js';
 // The stage list and its saved clears: in the Reddit app always, in the phone app when it is built with `stages`.
 const stagesOn = portal === 'reddit' || (portal === 'app' && features.stages);
 import { landscapeOnly, touchLayout } from './touch-layout.js';
@@ -176,6 +177,9 @@ const singles = createGame({
   quickEvents: (testEffects || onlyEffectTest) && testParams.get('fast') === '1'
 });
 let solo = singles;
+// 2 PLAYERS (the app): two people on one device. The same game without a CPU, each racket moved by its own half of the screen.
+const duoGame = createGame({ withCpu: false });
+let duo = false;
 const demo = createDemo();
 const sound = createSound();
 const soundCues = createCueTracker();
@@ -466,6 +470,7 @@ function leave(message = '', stay = false) {
   stageIntro.hidden = true;
   youFlag.hidden = true;
   quick.on = false;
+  duo = false;
   showQueueStatus();
   setMode('menu', message);
 }
@@ -609,9 +614,9 @@ function updateHud(view) {
   cpuLabel.dataset.side = shownSide() === 'left' ? 'right' : 'left';
   // Inside Reddit the player's own name stands where YOU does.
   const redditUser = portal === 'reddit' ? redditName() : '';
-  sideLabel.textContent = redditUser ? 'u/' + (redditUser.length > 14 ? redditUser.slice(0, 13) + '…' : redditUser) : 'YOU';
-  cpuLabel.hidden = mode !== 'solo' || !view.cpuLevel;
-  setText(cpuLabel, view.doubles ? 'CPU TEAM' : view.cpuLevel ? 'CPU Lv. ' + view.cpuLevel : '');
+  sideLabel.textContent = duo ? 'P1' : redditUser ? 'u/' + (redditUser.length > 14 ? redditUser.slice(0, 13) + '…' : redditUser) : 'YOU';
+  cpuLabel.hidden = mode !== 'solo' || (!view.cpuLevel && !duo);
+  setText(cpuLabel, duo ? 'P2' : view.doubles ? 'CPU TEAM' : view.cpuLevel ? 'CPU Lv. ' + view.cpuLevel : '');
   for (const { element, side, label } of shuttleLights) {
     element.hidden = !view.shuttleWins || stageIntroRemaining > 0;
     if (element.hidden) continue;
@@ -631,7 +636,7 @@ function updateHud(view) {
     if (scoreboard.value !== value) scoreboard.value = value;
   }
   winnerLabel.hidden = !winner;
-  setText(winnerLabel, winner ? (winner === localSide ? 'You Win!' : 'You Lose..') : '');
+  setText(winnerLabel, winner ? (duo ? (winner === 'left' ? 'P1 WINS' : 'P2 WINS') : winner === localSide ? 'You Win!' : 'You Lose..') : '');
   if (phase !== 'finished') recordNoted = false;
   const record = phase === 'finished' && (juice.record || selectedStage) ? recordText : '';
   recordLabel.hidden = !record;
@@ -664,7 +669,7 @@ function updateHud(view) {
   const following = stagesOn && mode === 'solo' && finished && selectedStage && !selectedStage.daily && view.winner === 'left' ? nextStageAfter(selectedStage) : undefined;
   nextStageButton.hidden = !following;
   // A card is for random matches, and for beating a boss; every ordinary stage would only flood the comments.
-  const cardVisible = (canPostCard || canShareCard) && mode === 'solo' && finished && !!view.winner &&
+  const cardVisible = (canPostCard || canShareCard) && !duo && mode === 'solo' && finished && !!view.winner &&
     (selectedStage?.daily ? !!dailyResult : !selectedStage || cardStageIds.has(selectedStage.id));
   if (cardButton.hidden === cardVisible) { cardButton.hidden = !cardVisible; if (cardVisible) setCardState('ready'); }
 }
@@ -673,6 +678,7 @@ function updateHud(view) {
 function noteFinish(view) {
   if ((mode !== 'solo' && mode !== 'online') || view.phase !== 'finished' || finishedNoted || !view.winner) return;
   finishedNoted = true;
+  if (duo) return;
   if (mode === 'online') reportNet();
   const result = view.winner === (mode === 'solo' ? 'left' : localSide) ? 'win' : 'lose';
   noteRecord(view, result);
@@ -989,6 +995,24 @@ function touchDrag(event, surface) {
   touchPush(event.timeStamp);
 }
 
+// 2 PLAYERS: every finger is followed on its own (the one-player pad above follows only the first).
+const duoTouch = createDuoTouch({
+  screenWidth: () => window.innerWidth,
+  scale: () => width / court.getBoundingClientRect().width * touchGain,
+  center, width, floor, racketRadius
+});
+function duoDrag(event) {
+  const moved = event.type === 'pointerdown' ? duoTouch.down(event.pointerId, event.clientX, event.clientY)
+    : duoTouch.move(event.pointerId, event.clientX, event.clientY);
+  if (!moved) return;
+  if (event.type === 'pointerdown') {
+    try { event.target.setPointerCapture(event.pointerId); } catch { /* moves over the surface still arrive */ }
+  }
+  const phase = currentView().phase;
+  if (gamePaused || (phase !== 'live' && phase !== 'between' && phase !== 'starting')) return;
+  solo.moveRacket(moved.side, { x: moved.racket.x, y: moved.racket.y, time: event.timeStamp });
+}
+
 function touchEnd(event) {
   if (!thumb || (event && event.pointerId !== thumb.id)) return;
   thumb = undefined;
@@ -1016,15 +1040,17 @@ document.addEventListener('pointerdown', event => {
   if (event.pointerType === 'mouse' || padActive || gamePaused || (mode !== 'solo' && mode !== 'online')) return;
   if (event.target?.closest?.(screenPadSkip)) return;
   event.preventDefault?.();
+  if (duo && mode === 'solo') { duoDrag(event); return; }
   touchDrag(event, event.target);
 });
 document.addEventListener('pointermove', event => {
+  if (duo && duoTouch.has(event.pointerId)) { event.preventDefault?.(); duoDrag(event); return; }
   if (!thumb || event.pointerId !== thumb.id || event.target?.closest?.('#pad')) return;
   event.preventDefault?.();
   touchDrag(event, event.target);
 });
 for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
-  document.addEventListener(type, event => { if (!event.target?.closest?.('#pad')) touchEnd(event); });
+  document.addEventListener(type, event => { duoTouch.up(event.pointerId); if (!event.target?.closest?.('#pad')) touchEnd(event); });
 }
 
 function drawRacket(position, fill, stroke, side) {
@@ -1274,7 +1300,7 @@ function drawDust() {
 
 // First visit only: a faint "Move to hit" over the player's half until their first hit.
 function drawHint(view) {
-  if (!hint.shown || !juice.hint || !['starting', 'live', 'between'].includes(view.phase)) return;
+  if (duo || !hint.shown || !juice.hint || !['starting', 'live', 'between'].includes(view.phase)) return;
   let alpha = 0.35;
   if (hint.fading !== undefined) {
     const t = (performance.now() - hint.fading) / juiceTiming.hintFadeMs;
@@ -1793,6 +1819,7 @@ cardButton.addEventListener('click', async () => {
 // Shows YOU over the player's half for a moment as a match starts.
 let youFlagTimer;
 function flagYou() {
+  if (duo) return;
   touchEnd();
   touchRacket = undefined;
   youFlag.dataset.side = shownSide();
@@ -1807,6 +1834,18 @@ function flagYou() {
 // Each CPU match puts the player on a random side (the ?test= pages keep the left).
 function restartCpu() {
   stands = undefined; // a new crowd for the new match, sized for the stage
+  if (duo) {
+    // Two people: no CPU, no mirroring, each stays on their own side for every match (so nobody has to swap seats).
+    cpuMirrored = false;
+    setMirroredShapes(false);
+    duoTouch.reset();
+    solo = duoGame;
+    duoGame.restart(3, undefined, null, { touchLimit: threeTouchLimit });
+    // Both rackets are on court from the start (each is moved by its own finger afterwards).
+    for (const side of ['left', 'right']) duoGame.moveRacket(side, { ...duoTouch.down(-1, side === 'left' ? 0 : window.innerWidth, 0).racket, time: performance.now() });
+    duoTouch.up(-1);
+    return;
+  }
   cpuMirrored = !testParams.has('test') && Math.random() < 0.5;
   // Before the restart, so the first serve's outline is already built for this court.
   setMirroredShapes(cpuMirrored);
@@ -1816,7 +1855,8 @@ function restartCpu() {
   solo.restart(3, rules?.cpuLevel ?? selectedCpuLevel, rules ?? null, { touchLimit });
 }
 
-function startCpu() {
+function startCpu({ duo: twoPlayers = false } = {}) {
+  duo = twoPlayers;
   matchStats.reset();
   restartCpu();
   accumulator = 0;
@@ -1824,7 +1864,16 @@ function startCpu() {
   if (selectedStage) showStageIntro();
   else flagYou();
   finishedNoted = false;
-  track('game_start', { mode: 'cpu', level: String(selectedCpuLevel ?? 'random') });
+  if (!duo) track('game_start', { mode: 'cpu', level: String(selectedCpuLevel ?? 'random') });
+}
+// 2 PLAYERS: the phone app only.
+const duoButton = document.querySelector('#duo');
+if (portal === 'app') {
+  duoButton.hidden = false;
+  duoButton.addEventListener('click', () => afterMatchBreak(() => {
+    selectedStage = undefined;
+    startCpu({ duo: true });
+  }));
 }
 document.querySelector('#cpu').addEventListener('click', () => afterMatchBreak(() => {
   selectedStage = undefined;
