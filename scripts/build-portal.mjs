@@ -130,11 +130,10 @@ if (name === 'app') {
     html[data-portal="app"] #stage-list { scrollbar-width: none; }
     html[data-portal="app"] #stage-list::-webkit-scrollbar { display: none; }
     /* The cards slide out under the screen's edges and fade away there instead of being cut off. */
-    html[data-portal="app"] #stage-list { --edge: 70px;
-      margin-left: calc(-1 * (var(--app-safe-left) + var(--edge))); margin-right: calc(-1 * (var(--app-safe-right) + var(--edge)));
-      padding-left: calc(var(--app-safe-left) + var(--edge)); padding-right: calc(var(--app-safe-right) + var(--edge));
-      scroll-padding-left: calc(var(--app-safe-left) + var(--edge)); scroll-padding-right: calc(var(--app-safe-right) + var(--edge));
-      -webkit-mask-image: linear-gradient(to right, transparent 0, #000 calc(var(--app-safe-left) + var(--edge)), #000 calc(100% - var(--app-safe-right) - var(--edge)), transparent 100%);
+    /* The list reaches out to the safe edges of the screen (clear of the Dynamic Island); the first card starts under the title. */
+    html[data-portal="app"] #stage-list { margin-inline: -76px; padding-inline: 76px; scroll-padding-inline: 76px;
+      -webkit-mask-image: linear-gradient(to right, transparent 0, #000 76px, #000 calc(100% - 76px), transparent 100%);
+      mask-image: linear-gradient(to right, transparent 0, #000 76px, #000 calc(100% - 76px), transparent 100%); }
       mask-image: linear-gradient(to right, transparent 0, #000 calc(var(--app-safe-left) + var(--edge)), #000 calc(100% - var(--app-safe-right) - var(--edge)), transparent 100%); }
       mask-image: linear-gradient(to right, transparent 0, #000 44px, #000 calc(100% - 44px), transparent 100%); }
     html[data-portal="app"] #stage-prev { left: calc(var(--app-safe-left) + 80px); } html[data-portal="app"] #stage-next { right: calc(var(--app-safe-right) + 80px); }
