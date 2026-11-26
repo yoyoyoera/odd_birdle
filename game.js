@@ -366,7 +366,7 @@ export function projectStrike(pose, motion, seconds, force) {
   return result;
 }
 
-export function createGame({ withCpu = false, quickEvents = false, bombEffects = false, touchLimit: initialTouchLimit, rules: initialRules, externallyDrivenCpu = false } = {}) {
+export function createGame({ withCpu = false, twoPlayers = false, quickEvents = false, bombEffects = false, touchLimit: initialTouchLimit, rules: initialRules, externallyDrivenCpu = false } = {}) {
   // Rules belong to a match; test-page overrides and ordinary random matches keep their old defaults.
   let rules = initialRules ? { ...initialRules } : undefined;
   let permanentAge = 0;
@@ -393,6 +393,9 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
   const stageEffectPool = () => livePool.filter(effect =>
     rules?.effects !== 'none' && (!Array.isArray(rules?.effects) || rules.effects.includes(effect.id)) &&
     !(hasPermanentBumper() && effect.id === 'bumper'));
+  // Played on this device (against the CPU, or by two people on one screen): contact is judged here, as the shuttle is,
+  // not from what a remote player saw (the online way).
+  const local = withCpu || twoPlayers;
   let netReturn;
   let baseNetTop = netTop;
   let matchNetTop = netTop;
@@ -1244,7 +1247,7 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
     if (activeEffect?.id === 'freeze') return;
     Object.assign(next, swingMotion(previous, next));
     if (!doubles && next.vy < 0 && !isSwing(next) && supportShuttle(side, previous, next)) return;
-    if (withCpu) checkContact(side, previous, next, next.vx, next.vy);
+    if (local) checkContact(side, previous, next, next.vx, next.vy);
     else onlineContact(side, previous, next, frame, false, sample, previous === next ? undefined : previous.seenTime);
   }
 
@@ -1550,7 +1553,7 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
       else if (!lastHitter) reason = 'missed serve';
       // Back on the hitter's own side off the net: say so.
       else if (landingSide === lastHitter) reason = cordTouches ? 'Net' : 'own court';
-      if (withCpu) finishPoint(winner, reason);
+      if (local) finishPoint(winner, reason);
       else pendingLanding = { winner, reason, remaining: 0.24 };
       return;
     }
@@ -1662,17 +1665,19 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
     }
     if (phase !== 'live' || pendingLanding) return;
 
-    if (withCpu) {
-      const side = 'left';
-      const racket = rackets[side];
-      if (racket) {
+    if (local) {
+      for (const side of withCpu ? ['left'] : ['left', 'right']) {
+        const racket = rackets[side];
+        if (!racket) continue;
         racket.age += dt;
         const motion = contactMotion(racket, racket.time + racket.age * 1000);
         // Same flight only: a bounce or a hit in this step moved it somewhere it did not fly to.
         checkContact(side, racket, racket, motion.vx, motion.vy, flightBefore === flight ? before : undefined);
       }
-      if (!externallyDrivenCpu && phase === 'live') moveCpus(dt);
-      if (decoys.length && cpu) racketPopsDecoys(cpu, cpu);
+      if (withCpu) {
+        if (!externallyDrivenCpu && phase === 'live') moveCpus(dt);
+        if (decoys.length && cpu) racketPopsDecoys(cpu, cpu);
+      }
     }
   }
 

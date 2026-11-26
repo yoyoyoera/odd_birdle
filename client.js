@@ -178,7 +178,7 @@ const singles = createGame({
 });
 let solo = singles;
 // 2 PLAYERS (the app): two people on one device. The same game without a CPU, each racket moved by its own half of the screen.
-const duoGame = createGame({ withCpu: false });
+const duoGame = createGame({ twoPlayers: true });
 let duo = false;
 const demo = createDemo();
 const sound = createSound();
