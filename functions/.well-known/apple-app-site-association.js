@@ -1,7 +1,7 @@
 // Tells iOS that invite links (/join/CODE) open the Odd Birdle app when it is installed (Universal Links).
 const body = {
   applinks: {
-    details: [{ appIDs: ['C789GCURC5.com.yoyoyo.oddbirdle'], components: [{ '/': '/join/*' }] }]
+    details: [{ appIDs: ['C789GCURC5.com.yoyoyo.oddbirdle'], components: [{ '/': '/join/*' }, { '/': '/', '?': { room: '??????' } }] }]
   }
 };
 

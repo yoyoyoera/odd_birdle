@@ -13,7 +13,7 @@ import { launchConfetti, confettiAt } from './confetti.js';
 import { createPlayback, followStrikeClock, legacyTuning } from './playback.js';
 import { createRacketSender } from './net-send.js';
 import { createNetMeter } from './net-quality.js';
-import { normalizeRoomCode, roomFromLink, roomLink } from './room-link.js';
+import { inviteUrl, normalizeRoomCode, roomFromLink, roomLink } from './room-link.js';
 import { createDemo } from './demo.js';
 import { startHeartbeat, track, trackVisit } from './analytics.js';
 import { createSound } from './sound.js';
@@ -1816,7 +1816,7 @@ function showCopyResult(label) {
 }
 copyLink.addEventListener('click', async () => {
   // On a portal, invite links stay on the portal (CrazyGames) or point at our site.
-  const link = portalInviteLink(roomCode.value) ?? roomLink(roomCode.value, portal ? siteUrl : location.href);
+  const link = portalInviteLink(roomCode.value) ?? inviteUrl(roomCode.value, portal ? siteUrl : location.href);
   try {
     await navigator.clipboard.writeText(link);
     showCopyResult('COPIED');
