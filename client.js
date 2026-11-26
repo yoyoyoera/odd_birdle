@@ -425,6 +425,8 @@ function setMode(next, message = '') {
   menu.hidden = next !== 'menu';
   stagePanel.hidden = next !== 'stages';
   accountPanel.hidden = next !== 'account';
+  // Behind the account screen the title steps aside and the demo match keeps playing.
+  stage.toggleAttribute('data-account', next === 'account');
   if (next === 'menu' && (portal === 'reddit' || portal === 'app') && typeof refreshDaily === 'function' && dailyReady) refreshDaily();
   roomDisplay.hidden = next !== 'waiting';
   joinForm.hidden = next !== 'join';
@@ -2210,6 +2212,11 @@ async function renderAccount() {
   byId('ac-nick').hidden = !profile?.account || profile.nicknameLocked;
   byId('ac-nick').textContent = profile?.nickname ? 'CHANGE NICKNAME' : 'SET NICKNAME';
   byId('ac-signout').hidden = !profile?.account;
+  const cleared = dailyState?.calendar?.length ?? 0;
+  const streak = dailyState ? currentStreak(dailyState) : 0;
+  byId('ac-clears').textContent = `${cleared} ${cleared === 1 ? 'CLEAR' : 'CLEARS'}`;
+  byId('ac-streak').textContent = `${streak}-DAY STREAK`;
+  byId('ac-stats').hidden = !dailyState;
   byId('account-name').textContent = profile?.name ?? 'ACCOUNT';
 }
 

@@ -150,7 +150,7 @@ if (name === 'app') {
     html[data-portal="app"] #stage-list::-webkit-scrollbar { display: none; }
     /* DAILY and ACCOUNT: whole-screen sheets like the stage list, in the same square style. */
     html[data-portal="app"] #account-panel { position: fixed; inset: 0; z-index: 2; box-sizing: border-box;
-      display: flex; flex-direction: column; gap: 14px; background: var(--court); color: var(--ink); overflow: hidden;
+      display: flex; flex-direction: column; gap: 14px; background: transparent; color: var(--ink); overflow: hidden;
       --padL: max(calc(var(--app-safe-left) + 10px), 72px); --padR: max(calc(var(--app-safe-right) + 10px), 72px);
       padding: max(var(--app-safe-top), 28px) var(--padR) max(var(--app-safe-bottom), 14px) var(--padL); }
     html[data-portal="app"] #account-panel[hidden] { display: none; }
@@ -161,15 +161,30 @@ if (name === 'app') {
       background: color-mix(in srgb, var(--ink) 9%, transparent); color: var(--ink); font-family: inherit; font-weight: 650; font-size: 14px; letter-spacing: .06em; }
     html[data-portal="app"] #account-panel button:active:not(:disabled) { background: color-mix(in srgb, var(--ink) 22%, transparent); }
     html[data-portal="app"] #account-panel button:disabled { opacity: .45; }
-    html[data-portal="app"] #account-body { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; overflow-y: auto;
-      touch-action: pan-y; }
+    html[data-portal="app"] #stage[data-account] h1 { display: none; }
+    /* The title sits on its own soft tile, so it reads over the crowd; the demo match shows through everything else. */
+    html[data-portal="app"] #account-panel header h2 { padding: 2px 14px; background: color-mix(in srgb, var(--court) 78%, transparent);
+      backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+    html[data-portal="app"] #ac-side { padding: 14px 18px; background: color-mix(in srgb, var(--ink) 8%, transparent);
+      backdrop-filter: blur(1.5px); -webkit-backdrop-filter: blur(1.5px); }
+    html[data-portal="app"] #ac-card, html[data-portal="app"] #ac-side { margin-top: 6px; }
+    html[data-portal="app"] #account-body { flex: 1; min-height: 0; display: flex; gap: 22px; align-items: stretch; }
     html[data-portal="app"] #account-body p { margin: 0; }
-    html[data-portal="app"] #ac-name { font-size: 30px; font-weight: 650; }
-    html[data-portal="app"] #ac-status { font-size: 14px; letter-spacing: .08em; opacity: .65; }
-    html[data-portal="app"] #ac-signin p { font-size: 15px; opacity: .8; margin-bottom: 8px; }
+    html[data-portal="app"] #ac-card { flex: 0 0 38%; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 6px; padding: 16px 20px;
+      background: color-mix(in srgb, var(--ink) 8%, transparent); backdrop-filter: blur(1.5px); -webkit-backdrop-filter: blur(1.5px); }
+    html[data-portal="app"] #ac-name { font-size: 30px; font-weight: 650; line-height: 1.1; overflow-wrap: anywhere; }
+    html[data-portal="app"] #ac-status { font-size: 13px; letter-spacing: .1em; opacity: .7; }
+    html[data-portal="app"] #ac-stats { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    html[data-portal="app"] #ac-stats[hidden] { display: none; }
+    html[data-portal="app"] #ac-stats span { padding: 6px 10px; font-size: 12px; font-weight: 650; letter-spacing: .08em; background: color-mix(in srgb, var(--ink) 10%, transparent); }
+    html[data-portal="app"] #ac-side { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 10px; overflow-y: auto; touch-action: pan-y; }
+    html[data-portal="app"] #ac-signin p { font-size: 14px; font-weight: 650; opacity: .8; margin-bottom: 8px; }
     html[data-portal="app"] #ac-providers, html[data-portal="app"] #ac-actions { display: flex; flex-wrap: wrap; gap: 10px; }
     html[data-portal="app"] #ac-providers button { min-height: 46px; }
     html[data-portal="app"] #ac-nick { align-self: flex-start; min-height: 46px; }
+    html[data-portal="app"] #ac-apple { background: var(--ink); color: var(--court); }
+    html[data-portal="app"] #ac-google { background: transparent; box-shadow: inset 0 0 0 2px var(--ink); }
+    html[data-portal="app"] #ac-delete { color: #a82f23; }
     /* The menu, Reddit style: the mode buttons in a column on the left, the daily card with the first five to clear it on the right.
        --cw is one hundredth of the court's width (the court fills the screen's height), so sizes follow the court like on Reddit. */
     html[data-portal="app"] { --cw: min(1.8vh, 1vw); }
@@ -191,7 +206,7 @@ if (name === 'app') {
     html[data-portal="app"] #menu button[hidden] { display: none; }
     html[data-portal="app"] #daily-teaser { grid-area: card; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto auto 1fr auto;
       min-width: 0; padding: calc(var(--cw) * 1.2) calc(var(--cw) * 1.8); text-align: left; color: var(--ink);
-      background: color-mix(in srgb, var(--ink) 8%, var(--court)); }
+      background: color-mix(in srgb, var(--ink) 8%, transparent); backdrop-filter: blur(1.5px); -webkit-backdrop-filter: blur(1.5px); }
     html[data-portal="app"] #daily-teaser[hidden] { display: none; }
     html[data-portal="app"] #daily-teaser > * { grid-column: 1 / -1; }
     html[data-portal="app"] #teaser-head { display: flex; justify-content: space-between; gap: 8px; margin: 0; font-size: max(8px, calc(var(--cw) * 1.5)); font-weight: 650; letter-spacing: .08em; }

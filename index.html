@@ -585,22 +585,27 @@
     <section id="account-panel" aria-label="Account" hidden>
       <header><h2>ACCOUNT</h2></header>
       <div id="account-body">
-        <p id="ac-name"></p>
-        <p id="ac-status"></p>
-        <div id="ac-signin" hidden>
-          <p>Sign in to pick a nickname and keep your daily record on every phone you use.</p>
-          <div id="ac-providers">
-            <button id="ac-apple" type="button" hidden>SIGN IN WITH APPLE</button>
-            <button id="ac-google" type="button" hidden>SIGN IN WITH GOOGLE</button>
+        <div id="ac-card">
+          <p id="ac-name"></p>
+          <p id="ac-status"></p>
+          <div id="ac-stats"><span id="ac-clears"></span><span id="ac-streak"></span></div>
+        </div>
+        <div id="ac-side">
+          <div id="ac-signin" hidden>
+            <p>Sign in to pick a nickname and keep your daily record on every phone you use.</p>
+            <div id="ac-providers">
+              <button id="ac-apple" type="button" hidden>SIGN IN WITH APPLE</button>
+              <button id="ac-google" type="button" hidden>SIGN IN WITH GOOGLE</button>
+            </div>
           </div>
+          <button id="ac-nick" type="button" hidden>SET NICKNAME</button>
+          <div id="ac-actions">
+            <button id="ac-signout" type="button" hidden>SIGN OUT</button>
+            <button id="ac-code" type="button">SHOW DELETE CODE</button>
+            <button id="ac-delete" type="button">DELETE MY DATA</button>
+          </div>
+          <p id="ac-message" role="status"></p>
         </div>
-        <button id="ac-nick" type="button" hidden>SET NICKNAME</button>
-        <div id="ac-actions">
-          <button id="ac-signout" type="button" hidden>SIGN OUT</button>
-          <button id="ac-code" type="button">SHOW DELETE CODE</button>
-          <button id="ac-delete" type="button">DELETE MY DATA</button>
-        </div>
-        <p id="ac-message" role="status"></p>
       </div>
     </section>
     <div id="expand-gate" hidden>
