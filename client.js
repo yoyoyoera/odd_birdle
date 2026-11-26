@@ -68,6 +68,15 @@ const joinForm = document.querySelector('#join-form');
 const codeInput = document.querySelector('#code-input');
 const lobbyMessage = document.querySelector('#lobby-message');
 const queueStatus = document.querySelector('#queue-status');
+const notice = document.querySelector('#notice');
+let noticeTimer;
+// A short notice over the court: the opponent left, the connection dropped.
+function showNotice(text, ms = 3500) {
+  setText(notice, text);
+  notice.hidden = false;
+  clearTimeout(noticeTimer);
+  noticeTimer = setTimeout(() => { notice.hidden = true; }, ms);
+}
 const copyLink = document.querySelector('#copy-link');
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
@@ -354,11 +363,13 @@ function connect(request, via = request.type === 'join' ? 'code' : 'create') {
         }
         break;
       case 'error':
+        if (/away too long/i.test(message.message ?? '')) showNotice('YOU WERE AWAY TOO LONG');
         leave();
         setMode(join ? 'join' : 'menu', message.message);
         if (join) codeInput.focus();
         break;
       case 'left':
+        showNotice('OPPONENT LEFT');
         // A quick-match opponent leaving just sends you back to the CPU game and the queue.
         if (queueing) backToQuick(quick.finished ? undefined : 'opponent left');
         else leave('Opponent left.');
@@ -368,6 +379,7 @@ function connect(request, via = request.type === 'join' ? 'code' : 'create') {
   connection.addEventListener('close', () => {
     if (socket !== connection) return;
     const wasPlaying = mode === 'online';
+    if (wasPlaying) showNotice('CONNECTION LOST');
     if (queueing) {
       if (wasPlaying) backToQuick(quick.finished ? undefined : 'connection lost');
       else {
