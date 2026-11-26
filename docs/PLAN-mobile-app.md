@@ -286,7 +286,11 @@ Android 실기기가 없는 동안 iOS로 같은 빌드 1을 병렬 진행한다
   - → 사용자와 결정한다.
 - 서브에이전트: 사용 안 함(설계).
 
-#### Step D2. 앱 API Worker + D1 ⬜
+#### Step D2. 앱 API Worker + D1 ✅ (2026-11-26, Mac 세션, 미리보기·실서버 배포·시험 완료)
+- 결과: `app-server/`(Worker `oddbirdle-app-api`, 미리보기 `…-preview`, D1 `oddbirdle-app`/`oddbirdle-app-preview`, 표 구조 `app-server/schema.sql`). 사이트의 `functions/api/app/[[path]].js`가 `/api/app/v1/*`를 서버로 넘긴다. 구현은 `docs/APP-API.md`와 같다: 손님, Apple·Google 로그인과 합치기, 시작·종료(트랜잭션, 같은 토큰은 같은 응답), 상위 5명 순위표, 닉네임 규칙·금칙어·신고 3명, 삭제 코드와 웹/앱 삭제, Apple 갱신 토큰 암호 저장과 삭제 때 폐기, 하루 한 번 청소(cron), 주소별 시간당 제한, CORS(앱 두 출처와 사이트만).
+- 시험: `tests/app-server.test.js` 26개(실제 SQL을 Node SQLite로, D1과 같은 prepare/batch 모양). 동시 시작, 같은 토큰 반복 종료, 두 시도가 동시에 끝남, 합치기, 삭제, 토큰 검증(잘못된 audience·issuer·nonce·만료·서명), 제한. 실서버에서도 손님 → 시작 → 32초 뒤 종료 → 순위 1 → 같은 응답 반복 → 삭제 코드 삭제까지 확인(미리보기와 실서버 둘 다).
+- 서버 비밀: `DELETE_CODE_KEY`, `TOKEN_KEY`, `APPLE_PRIVATE_KEY`(`wrangler secret`). 앞의 둘의 백업은 이 맥의 `~/.oddbirdle-keys/app-server-secrets.env`(저장소 밖). **DELETE_CODE_KEY를 잃으면 이미 나눠 준 삭제 코드가 모두 틀어지므로 백업 필수.**
+- 남은 것: 다음 D3(앱 화면, 로그인 플러그인, 삭제 화면·웹 삭제 페이지 `/delete`).
 - `app-server/`: 규칙은 `daily-plan.js`를 그대로 import해 재사용한다. 저장은 D1용으로 새로 설계한다(Devvit 코드를 그대로 옮기지 않는다).
 - 테스트 계층:
   1. 순수 로직 단위 테스트
