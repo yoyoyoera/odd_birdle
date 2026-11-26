@@ -1,0 +1,17 @@
+# A throw-away copy for trying changes (its own database and secrets). Deploy: wrangler deploy -c app-server/wrangler.preview.toml
+name = "oddbirdle-app-api-preview"
+main = "src/index.js"
+compatibility_date = "2026-10-30"
+workers_dev = false
+preview_urls = false
+
+[[d1_databases]]
+binding = "DB"
+database_name = "oddbirdle-app-preview"
+database_id = "2f08d303-6e30-4438-8952-ad86be971a27"
+
+[vars]
+APPLE_BUNDLE_ID = "com.yoyoyo.oddbirdle"
+APPLE_TEAM_ID = "C789GCURC5"
+APPLE_KEY_ID = "536Y6A93SW"
+GOOGLE_SERVER_CLIENT_ID = "377705180865-egarisfejvkilscd9icvgqvdbsv2srbi.apps.googleusercontent.com"

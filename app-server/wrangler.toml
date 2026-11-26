@@ -1,0 +1,23 @@
+# The app's DAILY and accounts server. Deploy: wrangler deploy -c app-server/wrangler.toml   (see docs/APP-API.md)
+# Secrets (never in this file): DELETE_CODE_KEY, TOKEN_KEY, APPLE_PRIVATE_KEY   -> wrangler secret put NAME -c app-server/wrangler.toml
+name = "oddbirdle-app-api"
+main = "src/index.js"
+compatibility_date = "2026-10-30"
+workers_dev = false
+preview_urls = false
+
+[[d1_databases]]
+binding = "DB"
+database_name = "oddbirdle-app"
+database_id = "605c20eb-491d-431e-abc0-c81fd32c5d89"
+
+# Once a day: clean away guests nobody used for 90 days, old tokens and counters.
+[triggers]
+crons = ["17 3 * * *"]
+
+# Public identifiers, not secrets.
+[vars]
+APPLE_BUNDLE_ID = "com.yoyoyo.oddbirdle"
+APPLE_TEAM_ID = "C789GCURC5"
+APPLE_KEY_ID = "536Y6A93SW"
+GOOGLE_SERVER_CLIENT_ID = "377705180865-egarisfejvkilscd9icvgqvdbsv2srbi.apps.googleusercontent.com"
