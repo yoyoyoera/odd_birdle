@@ -130,7 +130,7 @@ if (name === 'app') {
     html[data-portal="app"] #stage-panel header { padding: 0; }
     html[data-portal="app"] #stage-bar { margin: 0 0 6px; }
     html[data-portal="app"] #stage-list { scrollbar-width: none;
-      --bleedL: calc(var(--padL) - var(--app-safe-left)); --bleedR: calc(var(--padR) - var(--app-safe-right));
+      --bleedL: var(--padL); --bleedR: var(--padR);
       margin-left: calc(-1 * var(--bleedL)); margin-right: calc(-1 * var(--bleedR));
       padding-left: var(--bleedL); padding-right: var(--bleedR); scroll-padding-left: var(--bleedL); scroll-padding-right: var(--bleedR);
       -webkit-mask-image: linear-gradient(to right, transparent 0, #000 var(--bleedL), #000 calc(100% - var(--bleedR)), transparent 100%);
