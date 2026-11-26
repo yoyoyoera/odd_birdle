@@ -120,7 +120,7 @@ const notice = document.querySelector('#notice');
 let noticeTimer;
 document.querySelector('#notice-close').addEventListener('click', () => { notice.hidden = true; clearTimeout(noticeTimer); });
 // A short notice over the court: the opponent left, the connection dropped.
-function showNotice(text, ms = 3500) {
+function showNotice(text, ms = 5000) {
   setText(document.querySelector('#notice-text'), text);
   notice.hidden = false;
   clearTimeout(noticeTimer);
