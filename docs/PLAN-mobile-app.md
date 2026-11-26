@@ -362,6 +362,7 @@ Mac 세션 분업 (2026-11-25, 사용자 지시):
 
 ## 8. 진행 기록
 
+- 2026-11-26: Mac 세션의 `ios-app-ui`(30fcdab)를 작업 브랜치에 병합. 앱 ID `com.yoyoyo.oddbirdle`로 변경, iOS 전체 화면 UI·제스처 차단·ProMotion·감도 스테퍼, Android 릴리스 서명(키는 Mac `~/.oddbirdle-keys/`, 저장소 밖). Play 비공개 테스트 AAB(1.0, versionCode 1)는 Mac에서 빌드해 사용자가 업로드. 릴리스 AAB는 당분간 Mac에서 빌드(CI 서명은 키 시크릿 등록 시). iOS는 Apple에 `com.yoyoyo.oddbirdle` App ID·앱 레코드가 필요(먼저 등록한 `com.oddbirdle.app`은 사용 안 함). 테스트 215개 통과.
 - 2026-11-26: Android 비공개 테스트 시작(14일 → 12/10). 일정표 3-1절 추가(개정 4). iOS 시뮬레이터 CI 성공, TestFlight 업로드는 App Store Connect API 인증 401로 실패.
 - 2026-11-25: A2b·I1 완료(서브에이전트 2개 병렬: 웹 쪽 / 네이티브·CI). iOS는 Linux에서 프로젝트 생성까지, 컴파일은 macOS CI 첫 실행이 처음.
 - 2026-11-25: 개정 3-1. 사용자에게 iOS 앱 4개를 출시한 개발자 계정이 있음 → 무료 Apple ID 경로 삭제, TestFlight 업로드를 빌드 1로 앞당김(I2b).

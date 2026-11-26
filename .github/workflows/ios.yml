@@ -36,7 +36,7 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 40
     env:
-      APP_ID: com.oddbirdle.app
+      APP_ID: com.yoyoyo.oddbirdle
       SHOTS: ${{ github.workspace }}/ios-screenshots
     steps:
       - uses: actions/checkout@v5
