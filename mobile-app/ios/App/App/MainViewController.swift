@@ -27,6 +27,10 @@ class MainViewController: CAPBridgeViewController {
     override func webViewConfiguration(for instanceConfiguration: InstanceConfiguration) -> WKWebViewConfiguration {
         let configuration = super.webViewConfiguration(for: instanceConfiguration)
         Self.allowFullFrameRate(configuration.preferences)
+        // The page is a game: holding a finger on a word (the YOU flag, the scores) must never bring up the text-selection
+        // loupe, Look Up or Live Text. This is the WebView's own switch; the page's user-select: none is not enough.
+        configuration.preferences.isTextInteractionEnabled = false
+        configuration.dataDetectorTypes = []
         return configuration
     }
 
