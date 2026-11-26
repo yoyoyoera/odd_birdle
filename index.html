@@ -339,7 +339,7 @@
     /* Reddit's main menu: the two ways to play on the left, stacked; today's daily challenge on the right with the first
        five to clear it and a button. Sizes follow the court's width (cqw), so it scales with the frame. */
     #menu-modes { display: contents; }
-    :is([data-portal="reddit"], [data-portal="app"]) #stage { container-type: inline-size; }
+    [data-portal="reddit"] #stage { container-type: inline-size; }
     [data-portal="reddit"] #menu { top: 61%; width: 62%; display: grid; grid-template-columns: 20cqw minmax(0, 1fr); gap: 3cqw; align-items: stretch; white-space: normal; }
     [data-portal="reddit"] #menu[hidden] { display: none; }
     [data-portal="reddit"] #menu-modes { display: flex; flex-direction: column; justify-content: center; gap: 1.6cqw; }

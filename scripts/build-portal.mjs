@@ -122,6 +122,12 @@ if (name === 'app') {
     html[data-portal="app"]:not([data-features~="online"]) #link-own { display: none; }
     /* Pause covers the whole screen, the strips too. */
     html[data-portal="app"] #pause-overlay { position: fixed; inset: 0; z-index: 5; }
+    /* The stage list covers the whole screen, the side strips too, and keeps clear of the corner buttons and the notch. */
+    html[data-portal="app"] #stage-panel { position: fixed; inset: 0; z-index: 2; box-sizing: border-box;
+      padding: max(var(--app-safe-top), 10px) calc(var(--app-safe-right) + 76px) max(var(--app-safe-bottom), 10px) calc(var(--app-safe-left) + 76px); }
+    html[data-portal="app"] #stage-panel header { padding: 0; }
+    html[data-portal="app"] #stage-bar { margin: 0 0 6px; }
+    html[data-portal="app"] #stage-prev { left: calc(var(--app-safe-left) + 80px); } html[data-portal="app"] #stage-next { right: calc(var(--app-safe-right) + 80px); }
     html[data-portal="app"] #guide { padding: calc(16px + var(--app-safe-top)) calc(16px + var(--app-safe-right))
       calc(16px + var(--app-safe-bottom)) calc(16px + var(--app-safe-left)); }
   </style>`);
