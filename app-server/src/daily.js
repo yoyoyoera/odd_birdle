@@ -5,13 +5,22 @@ import { nameOf } from './users.js';
 export const boardSize = 5;
 const tokenMs = 3 * 60 * 60 * 1000;
 
-const clearOf = row => row ? { rank: row.rank, seconds: row.seconds, mine: row.mine, theirs: row.theirs, attempt: row.attempt, date: row.date } : undefined;
+// `rank` is stored as the order in which the day's clears happened, and it can have gaps (someone deleted their data). What
+// people see is the place among the clears that are still there: 1, 2, 3 with nothing missing.
+async function placeOf(db, date, storedRank) {
+  const row = await db.prepare('SELECT COUNT(*) AS n FROM clears WHERE date = ?1 AND rank <= ?2').bind(date, storedRank).first();
+  return row.n;
+}
+
+async function clearOf(db, row) {
+  return row ? { rank: await placeOf(db, row.date, row.rank), seconds: row.seconds, mine: row.mine, theirs: row.theirs, attempt: row.attempt, date: row.date } : undefined;
+}
 
 export async function getBoard(db, date) {
   const { results } = await db.prepare(
     'SELECT c.rank, c.seconds, u.nickname, u.alias FROM clears c JOIN users u ON u.id = c.user_id WHERE c.date = ?1 AND c.rank <= ?2 ORDER BY c.rank'
   ).bind(date, boardSize).all();
-  return results.map(row => ({ rank: row.rank, name: nameOf(row), seconds: row.seconds }));
+  return results.map((row, index) => ({ rank: index + 1, name: nameOf(row), seconds: row.seconds }));
 }
 
 export async function getCalendar(db, userId) {
@@ -27,7 +36,7 @@ export async function getToday(db, user, now = Date.now()) {
     getCalendar(db, user.id),
     getBoard(db, plan.date)
   ]);
-  return { plan, attemptsUsed: attempts?.used ?? 0, cleared: clearOf(clear), calendar, board };
+  return { plan, attemptsUsed: attempts?.used ?? 0, cleared: await clearOf(db, clear), calendar, board };
 }
 
 // One transaction: the try is counted and the token issued together, or neither. A clear already made, or the tries used up,
@@ -75,7 +84,7 @@ export async function finishAttempt(db, user, { token, won, mine, theirs } = {},
   if (seconds < minimumSeconds(plan.points)) return remember(db, token, now, { ok: false, reason: 'too-fast' });
 
   const existing = await db.prepare('SELECT * FROM clears WHERE user_id = ?1 AND date = ?2').bind(user.id, plan.date).first();
-  if (existing) return remember(db, token, now, { ok: true, cleared: true, record: clearOf(existing), fresh: false });
+  if (existing) return remember(db, token, now, { ok: true, cleared: true, record: await clearOf(db, existing), fresh: false });
   try {
     // The place in the day's order and the record are made together; a clash (two tries finishing at once) undoes both.
     await db.batch([
@@ -85,9 +94,9 @@ export async function finishAttempt(db, user, { token, won, mine, theirs } = {},
     ]);
   } catch {
     const raced = await db.prepare('SELECT * FROM clears WHERE user_id = ?1 AND date = ?2').bind(user.id, plan.date).first();
-    if (raced) return remember(db, token, now, { ok: true, cleared: true, record: clearOf(raced), fresh: false });
+    if (raced) return remember(db, token, now, { ok: true, cleared: true, record: await clearOf(db, raced), fresh: false });
     throw new Error('could not record the clear');
   }
   const made = await db.prepare('SELECT * FROM clears WHERE user_id = ?1 AND date = ?2').bind(user.id, plan.date).first();
-  return remember(db, token, now, { ok: true, cleared: true, record: clearOf(made), fresh: true });
+  return remember(db, token, now, { ok: true, cleared: true, record: await clearOf(db, made), fresh: true });
 }

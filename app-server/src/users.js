@@ -100,7 +100,9 @@ export async function findByDeleteCode(db, env, code) {
 
 // A player reports a name on the board. Three different players hiding it puts the plain alias back and locks the nickname.
 export async function reportPlayer(db, reporter, date, rank, now = Date.now()) {
-  const target = await db.prepare('SELECT u.* FROM clears c JOIN users u ON u.id = c.user_id WHERE c.date = ?1 AND c.rank = ?2').bind(date, rank).first();
+  // `rank` is the place people see on the board (1 = the first still there).
+  if (!Number.isInteger(rank) || rank < 1 || rank > 100) return { ok: false, reason: 'not-found', status: 404 };
+  const target = await db.prepare('SELECT u.* FROM clears c JOIN users u ON u.id = c.user_id WHERE c.date = ?1 ORDER BY c.rank LIMIT 1 OFFSET ?2').bind(date, rank - 1).first();
   if (!target) return { ok: false, reason: 'not-found', status: 404 };
   if (target.id === reporter.id) return { ok: false, reason: 'own-name', status: 422 };
   await db.prepare('INSERT OR IGNORE INTO reports(reporter_id, target_id, date, created_at) VALUES(?1, ?2, ?3, ?4)').bind(reporter.id, target.id, date, now).run();

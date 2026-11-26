@@ -180,6 +180,26 @@ test('a token belongs to its player and its day', async () => {
   assert.equal(done.body.record.date, '2026-11-26');
 });
 
+test('a deleted record leaves no gap: the next clear is place 2 after one remains, and a reported place is the one shown', async () => {
+  const ctx = await signInSetup();
+  const gone = await ctx.guest();
+  const stays = await ctx.guest();
+  await clearDaily(ctx, gone);
+  await clearDaily(ctx, stays);
+  await ctx.call('DELETE', '/me', { auth: gone });
+  const late = await ctx.guest();
+  const clear = await clearDaily(ctx, late);
+  assert.equal(clear.finish.body.record.rank, 2, 'second among those who are still there');
+  const board = (await ctx.call('GET', '/daily', { auth: late })).body.board;
+  assert.deepEqual(board.map(entry => entry.rank), [1, 2]);
+  assert.equal((await ctx.call('GET', '/daily', { auth: stays })).body.cleared.rank, 1);
+  await ctx.login({ auth: stays, sub: 'stays' });
+  await ctx.call('PUT', '/me/nickname', { auth: stays, body: { nickname: 'FirstOne' } });
+  const reporter = await ctx.guest();
+  assert.equal((await ctx.call('POST', '/report', { auth: reporter, body: { date: '2026-11-26', rank: 1 } })).body.ok, true);
+  assert.equal((await ctx.call('POST', '/report', { auth: reporter, body: { date: '2026-11-26', rank: 3 } })).status, 404);
+});
+
 test('the day changes at midnight UTC: new tries and a new count', async () => {
   const ctx = server();
   const g = await ctx.guest();
@@ -388,7 +408,7 @@ test('delete from the app removes the player and the board line', async () => {
   assert.equal((await ctx.call('DELETE', '/me', { auth: a })).body.ok, true);
   assert.equal((await ctx.call('GET', '/daily', { auth: a })).status, 401);
   const board = (await ctx.call('GET', '/daily', { auth: b })).body.board;
-  assert.deepEqual(board.map(entry => entry.rank), [2], 'the other places do not move');
+  assert.deepEqual(board.map(entry => entry.rank), [1], 'the board has no empty first place: the one left is first');
   for (const table of ['users', 'devices', 'clears', 'attempts', 'tokens']) {
     const left = await ctx.db.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE ${table === 'users' ? 'id' : 'user_id'} = ?1`).bind(a.userId).first();
     assert.equal(left.n, 0, table + ' is empty for the deleted player');
