@@ -28,6 +28,7 @@ import { features } from './features.js';
 import { createAppStorage } from './app-storage.js';
 import { shareCardImage } from './app-share.js';
 import { createDuoTouch } from './duo-touch.js';
+import { createAccount } from './app-account.js';
 // The stage list and its saved clears: in the Reddit app always, in the phone app when it is built with `stages`.
 const stagesOn = portal === 'reddit' || (portal === 'app' && features.stages);
 import { landscapeOnly, touchLayout } from './touch-layout.js';
@@ -92,6 +93,10 @@ const stagePanel = document.querySelector('#stage-panel');
 const dailyButton = document.querySelector('#daily-button');
 const stageList = document.querySelector('#stage-list');
 const stageProgressLabel = document.querySelector('#stage-progress');
+// The phone app's DAILY and account screens.
+const dailyPanel = document.querySelector('#daily-panel');
+const accountPanel = document.querySelector('#account-panel');
+const byId = id => document.querySelector('#' + id);
 const stageCount = document.querySelector('#stage-count');
 const stageScore = document.querySelector('#stage-score');
 const stageBar = document.querySelector('#stage-bar i');
@@ -420,6 +425,8 @@ function setMode(next, message = '') {
   mode = next;
   menu.hidden = next !== 'menu';
   stagePanel.hidden = next !== 'stages';
+  dailyPanel.hidden = next !== 'daily';
+  accountPanel.hidden = next !== 'account';
   if (next === 'menu' && portal === 'reddit' && typeof refreshDaily === 'function' && dailyReady) refreshDaily();
   roomDisplay.hidden = next !== 'waiting';
   joinForm.hidden = next !== 'join';
@@ -1984,7 +1991,12 @@ stageList.addEventListener('wheel', event => {
   stageList.scrollBy({ left: Math.sign(delta) * (column + 6) * (Math.abs(delta) > 200 ? 2 : 1), behavior: 'smooth' });
 }, { passive: false });
 // ---- Daily challenge (Reddit): the server says what today's challenge is and keeps the tries and the clear. ----
-const dailyClient = createDailyClient();
+// In the phone app the daily calls go to the app server, as the signed-in player (app-account.js).
+let appAccount;
+let appAccountReady;
+const dailyClient = createDailyClient(portal === 'app'
+  ? { request: (...args) => appAccountReady.then(account => account.daily(...args)) }
+  : undefined);
 const dailyEl = id => document.querySelector('#' + id);
 let dailyState;       // the server's answer for today: { plan, attemptsUsed, cleared?, calendar }
 let dailyToken;       // the try in progress
@@ -2011,6 +2023,7 @@ function currentStreak(state) {
 }
 
 function renderTeaser() {
+  if (portal === 'app') { renderDailyPanel(); return; }
   const state = dailyState;
   const button = dailyButton;
   dailyEl('teaser-day').textContent = state ? `DAILY #${state.plan.number} · ${dayLabel(state.plan.date)}` : 'DAILY';
@@ -2048,6 +2061,7 @@ const renderDaily = renderTeaser;
 
 // The button: start a try right away, or (today already cleared) post the card of the clear.
 function onChallenge() {
+  if (!dailyState) { refreshDaily(); return; }
   if (dailyState?.cleared) postDailyPanelCard();
   else startDaily();
 }
@@ -2068,7 +2082,7 @@ async function startDaily() {
   const result = await dailyClient.start();
   dailyPending = false;
   if (!result.ok) {
-    dailyMessage = result.reason === 'offline' ? 'Could not reach Reddit' : '';
+    dailyMessage = result.reason === 'offline' ? 'Could not connect' : '';
     await refreshDaily();
     return;
   }
@@ -2108,7 +2122,7 @@ async function reportDailyTry(view, won) {
 // The card of a clear, posted from the daily panel (a later visit, no live match behind it).
 async function postDailyPanelCard() {
   const record = dailyState?.cleared;
-  if (!record || dailyCardPosting || dailyCardPosted || dailyState.cardPosted) return;
+  if (!record || dailyCardPosting || (!canShareCard && (dailyCardPosted || dailyState.cardPosted))) return;
   dailyCardPosting = true;
   renderTeaser();
   try {
@@ -2124,6 +2138,12 @@ async function postDailyPanelCard() {
       attempts: challenge.attempts, rank: record.rank, date: record.date,
       streak: streakOf([...(dailyState.calendar ?? []), record.date], record.date) };
     drawCard(canvas.getContext('2d'), { ...summary, palette, daily, line, seed, name: user ? 'u/' + user : '' });
+    if (canShareCard) {
+      await shareCardImage({ canvas, text: `DAILY #${daily.number} ${daily.date}: ${daily.title}. CLEARED in ${daily.seconds}s, #${daily.rank} to clear today. ${line}` });
+      dailyCardPosting = false;
+      renderTeaser();
+      return;
+    }
     const response = await fetch('/api/card', { method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ image: canvas.toDataURL('image/jpeg', 0.9), daily: true }) });
     const result = await response.json();
@@ -2150,20 +2170,167 @@ if (portal === 'reddit') {
   resultStagesButton.addEventListener('click', () => { if (selectedStage?.daily) leave(); else openStages(); });
 }
 
+// ---- The phone app's DAILY and account screens (app-account.js; docs/APP-API.md) ----------------------------------------
+function renderDailyPanel() {
+  const state = dailyState;
+  const challenge = state && playableDaily(state.plan);
+  byId('dp-day').textContent = state ? `DAILY #${state.plan.number} · ${dayLabel(state.plan.date)}` : 'DAILY';
+  byId('dp-title').textContent = challenge ? challenge.name : (dailyMessage || '…');
+  byId('dp-rule').textContent = challenge ? `${goalText(challenge)} · CPU LV.${state.plan.cpuLevel}` : '';
+  const left = dailyTriesLeft();
+  byId('dp-tries').textContent = !state ? '' : state.cleared ? `CLEARED ✓ · #${state.cleared.rank} TO CLEAR`
+    : left === 0 ? 'NO TRIES LEFT' : `${left} ${left === 1 ? 'TRY' : 'TRIES'} LEFT`;
+  const streak = state ? currentStreak(state) : 0;
+  byId('dp-streak').textContent = streak >= 2 ? `${streak}-DAY STREAK` : '';
+  byId('dp-streak').hidden = streak < 2;
+  const go = byId('dp-go');
+  if (!state) { go.textContent = dailyMessage ? 'TRY AGAIN' : 'CHALLENGE'; go.disabled = !dailyMessage; }
+  else if (state.cleared) { go.textContent = dailyCardPosting ? 'PREPARING…' : 'SHARE CARD'; go.disabled = dailyCardPosting; }
+  else if (left === 0) { go.textContent = 'NO TRIES LEFT'; go.disabled = true; }
+  else { go.textContent = 'CHALLENGE'; go.disabled = dailyPending; }
+  const board = state?.board ?? [];
+  byId('dp-board').replaceChildren(...Array.from({ length: 5 }, (_, index) => {
+    const entry = board.find(item => item.rank === index + 1);
+    const li = document.createElement('li');
+    const place = document.createElement('span'); place.className = 'place'; place.textContent = '#' + (index + 1);
+    const who = document.createElement('span'); who.className = 'who'; who.textContent = entry ? entry.name : (index === 0 && state ? 'be the first' : '—');
+    const time = document.createElement('span'); time.className = 'time'; time.textContent = entry ? entry.seconds + 's' : '';
+    li.append(place, who, time);
+    if (!entry) li.dataset.empty = '';
+    else if (state.cleared?.rank !== entry.rank) {
+      // Anyone's name can be reported (three reports from different players take a nickname down).
+      const flag = document.createElement('button');
+      flag.type = 'button';
+      flag.className = 'flag';
+      flag.textContent = '⚑';
+      flag.setAttribute('aria-label', 'Report ' + entry.name);
+      flag.addEventListener('click', async () => {
+        flag.disabled = true;
+        const answer = await appAccount.report(state.plan.date, entry.rank);
+        byId('dp-message').textContent = answer.ok ? 'Thanks, reported.' : 'Could not report right now.';
+      });
+      li.append(flag);
+    }
+    return li;
+  }));
+  byId('account-name').textContent = appAccount?.profile?.name ?? 'ACCOUNT';
+}
+
+function openDaily() {
+  leave();
+  setMode('daily');
+  byId('dp-message').textContent = '';
+  refreshDaily().then(() => appAccount?.me()).then(() => renderDailyPanel());
+}
+
+const accountText = {
+  'nickname-invalid': 'Use 3 to 16 letters, numbers, _ or -.',
+  'nickname-banned': 'That name is not allowed.',
+  'nickname-taken-today': 'You can change your nickname once a day.',
+  'nickname-locked': 'Your nickname was taken down after reports.',
+  'login-required': 'Sign in first.',
+  offline: 'No connection.',
+  unavailable: 'Not available on this phone.',
+  failed: 'Sign-in did not work. Try again.',
+  'already-signed-in': 'Sign out first to use another account.',
+  'bad-token': 'The sign-in could not be checked. Try again.',
+  'bad-nonce': 'The sign-in took too long. Try again.'
+};
+let deleteArmed;
+
+async function renderAccount() {
+  const profile = (await appAccount.me()) ?? appAccount.profile;
+  const providers = appAccount.providers();
+  byId('ac-name').textContent = profile?.name ?? '…';
+  byId('ac-status').textContent = !profile ? 'No connection.' : profile.account ? 'Signed in' : 'Playing as a guest';
+  byId('ac-signin').hidden = !profile || profile.account || !providers.length;
+  byId('ac-apple').hidden = !providers.includes('apple');
+  byId('ac-google').hidden = !providers.includes('google');
+  byId('ac-nick').hidden = !profile?.account || profile.nicknameLocked;
+  if (profile?.nickname && document.activeElement !== byId('ac-nick-input')) byId('ac-nick-input').value = profile.nickname;
+  byId('ac-signout').hidden = !profile?.account;
+  byId('account-name').textContent = profile?.name ?? 'ACCOUNT';
+}
+
+function openAccount() {
+  setMode('account');
+  byId('ac-message').textContent = '';
+  deleteArmed = undefined;
+  byId('ac-delete').textContent = 'DELETE MY DATA';
+  renderAccount();
+}
+
+function initAppAccount(storage) {
+  const platform = window.Capacitor?.getPlatform?.() ?? 'web';
+  appAccount = createAccount({ base: serverBase, storage, plugins: window.Capacitor?.Plugins, platform });
+  const say = text => { byId('ac-message').textContent = text; };
+  byId('daily-open').hidden = false;
+  byId('daily-open').addEventListener('click', openDaily);
+  byId('dp-go').addEventListener('click', onChallenge);
+  byId('account-open').addEventListener('click', openAccount);
+  for (const provider of ['apple', 'google']) {
+    byId('ac-' + provider).addEventListener('click', async () => {
+      say('Signing in…');
+      const answer = await appAccount.signIn(provider);
+      if (answer.ok) {
+        say(answer.merged ? 'Signed in. Records from this phone were added to your account.' : 'Signed in.');
+        refreshDaily();
+      } else if (answer.reason === 'cancelled') say('');
+      else say(accountText[answer.reason] ?? 'Sign-in did not work. Try again.');
+      renderAccount();
+    });
+  }
+  byId('ac-nick').addEventListener('submit', async event => {
+    event.preventDefault();
+    const answer = await appAccount.setNickname(byId('ac-nick-input').value);
+    say(answer.ok ? 'Saved.' : accountText[answer.reason] ?? 'Could not save.');
+    renderAccount();
+    refreshDaily();
+  });
+  byId('ac-signout').addEventListener('click', async () => {
+    await appAccount.signOut();
+    say('Signed out.');
+    dailyState = undefined;
+    renderAccount();
+    refreshDaily();
+  });
+  byId('ac-code').addEventListener('click', async () => {
+    const code = await appAccount.deleteCode();
+    say(code ? `Your delete code: ${code}\nKeep it. Entering it at oddbirdle.pages.dev/delete erases your data, even after you remove the app.` : accountText.offline);
+  });
+  byId('ac-delete').addEventListener('click', async () => {
+    if (!deleteArmed) {
+      deleteArmed = setTimeout(() => { deleteArmed = undefined; byId('ac-delete').textContent = 'DELETE MY DATA'; }, 6000);
+      byId('ac-delete').textContent = 'TAP AGAIN TO ERASE EVERYTHING';
+      say('This erases your daily record, nickname and account. It cannot be undone.');
+      return;
+    }
+    clearTimeout(deleteArmed);
+    deleteArmed = undefined;
+    byId('ac-delete').textContent = 'DELETE MY DATA';
+    const answer = await appAccount.deleteMe();
+    say(answer.ok ? 'Your data was deleted.' : accountText[answer.reason] ?? 'Could not delete right now.');
+    dailyState = undefined;
+    renderAccount();
+  });
+  return appAccount;
+}
+
 // The phone app: the same stage list, saved on the device only (no account, no server).
 if (portal === 'app' && features.stages) {
   stagesButton.hidden = false;
   document.querySelector('#cpu').textContent = 'FREE PLAY';
-  createAppStorage().then(appStorage => {
+  appAccountReady = createAppStorage().then(appStorage => {
     // Nothing is sent anywhere: the request below always fails, so the clears stay on this device.
     stageProgress = createStageProgress({ storage: appStorage, request: () => Promise.reject(new Error('device only')), onChange: renderStages });
     renderStages([], false);
     const savedGain = Number(appStorage.getItem(touchGainKey));
     if (savedGain >= 0.8 && savedGain <= 3) { touchGain = savedGain; showTouchGain(); }
     deviceStorage = appStorage;
+    return features.daily ? initAppAccount(appStorage) : undefined;
   });
   stagesButton.addEventListener('click', openStages);
-  resultStagesButton.addEventListener('click', openStages);
+  resultStagesButton.addEventListener('click', () => { if (selectedStage?.daily) openDaily(); else openStages(); });
 }
 
 

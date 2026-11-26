@@ -562,6 +562,7 @@
           <button id="cpu-level" type="button">LV RANDOM</button>
         </span>
         <button id="duo" type="button" hidden>2 PLAYERS</button>
+        <button id="daily-open" type="button" hidden>DAILY</button>
       </span>
       <section id="daily-teaser" aria-label="Daily challenge" hidden>
         <p id="teaser-head"><span id="teaser-day">DAILY</span><span id="teaser-tries"></span></p>
@@ -579,6 +580,53 @@
       <div id="stage-bar" aria-hidden="true"><i></i></div>
       <div id="stage-list" aria-label="Available stages"></div>
       <button id="stage-prev" type="button" aria-label="Earlier stages" title="Earlier stages"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button id="stage-next" type="button" aria-label="Later stages" title="Later stages"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </section>
+    <!-- The phone app: today's daily challenge with the first five to clear it, and the player's account. -->
+    <section id="daily-panel" aria-label="Daily challenge" hidden>
+      <header>
+        <h2>DAILY</h2>
+        <button id="account-open" type="button" aria-label="Account"><span id="account-name">…</span></button>
+      </header>
+      <div id="daily-body">
+        <div id="daily-card">
+          <p id="dp-day"></p>
+          <h3 id="dp-title">…</h3>
+          <p id="dp-rule"></p>
+          <p id="dp-tries"></p>
+          <p id="dp-streak" hidden></p>
+          <button id="dp-go" type="button" disabled>CHALLENGE</button>
+        </div>
+        <div id="daily-board">
+          <p id="dp-board-title">FIRST TO CLEAR TODAY</p>
+          <ol id="dp-board" aria-label="First to clear today"></ol>
+        </div>
+      </div>
+      <p id="dp-message" role="status"></p>
+    </section>
+    <section id="account-panel" aria-label="Account" hidden>
+      <header><h2>ACCOUNT</h2></header>
+      <div id="account-body">
+        <p id="ac-name"></p>
+        <p id="ac-status"></p>
+        <div id="ac-signin" hidden>
+          <p>Sign in to pick a nickname and keep your daily record on every phone you use.</p>
+          <div id="ac-providers">
+            <button id="ac-apple" type="button" hidden>SIGN IN WITH APPLE</button>
+            <button id="ac-google" type="button" hidden>SIGN IN WITH GOOGLE</button>
+          </div>
+        </div>
+        <form id="ac-nick" hidden>
+          <label for="ac-nick-input">NICKNAME</label>
+          <input id="ac-nick-input" type="text" minlength="3" maxlength="16" autocomplete="off" autocapitalize="off" spellcheck="false">
+          <button id="ac-nick-save" type="submit">SAVE</button>
+        </form>
+        <div id="ac-actions">
+          <button id="ac-signout" type="button" hidden>SIGN OUT</button>
+          <button id="ac-code" type="button">SHOW DELETE CODE</button>
+          <button id="ac-delete" type="button">DELETE MY DATA</button>
+        </div>
+        <p id="ac-message" role="status"></p>
+      </div>
     </section>
     <div id="expand-gate" hidden>
       <p>ODD BIRDLE</p>

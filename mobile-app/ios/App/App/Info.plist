@@ -28,6 +28,16 @@
 	<true/>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Odd Birdle saves your match result card to your photo library when you choose Save Image.</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<!-- Google sign-in comes back to the app through this address (the iOS client ID, reversed) -->
+				<string>com.googleusercontent.apps.377705180865-m95mhiriqlotc40vlqfmk0pin602fb9v</string>
+			</array>
+		</dict>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

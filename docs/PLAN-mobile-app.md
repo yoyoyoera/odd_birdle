@@ -298,7 +298,11 @@ Android 실기기가 없는 동안 iOS로 같은 빌드 1을 병렬 진행한다
 - 운영 메모: 첫 버전의 순위는 클라이언트가 보고한 승패에 기반한다. 서버 시간 측정과 최소 시간 검사만 막는다. 리더보드에 "검증 수준"을 과장하지 않는다.
 - 서브에이전트: D3과 **병렬 2개**. 서버(`app-server/`) / 앱 DAILY 화면·통신 어댑터. 1번의 계약 문서가 확정된 뒤에 시작한다.
 
-#### Step D3. 앱 DAILY 화면 ⬜
+#### Step D3. 앱 DAILY 화면 ✅ (코드·시뮬레이터 확인 2026-11-26, Mac 세션; 📱 실제 Apple·Google 로그인은 실기기에서 확인 필요)
+- 결과: 메뉴에 DAILY 버튼(앱 빌드 기능 `daily`, 기본 켜짐). `app-account.js`(손님 만들기, 비밀값 보관, 로그인, 닉네임, 삭제, 신고, 서버 호출)와 `createDailyClient`가 앱 서버를 부른다. 화면: DAILY(오늘 도전, 남은 횟수, 연승, 상위 5명 순위표와 ⚑ 신고 버튼, CHALLENGE/클리어 뒤 SHARE CARD), ACCOUNT(손님/로그인 상태, Apple·Google 로그인 버튼(Apple은 iPhone만), 닉네임 저장, 로그아웃, 삭제 코드 보기, DATA 삭제는 두 번 눌러야 지워짐). 도전은 기존 스테이지 경기 흐름(안내 화면, 결과, 다시 하기)을 그대로 쓴다. 웹 삭제 페이지 `/delete`는 사이트(main)에 배포됨.
+- 로그인 플러그인: `@capgo/capacitor-social-login` 8.7.13(Firebase 없음). iOS는 Info.plist에 Google 되돌림 주소(iOS 클라이언트 ID를 뒤집은 값), `App.entitlements`의 Sign in with Apple, 프로젝트 설정 `CODE_SIGN_ENTITLEMENTS`. Android는 별도 설정 없이 빌드됨(웹 클라이언트 ID로 초기화).
+- 시험: `tests/app-account.test.js` 9개. 시뮬레이터에서 미리보기 서버로 DAILY·계정·삭제 코드·도전 시작 확인. **아직 못 한 것:** 실제 Apple/Google 로그인(시뮬레이터는 로그인 계정이 없어서), 클리어 후 SHARE CARD, 순위표 신고, 앱 안 삭제 끝까지.
+
 - `createDailyClient({ request })`에 앱 API 주소와 토큰을 붙이는 어댑터를 넣는다. 오프라인이면 "Offline" 안내를 띄운다. DAILY를 처음 열 때만 서버 ID를 발급한다.
 - 데이터 삭제 화면 흐름(앱 안 + 웹 경로)을 구현한다.
 - 끝 조건: 로컬 서버 + Playwright로 시작 → 클리어 → 순위 → 재시작 거절을 확인하고, 실기기에서도 확인한다. Worker·D1 배포는 사용자가 승인한다.

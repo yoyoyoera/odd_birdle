@@ -15,7 +15,7 @@ if (!['crazygames', 'itch', 'newgrounds', 'gamepix', 'y8', 'gamedistribution', '
   console.error('Usage: node scripts/build-portal.mjs crazygames|itch|newgrounds|gamepix|y8|gamedistribution|app');
   process.exit(1);
 }
-const appFeatures = (process.argv.find(arg => arg.startsWith('--features='))?.slice('--features='.length) ?? 'stages,online')
+const appFeatures = (process.argv.find(arg => arg.startsWith('--features='))?.slice('--features='.length) ?? 'stages,online,daily')
   .split(',').map(feature => feature.trim().toLowerCase()).filter(Boolean);
 for (const feature of appFeatures) {
   if (!['stages', 'daily', 'online'].includes(feature)) throw new Error('Unknown feature: ' + feature);
@@ -148,6 +148,56 @@ if (name === 'app') {
       -webkit-mask-image: linear-gradient(to right, transparent 0, #000 var(--bleedL), #000 calc(100% - var(--bleedR)), transparent 100%);
       mask-image: linear-gradient(to right, transparent 0, #000 var(--bleedL), #000 calc(100% - var(--bleedR)), transparent 100%); }
     html[data-portal="app"] #stage-list::-webkit-scrollbar { display: none; }
+    /* DAILY and ACCOUNT: whole-screen sheets like the stage list, in the same square style. */
+    html[data-portal="app"] :is(#daily-panel, #account-panel) { position: fixed; inset: 0; z-index: 2; box-sizing: border-box;
+      display: flex; flex-direction: column; gap: 14px; background: var(--court); color: var(--ink); overflow: hidden;
+      --padL: max(calc(var(--app-safe-left) + 10px), 72px); --padR: max(calc(var(--app-safe-right) + 10px), 72px);
+      padding: max(var(--app-safe-top), 28px) var(--padR) max(var(--app-safe-bottom), 14px) var(--padL); }
+    html[data-portal="app"] :is(#daily-panel, #account-panel)[hidden] { display: none; }
+    html[data-portal="app"] :is(#daily-panel, #account-panel) header { display: flex; align-items: center; justify-content: space-between;
+      min-height: 40px; gap: 12px; padding: 0; }
+    html[data-portal="app"] :is(#daily-panel, #account-panel) h2 { margin: 0; font-size: 32px; line-height: 1.15; }
+    html[data-portal="app"] :is(#daily-panel, #account-panel) button { min-height: 40px; padding: 0 16px; border: 0; border-radius: 0;
+      background: color-mix(in srgb, var(--ink) 9%, transparent); color: var(--ink); font-family: inherit; font-weight: 650; font-size: 14px; letter-spacing: .06em; }
+    html[data-portal="app"] :is(#daily-panel, #account-panel) button:active:not(:disabled) { background: color-mix(in srgb, var(--ink) 22%, transparent); }
+    html[data-portal="app"] :is(#daily-panel, #account-panel) button:disabled { opacity: .45; }
+    html[data-portal="app"] #account-open { max-width: 46vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    html[data-portal="app"] #daily-body { flex: 1; min-height: 0; display: flex; gap: 28px; }
+    html[data-portal="app"] #daily-card { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 4px;
+      padding: 14px 18px; background: color-mix(in srgb, var(--ink) 7%, transparent); }
+    html[data-portal="app"] #daily-card p, html[data-portal="app"] #daily-board p { margin: 0; }
+    html[data-portal="app"] #dp-day { font-size: 13px; letter-spacing: .1em; opacity: .65; }
+    html[data-portal="app"] #dp-title { margin: 2px 0; font-size: 38px; line-height: 1.05; }
+    html[data-portal="app"] #dp-rule { font-size: 14px; font-weight: 650; letter-spacing: .08em; opacity: .75; }
+    html[data-portal="app"] #dp-tries { margin-top: 10px; font-size: 16px; font-weight: 650; }
+    html[data-portal="app"] #dp-streak { font-size: 14px; font-weight: 650; color: #a8791a; letter-spacing: .08em; }
+    html[data-portal="app"] #dp-go { margin-top: 14px; align-self: flex-start; min-height: 48px; padding: 0 26px; font-size: 16px;
+      background: var(--ink); color: var(--court); }
+    html[data-portal="app"] #dp-go:active:not(:disabled) { background: color-mix(in srgb, var(--ink) 80%, var(--court)); }
+    html[data-portal="app"] #daily-board { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 10px; }
+    html[data-portal="app"] #dp-board-title { font-size: 13px; letter-spacing: .1em; opacity: .65; }
+    html[data-portal="app"] #dp-board { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+    html[data-portal="app"] #dp-board li { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 0 0 10px; font-size: 18px;
+      background: color-mix(in srgb, var(--ink) 7%, transparent); }
+    html[data-portal="app"] #dp-board li[data-empty] { opacity: .45; }
+    html[data-portal="app"] #dp-board .place { width: 34px; font-weight: 650; opacity: .6; }
+    html[data-portal="app"] #dp-board .who { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 650; }
+    html[data-portal="app"] #dp-board .time { opacity: .75; font-variant-numeric: tabular-nums; }
+    html[data-portal="app"] #dp-board .flag { min-height: 40px; width: 40px; padding: 0; background: transparent; opacity: .45; font-size: 16px; }
+    html[data-portal="app"] #dp-message, html[data-portal="app"] #ac-message { margin: 0; min-height: 1.3em; font-size: 14px; font-weight: 650; white-space: pre-line; }
+    html[data-portal="app"] #account-body { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; overflow-y: auto;
+      touch-action: pan-y; }
+    html[data-portal="app"] #account-body p { margin: 0; }
+    html[data-portal="app"] #ac-name { font-size: 30px; font-weight: 650; }
+    html[data-portal="app"] #ac-status { font-size: 14px; letter-spacing: .08em; opacity: .65; }
+    html[data-portal="app"] #ac-signin p { font-size: 15px; opacity: .8; margin-bottom: 8px; }
+    html[data-portal="app"] #ac-providers, html[data-portal="app"] #ac-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+    html[data-portal="app"] #ac-providers button { min-height: 46px; }
+    html[data-portal="app"] #ac-nick { display: flex; align-items: center; gap: 10px; }
+    html[data-portal="app"] #ac-nick[hidden] { display: none; }
+    html[data-portal="app"] #ac-nick label { font-size: 13px; letter-spacing: .1em; opacity: .65; }
+    html[data-portal="app"] #ac-nick input { flex: 1; min-width: 0; max-width: 260px; height: 40px; padding: 0 12px; border: 2px solid var(--ink);
+      border-radius: 0; background: transparent; color: var(--ink); font-family: inherit; font-weight: 650; font-size: 16px; user-select: text; -webkit-user-select: text; }
     html[data-portal="app"] #stage-prev { left: calc(var(--padL) + 4px); } html[data-portal="app"] #stage-next { right: calc(var(--padR) + 4px); }
     html[data-portal="app"] #guide { padding: calc(16px + var(--app-safe-top)) calc(16px + var(--app-safe-right))
       calc(16px + var(--app-safe-bottom)) calc(16px + var(--app-safe-left)); }
