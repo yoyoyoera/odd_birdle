@@ -4,7 +4,7 @@
 
 import { touchLimitFault } from './game.js';
 
-const surprising = ['shock', 'highNet', 'lowNet', 'balloon', 'bumper', 'decoy', 'trampoline'];
+const surprising = ['shock', 'highNet', 'lowNet', 'balloon', 'bumper', 'decoy', 'trampoline', 'invasion'];
 // A comeback: the side that scores has been this many points behind and has now caught up or gone ahead.
 export const comebackFrom = 3;
 // A wave may start once a rally reaches this many hits: only sometimes (waveChance), and at most once a match.
@@ -29,10 +29,11 @@ export function createCrowd({ random = Math.random } = {}) {
   let effectSince = -Infinity;
   let surpriseSince = -Infinity;
   let cords;
+  let clashes;
   let clock = 0;
   return {
     reset() {
-      rally = 0; standing = 0; last = undefined; cheer = undefined; boo = undefined; effect = undefined; clock = 0; cords = undefined;
+      rally = 0; standing = 0; last = undefined; cheer = undefined; boo = undefined; effect = undefined; clock = 0; cords = undefined; clashes = undefined;
       tension = 0; behind = { left: 0, right: 0 }; lastTotal = 0; wave = undefined; waveDone = false;
     },
     get rally() { return rally; },
@@ -44,7 +45,16 @@ export function createCrowd({ random = Math.random } = {}) {
         effect = view.effect;
         effectSince = now;
         if (surprising.includes(effect)) surpriseSince = now;
+        // INVASION: the stands start to buzz.
+        if (effect === 'invasion') cues.push('ooh');
       }
+      // Two rackets clash: "Oh!"
+      const clashNow = view.clash?.count ?? 0;
+      if (clashes !== undefined && clashNow > clashes) {
+        surpriseSince = now;
+        cues.push('ooh');
+      }
+      clashes = clashNow;
       // NET CORD: the whole crowd goes "ooh" and jumps a little.
       const cordNow = view.cord?.count ?? 0;
       if (cords !== undefined && cordNow > cords) {

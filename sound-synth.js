@@ -240,6 +240,22 @@ export function ooh(seconds = 0.9) {
   return lowpass(out, 0.25);
 }
 
+// INVASION starting: a two-note alarm, up and down, twice.
+export function invasionIn() {
+  const out = new Float32Array(length(0.9));
+  [[660, 0], [880, 0.22], [660, 0.44], [880, 0.66]].forEach(([frequency, at]) => {
+    mixInto(out, make(0.2, x => 0.5 * square(TAU * frequency * x) * env(x, 0.003, 0.09)), at);
+  });
+  return out;
+}
+
+// Two rackets clashing: a thud, a crack and a short metallic ring.
+export function clash() {
+  const noise = seeded(61);
+  return make(0.5, x => 0.7 * noise() * env(x, 0.0004, 0.014) + 0.7 * Math.sin(TAU * 92 * x) * env(x, 0.002, 0.1) +
+    0.28 * (Math.sin(TAU * 1480 * x) + Math.sin(TAU * 2210 * 1.004 * x)) * env(x, 0.001, 0.15));
+}
+
 // Name -> [samples, gain], gains as mixed in the shorts.
 export function renderEffects() {
   return {
@@ -249,6 +265,6 @@ export function renderEffects() {
     invisible: [invisible(), 0.7], balloon: [balloon(), 0.7], freeze: [freeze(), 0.7],
     doong: [doong(170, 0.6), 0.9], boing: [doong(115, 0.55), 1], pop: [pop(), 0.8],
     bumper: [bumper(), 0.7], bumperIn: [bumperIn(), 0.5], decoyIn: [decoyIn(), 0.45],
-    applauseBig: [applause(2.2, 34), 0.35], applause: [applause(1.3, 26), 0.25], cord: [cord(), 0.6], ooh: [ooh(), 0.9]
+    applauseBig: [applause(2.2, 34), 0.35], applause: [applause(1.3, 26), 0.25], cord: [cord(), 0.6], ooh: [ooh(), 0.9], invasionIn: [invasionIn(), 0.5], clash: [clash(), 0.9]
   };
 }

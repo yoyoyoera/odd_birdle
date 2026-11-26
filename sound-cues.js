@@ -3,7 +3,7 @@ import { effectLabels, trialEffectLabels, faultReactions } from './game.js';
 const effectSounds = {
   SHOCK: 'shock', INVISIBLE: 'invisible', GUST: 'gust', BALLOON: 'balloon',
   FREEZE: 'freeze', 'HIGH NET': 'netUp', 'LOW NET': 'netDown',
-  BUMPER: 'bumperIn', DECOY: 'decoyIn', TRAMPOLINE: 'balloon'
+  BUMPER: 'bumperIn', DECOY: 'decoyIn', TRAMPOLINE: 'balloon', INVASION: 'invasionIn'
 };
 const effectNames = [...effectLabels, ...trialEffectLabels];
 const taunts = new Set([...faultReactions, 'Sleepy?']);
@@ -44,6 +44,8 @@ export function createCueTracker() {
         // BUMPER: the ring starts again at each bounce. DECOY: a fresh burst. TRAMPOLINE: a new press into the floor.
         if ((view.bumper?.ring ?? 0) > (previous.ring ?? 0) + 0.05) cues.push('bumper');
         if (fresh > previous.fresh) cues.push('pop');
+        // INVASION: rackets clashing.
+        if ((view.clash?.count ?? 0) > (previous.clashes ?? 0)) cues.push('clash');
         // NET CORD: the tape's little tick.
         if ((view.cord?.count ?? 0) > (previous.cords ?? 0)) cues.push('cord');
         const pressAge = view.trampoline?.press?.age;
@@ -57,7 +59,7 @@ export function createCueTracker() {
           else if (view.score[other] > previous.score[other]) cues.push('pointLost');
         }
       }
-      previous = { cords: view.cord?.count ?? 0, flash: view.flash ?? 0, text, ring: view.bumper?.ring ?? 0, fresh, pressAge: view.trampoline?.press?.age, phase: view.phase, score: view.score && { ...view.score }, fuse: view.bomb?.fuse, bombBurst: view.bombBurst };
+      previous = { clashes: view.clash?.count ?? 0, cords: view.cord?.count ?? 0, flash: view.flash ?? 0, text, ring: view.bumper?.ring ?? 0, fresh, pressAge: view.trampoline?.press?.age, phase: view.phase, score: view.score && { ...view.score }, fuse: view.bomb?.fuse, bombBurst: view.bombBurst };
       return cues;
     }
   };

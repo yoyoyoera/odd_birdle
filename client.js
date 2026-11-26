@@ -15,6 +15,7 @@ import { createRacketSender } from './net-send.js';
 import { createNetMeter } from './net-quality.js';
 import { inviteUrl, normalizeRoomCode, roomFromLink, roomLink } from './room-link.js';
 import { createDemo } from './demo.js';
+import { createEffectScript, parseEffectScript } from './effect-script.js';
 import { startHeartbeat, track, trackVisit } from './analytics.js';
 import { createSound } from './sound.js';
 import { createCueTracker } from './sound-cues.js';
@@ -102,6 +103,8 @@ for (const [property, value] of Object.entries({
 // ?test=effects opens a CPU match with buttons for trying each random effect (&fast=1: they come sooner).
 // Portals with strict reviews get no test or debug pages, whatever the address says.
 const testParams = new URLSearchParams(closedPortal ? '' : location.search);
+// ?effect=invasion&rally=1&after=3 : bring chosen effects in on time (for recording); see effect-script.js.
+const effectScript = (config => config && createEffectScript(config))(parseEffectScript(closedPortal ? '' : location.search));
 const testEffects = testParams.get('test') === 'effects';
 const testShapes = testParams.get('test') === 'shapes';
 // ?test=freeze / balloon / shock: a CPU Lv.4 match where the random effect is always that one (for recording).
@@ -603,7 +606,8 @@ function moveRacket(event) {
   const x = mirrored() ? width - shownX : shownX;
   racketIsTouch = false;
   setRacket({
-    x: localSide === 'left' ? clamp(x, 0, center - racketRadius) : clamp(x, center + racketRadius, width),
+    // INVASION: in a CPU match the player's racket may go over the net while the way is open.
+    x: localSide === 'left' ? clamp(x, 0, center - racketRadius + (mode === 'solo' ? solo.invasionExtra() : 0)) : clamp(x, center + racketRadius, width),
     y: clamp((event.clientY - bounds.top) * height / bounds.height, 0, floor),
     time: event.timeStamp
   });
@@ -712,7 +716,7 @@ function touchDrag(event, surface) {
   const left = shownSide() === 'left';
   touchRacket ??= { x: left ? center / 2 : center * 1.5, y: 280 };
   touchRacket = {
-    x: left ? clamp(touchRacket.x + (event.clientX - thumb.x) * scale, 0, center - racketRadius)
+    x: left ? clamp(touchRacket.x + (event.clientX - thumb.x) * scale, 0, center - racketRadius + (mode === 'solo' ? solo.invasionExtra() : 0))
       : clamp(touchRacket.x + (event.clientX - thumb.x) * scale, center + racketRadius, width),
     y: clamp(touchRacket.y + (event.clientY - thumb.y) * scale, 0, floor)
   };
@@ -812,6 +816,69 @@ function drawCourt(view) {
   ctx.fillRect(center - 9, top + dip, 18, 4);
   ctx.fillStyle = '#f7f6e9';
   for (const x of [leftLine, center, rightLine]) ctx.fillRect(x - 2, floor, 4, 8);
+  if (view.invasion) drawInvasionGate(view.invasion, top);
+}
+
+// INVASION: the way over the net is open, and you can see it: a blinking dashed border line the whole height of the court
+// (it turns red and hurries when the rackets are called back), with a glow either side of it.
+function drawInvasionGate({ back }, top) {
+  const now = performance.now();
+  const on = Math.floor(now / (back ? 70 : 140)) % 2 === 0;
+  const color = back ? '#e0392d' : on ? '#f0b23c' : palette.ink;
+  const reduced = reduceMotion.matches;
+  ctx.save();
+  ctx.globalAlpha = reduced ? 0.12 : on ? 0.2 : 0.08;
+  ctx.fillStyle = color;
+  ctx.fillRect(center - 34, 178, 68, floor - 178);
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 6;
+  ctx.setLineDash([16, 12]);
+  ctx.lineDashOffset = reduced ? 0 : -now / 22;
+  ctx.beginPath();
+  ctx.moveTo(center, 178);
+  ctx.lineTo(center, top);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// INVASION: two rackets clash: a starburst and a ring where they met, and BAM!
+function drawClash({ x, y, age, power }) {
+  const life = 0.45;
+  if (age >= life) return;
+  const t = age / life;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.globalAlpha = 1 - t * t;
+  const outer = (28 + 70 * t) * (0.6 + power * 0.6);
+  ctx.beginPath();
+  for (let i = 0; i < 16; i++) {
+    const radius = i % 2 ? outer * 0.45 : outer;
+    const angle = (i / 16) * Math.PI * 2 + age * 2;
+    ctx.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
+  }
+  ctx.closePath();
+  ctx.fillStyle = '#f7f6e9';
+  ctx.fill();
+  ctx.lineWidth = 5;
+  ctx.strokeStyle = palette.ink;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(0, 0, outer * 0.9 + 14 * t, 0, Math.PI * 2);
+  ctx.lineWidth = 4 * (1 - t);
+  ctx.stroke();
+  // The word reads the right way round on a mirrored court.
+  ctx.translate(0, -outer - 8 - 18 * t);
+  if (mirrored()) ctx.scale(-1, 1);
+  ctx.font = `650 ${Math.round(30 + 14 * power)}px "Space Grotesk", system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = 7;
+  ctx.strokeStyle = '#f7f6e9';
+  ctx.strokeText('BAM!', 0, 0);
+  ctx.fillStyle = palette.ink;
+  ctx.fillText('BAM!', 0, 0);
+  ctx.restore();
 }
 
 // TRAMPOLINE: each half of the floor swells into a dome; where the shuttle landed it dents in, then springs back.
@@ -898,6 +965,11 @@ function draw(view, scenery = false) {
     const t = view.shake;
     ctx.translate(Math.sin(t * 91) * 17 * t, Math.cos(t * 117) * 12 * t);
   }
+  // A clash between rackets (INVASION) knocks the whole picture for a moment.
+  if (view.clash && view.clash.age < 0.3 && !reduceMotion.matches) {
+    const rest = 1 - view.clash.age / 0.3;
+    ctx.translate(Math.sin(view.clash.age * 170) * 9 * rest * view.clash.power, Math.cos(view.clash.age * 210) * 7 * rest * view.clash.power);
+  }
   drawCourt(view);
   if (view.force?.type === 'wind') drawWind(view.force);
   if (view.phase !== 'ready') {
@@ -915,6 +987,7 @@ function draw(view, scenery = false) {
     if (view.bombBurst) drawBombBurst(view.bombBurst);
     drawDecoys(view);
     if (view.pops) drawPops(view.pops);
+    if (view.clash && !scenery) drawClash(view.clash);
     if (!scenery) {
       drawDust();
       drawConfetti();
@@ -1234,8 +1307,10 @@ function advanceFrame(time) {
       accumulator -= step;
     }
   }
+  const frameSeconds = lastFrame === undefined ? 0 : Math.min((time - lastFrame) / 1000, 0.05);
   lastFrame = time;
   const view = mode === 'online' ? playback.at(time) ?? currentView() : currentView();
+  if (effectScript && mode === 'solo') effectScript.update(view, frameSeconds, id => solo.triggerEffect(id, true));
   if (view.frozen) {
     prediction = undefined;
     localOverlap = false;
@@ -1405,6 +1480,11 @@ function flagYou() {
 
 // Each CPU match puts the player on a random side (the ?test= pages keep the left).
 function restartCpu() {
+  if (effectScript) {
+    effectScript.reset();
+    // Named effects replace the random ones.
+    solo.setEffects(false);
+  }
   cpuMirrored = !testParams.has('test') && Math.random() < 0.5;
   // Before the restart, so the first serve's outline is already built for this court.
   setMirroredShapes(cpuMirrored);
@@ -1459,7 +1539,7 @@ if (testEffects) {
   trialEffectIds.forEach((id, index) => {
     const button = document.createElement('button');
     button.type = 'button';
-    button.textContent = `${index === 2 ? 0 : index + 8} ${trialEffectLabels[index]}`;
+    button.textContent = `${[8, 9, 0][index] ?? '·'} ${trialEffectLabels[index]}`;
     button.dataset.trial = id;
     button.style.cssText = 'padding:6px 8px;border:0;background:var(--court);color:var(--ink);cursor:pointer;font:inherit;outline:2px dashed var(--ink)';
     button.addEventListener('click', () => triggerTrial(index));

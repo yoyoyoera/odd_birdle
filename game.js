@@ -104,8 +104,12 @@ const effects = [
 const trialEffects = [
   { id: 'bumper', label: 'BUMPER', duration: [4, 5] },
   { id: 'decoy', label: 'DECOY', duration: 3 },
-  { id: 'trampoline', label: 'TRAMPOLINE', duration: [5, 6] }
+  { id: 'trampoline', label: 'TRAMPOLINE', duration: [5, 6] },
+  // INVASION (CPU matches): for a while both rackets may cross the net and fight over the shuttle anywhere.
+  { id: 'invasion', label: 'INVASION', duration: [6, 8] }
 ];
+// How long before INVASION ends the rackets are called back (the way over the net closes smoothly).
+export const invasionReturnSeconds = 1;
 export const trialEffectIds = trialEffects.map(effect => effect.id);
 export const trialEffectLabels = trialEffects.map(effect => effect.label);
 const bombEffect = { id: 'bomb', label: 'BOMB' };
@@ -400,6 +404,16 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
   let cpuPrediction;
   let cpuFollowUps = 0;
   let cpuThaw = 0;
+  // INVASION: a scripted effect counting 3-2-1 (armed), the clash between rackets (count, place, age, strength) and
+  // when the CPU next goes for the player's racket.
+  let armed;
+  let clashCount = 0;
+  let clashAt = { x: center, y: 250 };
+  let clashAge = Infinity;
+  let clashPower = 0;
+  let clashWait = 0;
+  let cpuRam = 0;
+  let invasionPlan;
   let reveal = 0;
   let revealAge = 0;
   let cpuSightBias = 0;
@@ -472,6 +486,7 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
 
   function restart(openingCountdown = 0, selectedCpuLevel) {
     netReturn = undefined;
+    armed = undefined;
     winner = undefined;
     score = { left: 0, right: 0 };
     pointsToWin = 5 + Math.floor(Math.random() * 11);
@@ -498,6 +513,7 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
   function finishPoint(side, reason) {
     if (reason === 'out' && activeEffect?.id === 'bomb') stoppedBomb = bombView(false);
     if (countdown > 0) scheduleEvent();
+    armed = undefined;
     settledSize = shuttlePose().size;
     const finishedNetTop = matchNetTop;
     clearEffect();
@@ -570,9 +586,12 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
   }
 
   function startEffect(chosen) {
-    const pool = onlyEffect ? everyEffect.filter(candidate => candidate.id === onlyEffect)
-      : bombEffects ? bombPool : livePool;
-    const effect = chosen ?? pool[Math.floor(Math.random() * pool.length)];
+    // INVASION needs the CPU's side to be played by this game, so online rooms never draw it.
+    const usable = candidate => candidate.id !== 'invasion' || withCpu;
+    const pool = (onlyEffect ? everyEffect.filter(candidate => candidate.id === onlyEffect)
+      : bombEffects ? bombPool : livePool).filter(usable);
+    const candidates = pool.length ? pool : livePool.filter(usable);
+    const effect = chosen ?? candidates[Math.floor(Math.random() * candidates.length)];
     const length = effectSeconds[effect.id] ?? (effect === bombEffect ? 3 + Math.floor(Math.random() * 5) : Array.isArray(effect.duration)
       ? effect.duration[0] + Math.random() * (effect.duration[1] - effect.duration[0]) : effect.duration);
     activeEffect = { id: effect.id, remaining: length, total: length, netScale: netScales[effect.id] ?? effect.netScale };
@@ -619,6 +638,12 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
         break;
       case 'trampoline':
         break;
+      case 'invasion':
+        // A fresh start for the fight: nobody is stunned, and the CPU may go for the player's racket.
+        cpuThaw = 0;
+        cpuRam = 0;
+        invasionPlan = undefined;
+        break;
       case 'wind': {
         flight++;
         const gust = gusts[Math.floor(Math.random() * gusts.length)];
@@ -638,7 +663,23 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
         matchNetTop = netEffectTop(baseNetTop, netEffectSeconds - activeEffect.remaining, activeEffect.netScale);
         netStart.y = matchNetTop;
       }
+      if (activeEffect.id === 'invasion' && activeEffect.remaining <= invasionReturnSeconds && !activeEffect.called) {
+        activeEffect.called = true;
+        showEvent('GET BACK!');
+      }
       if (activeEffect.id !== 'bomb' && activeEffect.remaining <= 1e-9) clearEffect();
+      return;
+    }
+    if (armed) {
+      // An effect asked for by name (?effect=...) gets the same 3-2-1 warning a random one does.
+      armed.left -= dt;
+      if (armed.left <= 1e-9) {
+        const { effect } = armed;
+        armed = undefined;
+        startEffect(effect);
+        return;
+      }
+      showEvent(String(Math.ceil(armed.left - 1e-9)));
       return;
     }
     if (!effectsOn) return;
@@ -947,6 +988,18 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
     return (shuttle.x < center ? 'left' : 'right') === side;
   }
 
+  // INVASION: anywhere is in reach of either racket.
+  const invading = () => activeEffect?.id === 'invasion';
+  const canReach = side => invading() || onSide(side);
+
+  // How far past the net a racket may go: all the way to the far wall while INVASION is on, closing smoothly over its last
+  // second so the rackets are back on their own side when it ends.
+  function invasionExtra() {
+    if (!invading()) return 0;
+    const t = clamp(activeEffect.remaining / invasionReturnSeconds, 0, 1);
+    return (width - center) * t * t * (3 - 2 * t);
+  }
+
   function shuttlePose() {
     return { x: shuttle.x, y: shuttle.y, shape, angle: shuttle.angle,
       size: settledSize ?? shuttle.size * (activeEffect?.id === 'balloon' ? 2 : 1) };
@@ -968,7 +1021,7 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
 
   // `previous`: where the shuttle was at the last check (one game step ago); the path from there is checked too.
   function checkContact(side, from, to, swingX, swingY, previous) {
-    const onCourt = onSide(side);
+    const onCourt = canReach(side);
     const overlap = onCourt && racketContact(to, to);
     const path = previous ? posesBetween(previous, { x: shuttle.x, y: shuttle.y, rings: outline }) : undefined;
     const meet = path ? sweptTouch(path, from, to) : racketContact(from, to) ? 0 : -1;
@@ -1055,7 +1108,7 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
   }
 
   function supportShuttle(side, from, to) {
-    if (phase !== 'live' || pendingLanding || trampolineHold || !onSide(side)) return false;
+    if (phase !== 'live' || pendingLanding || trampolineHold || !canReach(side)) return false;
     const y = supportedShuttleY(shuttlePose(), from, to);
     if (y === undefined) return false;
     shuttle.y = y;
@@ -1077,9 +1130,10 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
       touching[side] = false;
       return;
     }
+    const reach = invasionExtra();
     const next = {
-      x: side === 'left' ? clamp(input.x, 0, center - racketRadius)
-        : clamp(input.x, center + racketRadius, width),
+      x: side === 'left' ? clamp(input.x, 0, center - racketRadius + reach)
+        : clamp(input.x, center + racketRadius - reach, width),
       y: clamp(input.y, 0, floor),
       time: input.time,
       seenTime: frame?.time,
@@ -1087,6 +1141,19 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
       vy: 0,
       age: 0
     };
+    // INVASION: the CPU's racket is solid; the player's slides round it instead of through it.
+    if (withCpu && invading() && cpu && side === 'left') {
+      const gap = radiusOf(next) + racketRadius;
+      const dx = next.x - cpu.x;
+      const dy = next.y - cpu.y;
+      const distance = Math.hypot(dx, dy);
+      if (distance < gap) {
+        // Exactly on top of it: out the way the player came from (the left).
+        const [ux, uy] = distance > 1e-6 ? [dx / distance, dy / distance] : [-1, 0];
+        next.x = clamp(cpu.x + ux * gap, 0, center - racketRadius + reach);
+        next.y = clamp(cpu.y + uy * gap, 0, floor);
+      }
+    }
     const previous = rackets[side] ?? next;
     rackets[side] = next;
     if (decoys.length) racketPopsDecoys(previous, next);
@@ -1095,6 +1162,100 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
     if (next.vy < 0 && !isSwing(next) && supportShuttle(side, previous, next)) return;
     if (withCpu) checkContact(side, previous, next, next.vx, next.vy);
     else onlineContact(side, previous, next, frame, false, sample, previous === next ? undefined : previous.seenTime);
+  }
+
+  // INVASION, the CPU's way: it goes for the shuttle wherever it is (over the net and deep into the player's court
+  // too), every so often charges the player's racket, and hits whatever it reaches back at the player's court (a smash
+  // straight down when it is above the net).
+  function moveCpuInvading(dt) {
+    cpuThaw = Math.max(0, cpuThaw - dt);
+    const { speed } = cpuLevels[cpuLevel - 1];
+    const player = rackets.left;
+    if (cpuRam > 0) cpuRam -= dt;
+    else if (player && lastHitter === 'right' && Math.random() < dt * 1.6) cpuRam = 1.6;
+    let targetX;
+    let targetY;
+    if (cpuRam > 0 && player) {
+      targetX = player.x;
+      targetY = player.y;
+    } else {
+      invasionPlan = invasionPlan && invasionPlan.flight === flight && invasionPlan.wait > 0 ? { ...invasionPlan, wait: invasionPlan.wait - dt } : (() => {
+        const flown = flyForward(shuttle, 2.5);
+        const meet = flown.path.find(point => point.vy > 0 && point.y >= 230 && point.y <= floor - 40) ?? flown.landing ?? shuttle;
+        return { flight, x: meet.x, y: meet.y, wait: 0.06 };
+      })();
+      targetX = invasionPlan.x + 16;
+      targetY = invasionPlan.y + 22;
+    }
+    targetX = clamp(targetX, racketRadius, width - racketRadius);
+    targetY = clamp(targetY, 150, floor - 14);
+    const travel = Math.max(speed, 1) * 1.2 * dt;
+    cpu.x += clamp(targetX - cpu.x, -290 * travel, 290 * travel);
+    cpu.y += clamp(targetY - cpu.y, -340 * travel, 340 * travel);
+    const touches = touchesLeft('right');
+    if (touches > 0 && cpuThaw <= 0 && hitCooldown <= 0 && (lastHitter !== 'right' || afterBounce) && racketContact(cpu, cpu)) {
+      const target = 150 + Math.random() * 230;
+      let vy;
+      let vx;
+      if (shuttle.x < center + 30) {
+        // On the player's side: from above the net, straight down; from low, a lift.
+        vy = shuttle.y <= matchNetTop - 10 ? 150 + Math.random() * 130 : -520;
+        vx = clamp(velocityToLandAt(target, vy), -1100, 1100);
+      } else {
+        const shot = returnShot(target, -485 - Math.random() * 45);
+        ({ vx, vy } = shot);
+      }
+      if (Number.isFinite(vx)) launch(vx, vy, 'right');
+    }
+  }
+
+  // INVASION: the two rackets cannot pass through each other. A hard enough hit (either racket going at the other) is a
+  // CLASH: the CPU's racket is thrown off and stunned a moment, there is a flash, a shake, and the crowd gasps.
+  function clashRackets(dt) {
+    clashWait = Math.max(0, clashWait - dt);
+    const a = rackets.left;
+    const b = cpu;
+    if (!invading() || !a || !b) return;
+    const gap = radiusOf(a) + racketRadius;
+    let dx = b.x - a.x;
+    let dy = b.y - a.y;
+    let distance = Math.hypot(dx, dy);
+    if (distance >= gap + 2) return;
+    if (distance < 1e-6) { dx = 1; dy = 0; distance = 1; }
+    const nx = dx / distance;
+    const ny = dy / distance;
+    const mine = contactMotion(a, a.time + a.age * 1000);
+    const approach = (mine.vx - (b.vx ?? 0)) * nx + (mine.vy - (b.vy ?? 0)) * ny;
+    if (distance < gap) {
+      b.x = clamp(a.x + nx * gap, racketRadius, width - racketRadius);
+      b.y = clamp(a.y + ny * gap, 0, floor);
+    }
+    if (approach > 140 && clashWait <= 0) {
+      clashWait = 0.3;
+      clashCount++;
+      clashAt = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      clashAge = 0;
+      clashPower = clamp(approach / 900, 0.3, 1);
+      const knock = 240 + approach * 0.9;
+      b.kx = nx * knock;
+      b.ky = ny * knock - 50;
+      cpuThaw = Math.max(cpuThaw, 0.25);
+      cpuRam = 0;
+    }
+  }
+
+  // The rackets come back to their own side as INVASION closes (and at once-ish if the point ends in the middle of it).
+  function pullRacketsBack(dt) {
+    const extra = invasionExtra();
+    const mine = rackets.left;
+    if (mine) {
+      const limit = center - racketRadius + extra;
+      if (mine.x > limit) mine.x = Math.max(limit, mine.x - 900 * dt);
+    }
+    if (cpu) {
+      const limit = center + racketRadius - extra;
+      if (cpu.x < limit) cpu.x = Math.min(limit, cpu.x + 900 * dt);
+    }
   }
 
   // canHit is off while the shuttle is frozen: the CPU may walk to it but cannot strike it.
@@ -1318,6 +1479,8 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
       press.age += dt;
       if (press.age > 0.7) press = undefined;
     }
+    clashAge += dt;
+    pullRacketsBack(dt);
     if (phase === 'ready' || phase === 'finished') return;
     if (phase === 'starting') {
       phaseTime -= dt;
@@ -1383,7 +1546,7 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
     if (support) {
       const racket = rackets[support];
       if (!racket || !supportShuttle(support, racket, { ...racket, vy: 0 })) {
-        if (!racket || !onSide(support) || shuttle.y > racket.y ||
+        if (!racket || !canReach(support) || shuttle.y > racket.y ||
             !outlineContact(racket, racket, radiusOf(racket) + 3, shuttle.x, shuttle.y, outline)) support = undefined;
       }
     }
@@ -1398,7 +1561,24 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
         // Same flight only: a bounce or a hit in this step moved it somewhere it did not fly to.
         checkContact(side, racket, racket, motion.vx, motion.vy, flightBefore === flight ? before : undefined);
       }
-      if (phase === 'live') moveCpu(dt);
+      if (phase === 'live' && cpu) {
+        const fromX = cpu.x;
+        const fromY = cpu.y;
+        if (cpu.kx || cpu.ky) {
+          // Thrown off by a clash: slides on and slows down.
+          cpu.x = clamp(cpu.x + cpu.kx * dt, racketRadius, width - racketRadius);
+          cpu.y = clamp(cpu.y + cpu.ky * dt, 0, floor);
+          const slow = Math.exp(-7 * dt);
+          cpu.kx *= slow;
+          cpu.ky *= slow;
+          if (Math.hypot(cpu.kx, cpu.ky) < 8) cpu.kx = cpu.ky = 0;
+        }
+        if (invading()) moveCpuInvading(dt);
+        else moveCpu(dt);
+        clashRackets(dt);
+        cpu.vx = (cpu.x - fromX) / dt;
+        cpu.vy = (cpu.y - fromY) / dt;
+      }
       if (decoys.length && cpu) racketPopsDecoys(cpu, cpu);
     }
   }
@@ -1430,6 +1610,11 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
       pops: pops.length ? pops.map(pop => ({ ...pop, progress: pop.age / decoyPopSeconds })) : undefined,
       trampoline: activeEffect?.id === 'trampoline' || press
         ? { swell: trampolineSwell(), press: press ? { x: press.x, age: press.age } : undefined } : undefined,
+      // INVASION: the way over the net is open (how far, and whether the rackets are being called back), the last clash
+      // between rackets, and the name of a scripted effect that is still counting 3-2-1.
+      invasion: invading() ? { remaining: activeEffect.remaining, back: activeEffect.remaining <= invasionReturnSeconds, extra: invasionExtra() } : undefined,
+      clash: clashCount ? { count: clashCount, x: clashAt.x, y: clashAt.y, age: clashAge, power: clashPower } : undefined,
+      armed: armed?.effect.id,
       // NET CORD: how many tape clips so far (a new one is a sound and an "ooh") and the tape's wobble.
       cord: { count: cordCount, x: cordX, wobble: cordFlash / netCordSeconds },
       shuttle: visible && !bombBurst ? { ...networkShuttlePose(), flight, canHit: hitCooldown <= 0 && !pendingLanding && !frozen } : undefined,
@@ -1439,11 +1624,18 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
   }
 
   // For trying effects out (?test=effects): start one right now if a rally is live.
-  function triggerEffect(id) {
+  // `lead`: count 3-2-1 first, as a random effect does, instead of starting at once.
+  function triggerEffect(id, lead = false) {
     if (id === 'bomb' && !bombEffects) return false;
+    if (id === 'invasion' && !withCpu) return false;
     const effect = everyEffect.find(candidate => candidate.id === id);
-    if (!effect || phase !== 'live' || activeEffect || !shuttle || pendingLanding) return false;
+    if (!effect || phase !== 'live' || activeEffect || armed || !shuttle || pendingLanding) return false;
     countdown = 0;
+    if (lead) {
+      armed = { effect, left: 3 };
+      showEvent('3');
+      return true;
+    }
     startEffect(effect);
     return true;
   }
@@ -1506,10 +1698,10 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
   }
 
   // Tests only: put the shuttle somewhere, flying, as if `hitter` had just hit it.
-  function testShot({ x, y, vx, vy, hitter = 'right' }) {
+  function testShot({ x, y, vx, vy, hitter = 'right', keep = false }) {
     if (phase !== 'live' || !shuttle) return false;
     Object.assign(shuttle, { x, y, vx, vy });
-    clearEffect();
+    if (!keep) clearEffect();
     lastHitter = hitter;
     cordTouches = 0;
     hitCooldown = 0;
@@ -1526,5 +1718,5 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
     if (id in netScales && Number.isFinite(scale) && scale > 0 && scale < 4) netScales[id] = scale;
   }
 
-  return { restart, moveRacket, holdRacket, contactFrame, simulate, view, triggerEffect, testNetCord, testShot, setNetScale, setEffectSeconds, setShuttle, setEffects, setOnlyEffect };
+  return { restart, moveRacket, holdRacket, contactFrame, simulate, view, invasionExtra, triggerEffect, testNetCord, testShot, setNetScale, setEffectSeconds, setShuttle, setEffects, setOnlyEffect };
 }

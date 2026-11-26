@@ -24,8 +24,8 @@ function hit(game, { dx = -40, dy = 0 } = {}) {
   return game.view().shuttle;
 }
 
-test('the random pool has the three new effects and no FREEZE or INVISIBLE', () => {
-  assert.deepEqual(trialEffectIds, ['bumper', 'decoy', 'trampoline']);
+test('the random pool has the new effects and no FREEZE or INVISIBLE', () => {
+  assert.deepEqual(trialEffectIds, ['bumper', 'decoy', 'trampoline', 'invasion']);
   assert.deepEqual(retiredEffectIds, ['freeze', 'invisible']);
   const game = createGame({ withCpu: true, quickEvents: true });
   game.restart(3, 4);
@@ -38,7 +38,7 @@ test('the random pool has the three new effects and no FREEZE or INVISIBLE', () 
     if (game.view().phase === 'finished') game.restart(3, 4);
   }
   for (const id of retiredEffectIds) assert.ok(!seen.has(id), `${id} came up at random`);
-  assert.deepEqual(randomEffectIds, ['shock', 'wind', 'balloon', 'highNet', 'lowNet', 'bumper', 'decoy', 'trampoline']);
+  assert.deepEqual(randomEffectIds, ['shock', 'wind', 'balloon', 'highNet', 'lowNet', 'bumper', 'decoy', 'trampoline', 'invasion']);
 });
 
 test('a pinned trial effect is the only one that comes up, and can be asked for by name', t => {
@@ -220,7 +220,9 @@ test('the dent presses in, springs back past rest, and settles', () => {
 });
 
 test('what the server sends for the new effects survives JSON (online rooms send the whole view)', t => {
-  for (const id of trialEffectIds) {
+  // (INVASION is for CPU matches only: an online room refuses it.)
+  assert.equal(serve(t).triggerEffect('invasion'), false);
+  for (const id of trialEffectIds.filter(id => id !== 'invasion')) {
     const game = serve(t);
     game.triggerEffect(id);
     run(game, 0.5);
