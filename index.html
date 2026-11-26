@@ -472,18 +472,18 @@
        they are icon tiles (the words stay as labels for screen readers and tooltips), faintly tinted, fully tinted
        under the pointer. */
     #result-actions .icon, #result-actions [data-posted] { display: none; }
-    [data-portal="reddit"] #result-actions { gap: 8px; }
-    [data-portal="reddit"] #result-actions .icon { display: block; }
-    [data-portal="reddit"] #result-actions .label { display: none; }
-    [data-portal="reddit"] #result-actions [data-posted] { display: none; }
-    [data-portal="reddit"] #result-actions button { display: grid; place-items: center; width: 44px; height: 44px; min-height: 0; padding: 0;
+    :is([data-portal="reddit"], [data-portal="app"]) #result-actions { gap: 8px; }
+    :is([data-portal="reddit"], [data-portal="app"]) #result-actions .icon { display: block; }
+    :is([data-portal="reddit"], [data-portal="app"]) #result-actions .label { display: none; }
+    :is([data-portal="reddit"], [data-portal="app"]) #result-actions [data-posted] { display: none; }
+    :is([data-portal="reddit"], [data-portal="app"]) #result-actions button { display: grid; place-items: center; width: 44px; height: 44px; min-height: 0; padding: 0;
       border: 0; background: color-mix(in srgb, var(--court-hover) 55%, var(--court)); }
-    [data-portal="reddit"] #result-actions button:hover:not(:disabled) { background: var(--court-hover); }
-    [data-portal="reddit"] #result-actions button[hidden] { display: none; }
-    [data-portal="reddit"] #card-button[data-state="posting"] { opacity: .6; cursor: default; animation: card-pulse 1s ease-in-out infinite; }
-    [data-portal="reddit"] #card-button[data-state="posted"] .icon:not([data-posted]) { display: none; }
-    [data-portal="reddit"] #card-button[data-state="posted"] [data-posted] { display: block; }
-    [data-portal="reddit"] #card-button[data-state="failed"] { outline: 2px solid currentColor; outline-offset: -3px; }
+    :is([data-portal="reddit"], [data-portal="app"]) #result-actions button:hover:not(:disabled) { background: var(--court-hover); }
+    :is([data-portal="reddit"], [data-portal="app"]) #result-actions button[hidden] { display: none; }
+    :is([data-portal="reddit"], [data-portal="app"]) #card-button[data-state="posting"] { opacity: .6; cursor: default; animation: card-pulse 1s ease-in-out infinite; }
+    :is([data-portal="reddit"], [data-portal="app"]) #card-button[data-state="posted"] .icon:not([data-posted]) { display: none; }
+    :is([data-portal="reddit"], [data-portal="app"]) #card-button[data-state="posted"] [data-posted] { display: block; }
+    :is([data-portal="reddit"], [data-portal="app"]) #card-button[data-state="failed"] { outline: 2px solid currentColor; outline-offset: -3px; }
     @keyframes card-pulse { 50% { opacity: .35; } }
     #result-actions #card-button:disabled { cursor: default; }
     #result-actions #card-button[hidden] { display: none; }
