@@ -24,7 +24,7 @@ test('the app counts nothing and keeps invites to the room code', async () => {
   assert.equal(portal.portalInviteLink('AB12CD'), 'AB12CD');
   await portal.initPortal();
   await portal.matchBreak();
-  assert.deepEqual(features, { stages: false, daily: false, online: false });
+  assert.deepEqual(features, { stages: false, daily: false, online: false, shop: false });
 });
 
 test('the app pause pauses and mutes the game, and lets go again', () => {

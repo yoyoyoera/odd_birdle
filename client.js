@@ -30,8 +30,12 @@ import { shareCardImage, shareInvite } from './app-share.js';
 import { createDuoTouch } from './duo-touch.js';
 import { createAccount } from './app-account.js';
 import { createErrorReporter, placeOf } from './app-errors.js';
+import { createCloset } from './app-closet.js';
+import { catalog, outlineOf, racketById, shelfFor } from './rackets.js';
 // The phone app tells the server when something breaks (set up with the app shell below; empty elsewhere).
 var reportAppError = () => false;
+// The phone app's rackets (the shop): which one is in hand (created with the app's storage; empty in builds without the shop).
+var closet;
 // The stage list and its saved clears: in the Reddit app always, in the phone app when it is built with `stages`.
 const stagesOn = portal === 'reddit' || (portal === 'app' && features.stages);
 import { landscapeOnly, touchLayout } from './touch-layout.js';
@@ -98,6 +102,7 @@ const stageList = document.querySelector('#stage-list');
 const stageProgressLabel = document.querySelector('#stage-progress');
 // The phone app's DAILY and account screens.
 const accountPanel = document.querySelector('#account-panel');
+const shopPanel = document.querySelector('#shop-panel');
 const byId = id => document.querySelector('#' + id);
 const stageCount = document.querySelector('#stage-count');
 const stageScore = document.querySelector('#stage-score');
@@ -351,7 +356,8 @@ function drawOverlay() {
       bleedCtx.rect(b.right, 0, innerWidth - b.right, innerHeight);
       bleedCtx.clip();
       bleedCtx.beginPath();
-      bleedCtx.arc(cx, cy, r, 0, Math.PI * 2);
+      if (racket.polygon) racketPath(bleedCtx, cx, cy, racket.polygon, sx);
+      else bleedCtx.arc(cx, cy, r, 0, Math.PI * 2);
       bleedCtx.fillStyle = racket.fill;
       bleedCtx.fill();
       bleedCtx.lineWidth = 2;
@@ -432,7 +438,10 @@ function setMode(next, message = '') {
   stagePanel.hidden = next !== 'stages';
   accountPanel.hidden = next !== 'account';
   // Behind the account screen the title steps aside and the demo match keeps playing.
-  stage.toggleAttribute('data-account', next === 'account');
+  shopPanel.hidden = next !== 'shop';
+  stage.toggleAttribute('data-account', next === 'account' || next === 'shop');
+  if (next !== 'account') stopPreview();
+  if (next !== 'shop') stopShopClock();
   if (next === 'menu' && (portal === 'reddit' || portal === 'app') && typeof refreshDaily === 'function' && dailyReady) refreshDaily();
   roomDisplay.hidden = next !== 'waiting';
   joinForm.hidden = next !== 'join';
@@ -1066,13 +1075,29 @@ for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
   document.addEventListener(type, event => { duoTouch.up(event.pointerId); if (!event.target?.closest?.('#pad')) touchEnd(event); });
 }
 
+// The edge of a shaped racket as a polygon, worked out once per shape.
+const polygons = new WeakMap();
+function polygonOf(parts) {
+  let polygon = polygons.get(parts);
+  if (!polygon) polygons.set(parts, polygon = outlineOf(parts));
+  return polygon;
+}
+
+function racketPath(context, x, y, polygon, scale = 1) {
+  context.moveTo(x + polygon[0].x * scale, y + polygon[0].y * scale);
+  for (let i = 1; i < polygon.length; i++) context.lineTo(x + polygon[i].x * scale, y + polygon[i].y * scale);
+  context.closePath();
+}
+
 function drawRacket(position, fill, stroke, side) {
   ctx.beginPath();
+  const polygon = position.parts ? polygonOf(position.parts) : undefined;
   const squash = squashes[side];
   const amount = squash && juice.squash && !reduceMotion.matches ? squashAmount(performance.now() - squash.start) : 0;
   // Squash: a little flatter along the way the shuttle was sent, a little wider across it.
   const r = position.radius ?? position.r ?? racketRadius;
-  if (amount) ctx.ellipse(position.x, position.y, r * (1 - amount), r * (1 + amount * 0.6), squash.angle, 0, Math.PI * 2);
+  if (polygon) racketPath(ctx, position.x, position.y, polygon);
+  else if (amount) ctx.ellipse(position.x, position.y, r * (1 - amount), r * (1 + amount * 0.6), squash.angle, 0, Math.PI * 2);
   else ctx.arc(position.x, position.y, r, 0, Math.PI * 2);
   ctx.fillStyle = fill;
   ctx.fill();
@@ -1080,7 +1105,7 @@ function drawRacket(position, fill, stroke, side) {
   ctx.strokeStyle = stroke;
   ctx.stroke();
   // Two players on one device: both rackets have a side that cannot be reached, so both show it.
-  if (portal === 'app' && side !== undefined && (side === localSide || duo)) bleed.push({ x: mirrored() ? width - position.x : position.x, y: position.y, r, fill, stroke });
+  if (portal === 'app' && side !== undefined && (side === localSide || duo)) bleed.push({ x: mirrored() ? width - position.x : position.x, y: position.y, r: polygon ? Math.max(...position.parts.map(part => Math.abs(part.x) + part.r)) : r, polygon, fill, stroke });
 }
 
 function drawDoublesRackets(view) {
@@ -1855,6 +1880,9 @@ function restartCpu() {
     setMirroredShapes(false);
     duoTouch.reset();
     solo = duoGame;
+    // Player one holds the racket from the account; player two the plain one.
+    duoGame.setRacketShape('left', closet?.shape);
+    duoGame.setRacketShape('right', undefined);
     duoOpening = duoOpening === undefined ? (Math.random() < 0.5 ? 'left' : 'right') : duoOpening === 'left' ? 'right' : 'left';
     duoGame.restart(3, undefined, null, { touchLimit: threeTouchLimit, openingSide: duoOpening });
     // Both rackets are on court from the start (each is moved by its own finger afterwards).
@@ -1868,6 +1896,8 @@ function restartCpu() {
   const rules = selectedStage?.rules;
   const touchLimit = (portal === 'reddit' || portal === 'app') && !selectedStage?.daily ? threeTouchLimit : undefined;
   solo = rules?.twinShuttles ? createTwinShuttleGame() : singles;
+  // The racket in hand (the shop): odd shapes are for play and practice; the daily challenge uses the plain racket.
+  singles.setRacketShape('left', selectedStage?.daily ? undefined : closet?.shape);
   solo.restart(3, rules?.cpuLevel ?? selectedCpuLevel, rules ?? null, { touchLimit });
 }
 
@@ -2196,6 +2226,150 @@ if (portal === 'reddit') {
 }
 
 // ---- The phone app's account screen and its link to the daily card (app-account.js; docs/APP-API.md) -------------------
+// ---- The rackets: the account shows the one in hand and the ones owned, the shop sells the day's three ------------------------
+var previewTimer;
+var shopTimer;
+
+function stopPreview() {
+  if (previewTimer) cancelAnimationFrame(previewTimer);
+  previewTimer = undefined;
+}
+
+function stopShopClock() {
+  clearInterval(shopTimer);
+  shopTimer = undefined;
+}
+
+// The shape of a racket as a small picture (it takes the colour of its button's text).
+function racketIcon(racket, size) {
+  const polygon = outlineOf(racket.parts);
+  const half = Math.max(racket.halfX, racket.halfY) + 3;
+  const points = polygon.map(point => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' ');
+  return `<svg width="${size}" height="${size}" viewBox="${-half} ${-half} ${half * 2} ${half * 2}" aria-hidden="true"><polygon points="${points}" fill="currentColor" fill-opacity=".22" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/></svg>`;
+}
+
+// The racket in hand, held up while one shuttle bounces on it: tok, tok, tok.
+function startPreview() {
+  stopPreview();
+  const canvas = byId('ac-preview');
+  const context = canvas.getContext('2d');
+  const still = reduceMotion.matches;
+  const draw = now => {
+    const racket = racketById(closet?.equipped) ?? racketById('classic');
+    const polygon = outlineOf(racket.parts);
+    const scale = 1.55;
+    const period = 0.78;
+    const u = ((now / 1000) % period) / period;
+    const lift = still ? 0.5 : 4 * u * (1 - u);
+    const racketX = canvas.width / 2;
+    const racketY = canvas.height - 24 - racket.halfY * scale;
+    const top = racketY - racket.halfY * scale;
+    const ballR = 11;
+    const ballY = top - ballR - 3 - lift * 92;
+    // The racket gives a little as the shuttle lands on it.
+    const give = still ? 0 : Math.max(0, 1 - lift * 9) * 5;
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.lineWidth = 3;
+    context.lineJoin = 'round';
+    context.beginPath();
+    racketPath(context, racketX, racketY + give, polygon, scale);
+    context.fillStyle = '#a9d67877';
+    context.fill();
+    context.strokeStyle = palette.ink;
+    context.stroke();
+    // A shadow on the floor shrinks as the shuttle climbs.
+    context.fillStyle = palette.ink;
+    context.globalAlpha = 0.12 * (1 - lift * 0.6);
+    context.beginPath();
+    context.ellipse(racketX, canvas.height - 6, 30 * (1 - lift * 0.3), 5, 0, 0, Math.PI * 2);
+    context.fill();
+    context.globalAlpha = 1;
+    context.beginPath();
+    context.arc(racketX, ballY + give, ballR, 0, Math.PI * 2);
+    context.fillStyle = '#d9b497';
+    context.fill();
+    context.strokeStyle = '#774935';
+    context.lineWidth = 2.5;
+    context.stroke();
+    if (!still) previewTimer = requestAnimationFrame(draw);
+  };
+  previewTimer = requestAnimationFrame(draw);
+}
+
+function renderRackets() {
+  const wrap = byId('ac-rackets-wrap');
+  wrap.hidden = !closet;
+  if (!closet) return;
+  const row = byId('ac-rackets');
+  row.replaceChildren(...closet.owned.map(id => {
+    const racket = racketById(id);
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'rk';
+    button.setAttribute('role', 'option');
+    button.setAttribute('aria-label', racket.name);
+    button.setAttribute('aria-selected', String(id === closet.equipped));
+    button.innerHTML = racketIcon(racket, 44);
+    button.addEventListener('click', () => {
+      if (closet.equip(id)) { renderRackets(); startPreview(); }
+    });
+    return button;
+  }));
+  row.querySelector('[aria-selected="true"]')?.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+}
+
+const shopHint = { armed: undefined };
+
+function renderShop() {
+  const today = new Date().toISOString().slice(0, 10);
+  byId('shop-coins').textContent = '◎ ' + closet.coins;
+  byId('shop-shelf').replaceChildren(...shelfFor(today).map(racket => {
+    const owned = closet.has(racket.id);
+    const tile = document.createElement('button');
+    tile.type = 'button';
+    tile.className = 'tile';
+    tile.setAttribute('role', 'listitem');
+    if (owned) tile.dataset.owned = '';
+    if (shopHint.armed === racket.id) tile.dataset.armed = '';
+    const price = document.createElement('span');
+    price.className = 'price';
+    price.textContent = owned ? 'OWNED ✓' : shopHint.armed === racket.id ? 'TAP TO BUY' : '◎ ' + racket.price;
+    const name = document.createElement('span');
+    name.className = 'rname';
+    name.textContent = racket.name;
+    tile.innerHTML = racketIcon(racket, 64);
+    tile.append(name, price);
+    tile.addEventListener('click', () => {
+      const message = byId('shop-message');
+      if (owned) { message.textContent = 'You have it. Put it on in ACCOUNT.'; return; }
+      if (shopHint.armed !== racket.id) { shopHint.armed = racket.id; message.textContent = ''; renderShop(); return; }
+      shopHint.armed = undefined;
+      const result = closet.buy(racket.id);
+      message.textContent = result.ok ? `${racket.name} is yours. Put it on in ACCOUNT.` : result.reason === 'coins' ? 'Not enough coins.' : 'Could not buy it.';
+      renderShop();
+    });
+    return tile;
+  }));
+}
+
+function shopClockText() {
+  const now = new Date();
+  const next = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1);
+  const left = Math.max(0, Math.floor((next - now.getTime()) / 1000));
+  const two = value => String(value).padStart(2, '0');
+  return `TODAY · NEW IN ${two(Math.floor(left / 3600))}:${two(Math.floor(left % 3600 / 60))}:${two(left % 60)}`;
+}
+
+function openShop() {
+  setMode('shop');
+  shopHint.armed = undefined;
+  byId('shop-message').textContent = '';
+  renderShop();
+  byId('shop-when').textContent = shopClockText();
+  stopShopClock();
+  shopTimer = setInterval(() => { byId('shop-when').textContent = shopClockText(); }, 1000);
+}
+
 const accountText = {
   'nickname-invalid': 'Use 3 to 16 letters, numbers, _ or -.',
   'nickname-banned': 'That name is not allowed.',
@@ -2228,6 +2402,7 @@ async function renderAccount() {
   byId('ac-streak').textContent = `${streak}-DAY STREAK`;
   byId('ac-stats').hidden = !dailyState;
   byId('account-name').textContent = profile?.name ?? 'ACCOUNT';
+  renderRackets();
 }
 
 function openAccount() {
@@ -2236,11 +2411,20 @@ function openAccount() {
   deleteArmed = undefined;
   byId('ac-delete').textContent = 'DELETE MY DATA';
   renderAccount();
+  if (closet) startPreview();
 }
 
 function initAppAccount(storage) {
   const platform = window.Capacitor?.getPlatform?.() ?? 'web';
   appAccount = createAccount({ base: serverBase, storage, plugins: window.Capacitor?.Plugins, platform });
+  if (features.shop) {
+    // The racket shop: the rackets in hand and the day's shelf (coins and rackets live on this device until the accounts hold a wallet).
+    closet = createCloset(storage);
+    byId('ac-shop').hidden = false;
+    byId('ac-shop').addEventListener('click', openShop);
+    byId('shop-account').addEventListener('click', openAccount);
+    byId('shop-coins-add').addEventListener('click', () => { closet.addCoins(100); renderShop(); });
+  }
   const say = text => { byId('ac-message').textContent = text; };
   // The daily card sits on the menu, with the first five to clear it; the account is one tap away from it.
   byId('daily-teaser').hidden = false;

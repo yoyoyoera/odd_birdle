@@ -25,7 +25,7 @@
       --page-hover: #293737; --court-hover: #d7dec6; }
     * { box-sizing: border-box; }
     body { margin: 0; min-height: 100vh; min-height: 100svh; display: grid; place-items: center;
-      background: var(--page); font: 16px "Space Grotesk", system-ui, sans-serif;
+      background: var(--page); font: 16px "Space Grotesk", "SUIT", system-ui, sans-serif;
       -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
     input { -webkit-user-select: text; user-select: text; }
     /* No links out of the game on CrazyGames. */
@@ -216,10 +216,10 @@
     #guide-bar.run i { animation: guide-time 5s linear forwards; }
     @keyframes guide-time { to { transform: scaleX(0); } }
     #guide-skip { min-width: 120px; min-height: 48px; padding: 0 20px; border: 1.5px solid var(--court); background: transparent;
-      color: var(--court); font: 650 15px "Space Grotesk", system-ui, sans-serif; letter-spacing: .14em; cursor: pointer; }
+      color: var(--court); font: 650 15px "Space Grotesk", "SUIT", system-ui, sans-serif; letter-spacing: .14em; cursor: pointer; }
     #guide-skip:hover { background: color-mix(in srgb, var(--court) 14%, transparent); }
     #touch-tune { display: flex; align-items: center; gap: 10px; color: var(--court);
-      font: 650 13px "Space Grotesk", system-ui, sans-serif; letter-spacing: .08em; }
+      font: 650 13px "Space Grotesk", "SUIT", system-ui, sans-serif; letter-spacing: .08em; }
     #touch-tune[hidden] { display: none; }
     html[data-pad] #touch-tune { margin: 4px 4px 0; }
     /* On its side, the slider opens alongside the icon column and leaves the whole court visible. */
@@ -239,7 +239,7 @@
     html[data-pad][data-pad-view="menu"] #pad-menu { display: block; box-sizing: border-box; width: calc(100% - 24px); margin: 12px; }
     html[data-pad] #pad-menu[hidden] { display: none; }
     #pad-menu #menu { position: static; transform: none; display: flex; flex-direction: column; align-items: stretch; gap: 10px; white-space: nowrap; }
-    #pad-menu #menu button { width: 100%; height: 56px; min-height: 0; padding: 0; border: 0; font: 650 16px "Space Grotesk", system-ui, sans-serif;
+    #pad-menu #menu button { width: 100%; height: 56px; min-height: 0; padding: 0; border: 0; font: 650 16px "Space Grotesk", "SUIT", system-ui, sans-serif;
       letter-spacing: .12em; color: var(--court); background: color-mix(in srgb, var(--court) 13%, var(--page)); }
     #pad-menu #menu button:hover { background: color-mix(in srgb, var(--court) 22%, var(--page)); }
     #pad-menu #cpu-group { display: grid; grid-template-columns: minmax(0, 1fr) 116px; gap: 10px; }
@@ -586,14 +586,19 @@
     </section>
     <!-- The phone app: today's daily challenge with the first five to clear it, and the player's account. -->
     <section id="account-panel" aria-label="Account" hidden>
-      <header><h2>ACCOUNT</h2></header>
+      <header><h2>ACCOUNT</h2><button id="ac-shop" type="button" hidden>SHOP ›</button></header>
       <div id="account-body">
         <div id="ac-card">
+          <canvas id="ac-preview" width="240" height="200" aria-hidden="true"></canvas>
           <p id="ac-name"></p>
           <p id="ac-status"></p>
           <div id="ac-stats"><span id="ac-clears"></span><span id="ac-streak"></span></div>
         </div>
         <div id="ac-side">
+          <div id="ac-rackets-wrap" hidden>
+            <div id="ac-rackets" role="listbox" aria-label="My rackets"></div>
+            <p id="ac-rackets-note">Odd shapes play in FREE PLAY, STAGES and 2 PLAYERS. DAILY and ONLINE use the plain racket.</p>
+          </div>
           <div id="ac-signin" hidden>
             <p>Sign in to pick a nickname and keep your daily record on every phone you use.</p>
             <div id="ac-providers">
@@ -609,6 +614,14 @@
           </div>
           <p id="ac-message" role="status"></p>
         </div>
+      </div>
+    </section>
+    <section id="shop-panel" aria-label="Racket shop" hidden>
+      <header><h2>SHOP</h2><div id="shop-top"><span id="shop-coins">◎ 0</span><button id="shop-account" type="button">ACCOUNT ›</button></div></header>
+      <div id="shop-body">
+        <p id="shop-when"></p>
+        <div id="shop-shelf" role="list"></div>
+        <div id="shop-bottom"><button id="shop-coins-add" type="button">GET TEST COINS</button><p id="shop-message" role="status"></p></div>
       </div>
     </section>
     <div id="expand-gate" hidden>

@@ -18,7 +18,7 @@ if (!['crazygames', 'itch', 'newgrounds', 'gamepix', 'y8', 'gamedistribution', '
 const appFeatures = (process.argv.find(arg => arg.startsWith('--features='))?.slice('--features='.length) ?? 'stages,online,daily')
   .split(',').map(feature => feature.trim().toLowerCase()).filter(Boolean);
 for (const feature of appFeatures) {
-  if (!['stages', 'daily', 'online'].includes(feature)) throw new Error('Unknown feature: ' + feature);
+  if (!['stages', 'daily', 'online', 'shop'].includes(feature)) throw new Error('Unknown feature: ' + feature);
 }
 // A test build of the app can play on another copy of the site (a preview deploy) instead of the live one.
 const serverArg = process.argv.find(arg => arg.startsWith('--server='))?.slice('--server='.length);
@@ -56,7 +56,11 @@ if (ownFont.includes(name)) {
   html = html.replace(/\s*<link rel="stylesheet" href="https:\/\/fonts\.googleapis\.com[^>]*>/, '').replace('<style>', `<style>
     @font-face { font-family: 'Space Grotesk'; font-style: normal; font-weight: 650; font-display: swap;
       src: url(fonts/space-grotesk-650-latin.woff2) format('woff2');
-      unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }`);
+      unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+    /* Korean letters only: Hangul comes from SUIT Bold, everything else (the ODD BIRDLE title included) stays in Space Grotesk. */
+    @font-face { font-family: 'SUIT'; font-style: normal; font-weight: 100 900; font-display: swap;
+      src: url(fonts/suit-bold.woff2) format('woff2');
+      unicode-range: U+1100-11FF, U+3130-318F, U+A960-A97F, U+AC00-D7AF, U+D7B0-D7FF; }`);
 }
 if (ownFont.includes(name)) {
   // No links, previews or analytics leave the game; the portal's own SDK is the only thing loaded from outside.
@@ -149,24 +153,24 @@ if (name === 'app') {
       mask-image: linear-gradient(to right, transparent 0, #000 var(--bleedL), #000 calc(100% - var(--bleedR)), transparent 100%); }
     html[data-portal="app"] #stage-list::-webkit-scrollbar { display: none; }
     /* DAILY and ACCOUNT: whole-screen sheets like the stage list, in the same square style. */
-    html[data-portal="app"] #account-panel { position: fixed; inset: 0; z-index: 2; box-sizing: border-box;
+    html[data-portal="app"] :is(#account-panel, #shop-panel) { position: fixed; inset: 0; z-index: 2; box-sizing: border-box;
       display: flex; flex-direction: column; gap: 14px; background: transparent; color: var(--ink); overflow: hidden;
       --padL: max(calc(var(--app-safe-left) + 10px), 72px); --padR: max(calc(var(--app-safe-right) + 10px), 72px);
       padding: max(var(--app-safe-top), 28px) var(--padR) max(var(--app-safe-bottom), 14px) var(--padL); }
-    html[data-portal="app"] #account-panel[hidden] { display: none; }
-    html[data-portal="app"] #account-panel header { display: flex; align-items: center; justify-content: space-between;
+    html[data-portal="app"] #account-panel[hidden], html[data-portal="app"] #shop-panel[hidden] { display: none; }
+    html[data-portal="app"] #account-panel header, html[data-portal="app"] #shop-panel header { display: flex; align-items: center; justify-content: space-between;
       min-height: 40px; gap: 12px; padding: 0; }
-    html[data-portal="app"] #account-panel h2 { margin: 0; font-size: 32px; line-height: 1.15; }
-    html[data-portal="app"] #account-panel button { min-height: 40px; padding: 0 16px; border: 0; border-radius: 0;
+    html[data-portal="app"] #account-panel h2, html[data-portal="app"] #shop-panel h2 { margin: 0; font-size: 32px; line-height: 1.15; }
+    html[data-portal="app"] #account-panel button, html[data-portal="app"] #shop-panel button { min-height: 40px; padding: 0 16px; border: 0; border-radius: 0;
       background: color-mix(in srgb, var(--ink) 9%, transparent); color: var(--ink); font-family: inherit; font-weight: 650; font-size: 14px; letter-spacing: .06em; }
-    html[data-portal="app"] #account-panel button:active:not(:disabled) { background: color-mix(in srgb, var(--ink) 22%, transparent); }
-    html[data-portal="app"] #account-panel button:disabled { opacity: .45; }
+    html[data-portal="app"] #account-panel button:active:not(:disabled), html[data-portal="app"] #shop-panel button:active:not(:disabled) { background: color-mix(in srgb, var(--ink) 22%, transparent); }
+    html[data-portal="app"] #account-panel button:disabled, html[data-portal="app"] #shop-panel button:disabled { opacity: .45; }
     html[data-portal="app"] #stage[data-account] h1 { display: none; }
     /* The notice sits beside the back button, in the same square style. */
     html[data-portal="app"] #notice { position: fixed; top: 28px; left: 76px; min-height: 40px; background: color-mix(in srgb, var(--ink) 17%, var(--court)); }
     html[data-portal="app"] #notice-close { width: 40px; height: 40px; }
     /* The title sits on its own soft tile, so it reads over the crowd; the demo match shows through everything else. */
-    html[data-portal="app"] #account-panel header h2 { padding: 2px 14px; background: color-mix(in srgb, var(--court) 78%, transparent);
+    html[data-portal="app"] #account-panel header h2, html[data-portal="app"] #shop-panel header h2 { padding: 2px 14px; background: color-mix(in srgb, var(--court) 78%, transparent);
       backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
     html[data-portal="app"] #ac-side { padding: 14px 18px; background: color-mix(in srgb, var(--ink) 8%, transparent);
       backdrop-filter: blur(1.5px); -webkit-backdrop-filter: blur(1.5px); }
@@ -188,6 +192,32 @@ if (name === 'app') {
     html[data-portal="app"] #ac-apple { background: var(--ink); color: var(--court); }
     html[data-portal="app"] #ac-google { background: transparent; box-shadow: inset 0 0 0 2px var(--ink); }
     html[data-portal="app"] #ac-delete { color: #a82f23; }
+    /* The racket in hand, held up over the nickname with one shuttle bouncing on it. */
+    html[data-portal="app"] #ac-card { align-items: flex-start; }
+    html[data-portal="app"] #ac-preview { width: 120px; height: 100px; margin-bottom: 4px; background: transparent; aspect-ratio: auto; }
+    html[data-portal="app"] #ac-name { font-size: 26px; }
+    /* The rackets owned, in one row that slides sideways; the one in hand is the dark square. */
+    html[data-portal="app"] #ac-rackets-wrap[hidden] { display: none; }
+    html[data-portal="app"] #ac-rackets { display: flex; gap: 8px; overflow-x: auto; overflow-y: hidden; touch-action: pan-x; scrollbar-width: none; padding-bottom: 2px; }
+    html[data-portal="app"] #ac-rackets::-webkit-scrollbar { display: none; }
+    html[data-portal="app"] #account-panel .rk { flex: 0 0 auto; width: 62px; height: 62px; min-height: 0; padding: 0; display: grid; place-items: center; }
+    html[data-portal="app"] #account-panel .rk[aria-selected="true"] { background: var(--ink); color: var(--court); }
+    html[data-portal="app"] #ac-rackets-note { margin-top: 6px; font-size: 11px; opacity: .65; letter-spacing: .02em; }
+    /* The shop. */
+    html[data-portal="app"] #shop-top { display: flex; align-items: center; gap: 12px; }
+    html[data-portal="app"] #shop-coins { padding: 0 14px; line-height: 40px; font-size: 16px; font-weight: 650; background: color-mix(in srgb, var(--court) 78%, transparent); }
+    html[data-portal="app"] #shop-body { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+    html[data-portal="app"] #shop-body p { margin: 0; }
+    html[data-portal="app"] #shop-when { align-self: flex-start; padding: 4px 12px; font-size: 13px; font-weight: 650; letter-spacing: .1em; background: color-mix(in srgb, var(--court) 78%, transparent); }
+    html[data-portal="app"] #shop-shelf { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    html[data-portal="app"] #shop-panel .tile { min-height: 0; height: 100%; padding: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+      background: color-mix(in srgb, var(--ink) 9%, transparent); backdrop-filter: blur(1.5px); -webkit-backdrop-filter: blur(1.5px); }
+    html[data-portal="app"] #shop-panel .tile[data-owned] { opacity: .55; }
+    html[data-portal="app"] #shop-panel .tile[data-armed] { background: var(--ink); color: var(--court); }
+    html[data-portal="app"] #shop-panel .rname { font-size: 15px; }
+    html[data-portal="app"] #shop-panel .price { font-size: 14px; letter-spacing: .08em; opacity: .85; }
+    html[data-portal="app"] #shop-bottom { display: flex; align-items: center; gap: 14px; }
+    html[data-portal="app"] #shop-message { font-size: 13px; font-weight: 650; }
     /* The menu, Reddit style: the mode buttons in a column on the left, the daily card with the first five to clear it on the right.
        --cw is one hundredth of the court's width (the court fills the screen's height), so sizes follow the court like on Reddit. */
     html[data-portal="app"] { --cw: min(1.8vh, 1vw); }

@@ -299,8 +299,19 @@ export function contactMotion(racket, time) {
   return { vx: racket.vx * weight, vy: racket.vy * weight };
 }
 
+// A racket is one circle, or (a shaped racket from the shop) several circles around its centre: `racket.parts` is a list of
+// { x, y, r } offsets. It touches the shuttle when any circle does, along the way it moved, so the hitbox is the shape drawn.
+function racketOutlineContact(from, to, x, y, rings, pad = 0) {
+  const parts = to.parts;
+  if (!parts) return outlineContact(from, to, radiusOf(to) + pad, x, y, rings);
+  for (const part of parts) {
+    if (outlineContact({ x: from.x + part.x, y: from.y + part.y }, { x: to.x + part.x, y: to.y + part.y }, part.r + pad, x, y, rings)) return true;
+  }
+  return false;
+}
+
 export function racketTouches(shuttle, from, to = from) {
-  return outlineContact(from, to, radiusOf(to), shuttle.x, shuttle.y, shuttleOutline(shuttle));
+  return racketOutlineContact(from, to, shuttle.x, shuttle.y, shuttleOutline(shuttle));
 }
 
 // How far back an online contact check looks along the shuttle's path (ms): about three frames, and never further back
@@ -317,7 +328,7 @@ export function sweptTouch(path, from, to) {
     const k = last === 0 ? 1 : i / last;
     const before = last === 0 ? from : lerpPoint(from, to, Math.max(0, i - 1) / last);
     const at = lerpPoint(from, to, k);
-    if (outlineContact(before, at, radiusOf(to), pose.x, pose.y, pose.rings ?? shuttleOutline(pose))) return i;
+    if (racketOutlineContact(before, { ...at, parts: to.parts, r: to.r }, pose.x, pose.y, pose.rings ?? shuttleOutline(pose))) return i;
   }
   return -1;
 }
@@ -333,7 +344,7 @@ export function posesBetween(a, b, spacing = 4) {
 export function supportedShuttleY(pose, from, to) {
   if (pose.y > from.y || to.y > from.y) return undefined;
   const rings = shuttleOutline(pose);
-  const overlapsAt = y => outlineContact(to, to, radiusOf(to), pose.x, y, rings);
+  const overlapsAt = y => racketOutlineContact(to, to, pose.x, y, rings);
   if (!overlapsAt(pose.y)) return undefined;
 
   // Move only as far up as needed for the racket and outline to separate.
@@ -867,7 +878,7 @@ export function createGame({ withCpu = false, twoPlayers = false, quickEvents = 
   // A racket that touches a fake bursts it.
   function racketPopsDecoys(from, to) {
     for (const decoy of decoys) {
-      if (!decoy.gone && outlineContact(from, to, radiusOf(to), decoy.x, decoy.y, shuttleOutline(decoyPose(decoy)))) {
+      if (!decoy.gone && racketOutlineContact(from, to, decoy.x, decoy.y, shuttleOutline(decoyPose(decoy)))) {
         popDecoy(decoy);
       }
     }
@@ -1094,8 +1105,10 @@ export function createGame({ withCpu = false, twoPlayers = false, quickEvents = 
     outlinePoints = outline.flat();
   }
 
-  function racketContact(from, to, radius = radiusOf(to)) {
-    return outlineContact(from, to, radius, shuttle.x, shuttle.y, outline);
+  function racketContact(from, to, radius) {
+    // A radius given by the caller is the CPU's (round, maybe bigger); a player's racket may be shaped.
+    if (radius !== undefined) return outlineContact(from, to, radius, shuttle.x, shuttle.y, outline);
+    return racketOutlineContact(from, to, shuttle.x, shuttle.y, outline);
   }
 
   // A boss stage can give the CPU a bigger racket (rules.cpuRacketScale, 1 to 3): it is drawn bigger and reaches as far as it looks.
@@ -1224,6 +1237,13 @@ export function createGame({ withCpu = false, twoPlayers = false, quickEvents = 
     return true;
   }
 
+  // Shaped rackets (the shop): which shape each side holds. { parts: [{ x, y, r }], halfX } or nothing for the plain round racket.
+  const racketShapes = {};
+  function setRacketShape(side, shape) {
+    if (side !== 'left' && side !== 'right') return;
+    racketShapes[side] = shape?.parts?.length ? { parts: shape.parts.map(part => ({ x: part.x, y: part.y, r: part.r })), halfX: shape.halfX ?? racketRadius } : undefined;
+  }
+
   function moveRacket(side, input, frame, sample) {
     if (doubles && side !== 'left') return;
     if (phase !== 'live' && phase !== 'between' && phase !== 'starting') return;
@@ -1233,10 +1253,13 @@ export function createGame({ withCpu = false, twoPlayers = false, quickEvents = 
       touching[side] = false;
       return;
     }
+    const shape = racketShapes[side];
+    const reach = shape?.halfX ?? racketRadius;
     const next = {
-      x: side === 'left' ? clamp(input.x, 0, center - racketRadius)
-        : clamp(input.x, center + racketRadius, width),
+      x: side === 'left' ? clamp(input.x, 0, center - reach)
+        : clamp(input.x, center + reach, width),
       y: clamp(input.y, 0, floor),
+      parts: shape?.parts,
       time: input.time,
       seenTime: frame?.time,
       vx: 0,
@@ -1662,7 +1685,7 @@ export function createGame({ withCpu = false, twoPlayers = false, quickEvents = 
       const racket = rackets[support];
       if (!racket || !supportShuttle(support, racket, { ...racket, vy: 0 })) {
         if (!racket || !onSide(support) || shuttle.y > racket.y ||
-            !outlineContact(racket, racket, radiusOf(racket) + 3, shuttle.x, shuttle.y, outline)) support = undefined;
+            !racketOutlineContact(racket, racket, shuttle.x, shuttle.y, outline, 3)) support = undefined;
       }
     }
     if (phase !== 'live' || pendingLanding) return;
@@ -1687,7 +1710,7 @@ export function createGame({ withCpu = false, twoPlayers = false, quickEvents = 
     const frozen = activeEffect?.id === 'freeze';
     const invisible = activeEffect?.id === 'invisible';
     const visible = shuttle && phase !== 'starting' && (!invisible || reveal > 0);
-    const position = (racket) => racket && { x: racket.x, y: racket.y, seenTime: racket.seenTime, r: racket.r };
+    const position = (racket) => racket && { x: racket.x, y: racket.y, seenTime: racket.seenTime, r: racket.r, ...(racket.parts ? { parts: racket.parts } : {}) };
     return {
       phase, score, message, winner, eventText, eventWind, flash, frozen, support, cpuLevel, touchLimit, netTop: matchNetTop,
       ...(rules ? { pointsToWin } : {}),
@@ -1841,7 +1864,7 @@ export function createGame({ withCpu = false, twoPlayers = false, quickEvents = 
       return { x: cpu.x, y: cpu.y };
     }
   } : {};
-  return { restart, moveRacket, holdRacket, contactFrame, simulate, view, triggerEffect, testNetCord, testShot, setNetScale, setEffectSeconds, setShuttle, setEffects, setOnlyEffect, ...drivenCpu };
+  return { restart, moveRacket, holdRacket, setRacketShape, contactFrame, simulate, view, triggerEffect, testNetCord, testShot, setNetScale, setEffectSeconds, setShuttle, setEffects, setOnlyEffect, ...drivenCpu };
 }
 
 // The twin stage uses two round shuttles of equal mass. Sweep their relative motion to find first contact,
@@ -2020,5 +2043,5 @@ export function createTwinShuttleGame() {
     };
   }
 
-  return { restart, simulate, moveRacket, view };
+  return { restart, simulate, moveRacket, setRacketShape() {}, view };
 }
