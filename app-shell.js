@@ -129,5 +129,11 @@ export function startAppShell({
     back();
   });
 
-  return { back, background, foreground, tap, platform, get held() { return held; }, get away() { return away; } };
+  // An invite link opened the game: whatever was being played is over, so the hold the player's pause left must not stay.
+  function release() {
+    held = false;
+    apply();
+  }
+
+  return { back, background, foreground, tap, release, platform, get held() { return held; }, get away() { return away; } };
 }

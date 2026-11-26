@@ -585,7 +585,7 @@ function connect(request, via = request.type === 'join' ? 'code' : 'create') {
         showNotice('OPPONENT LEFT');
         // A quick-match opponent leaving just sends you back to the CPU game and the queue.
         if (queueing) backToQuick(quick.finished ? undefined : 'opponent left');
-        else leave('Opponent left.');
+        else leave();
         break;
     }
   });
@@ -2815,14 +2815,15 @@ initPortal().then(() => {
   loadingStop();
 });
 // The app (Android, iOS): the back button (Android only), and pausing while the app is in the background (app-shell.js).
+let appShell;
 if (portal === 'app') {
-  import('./app-shell.js').then(({ startAppShell }) => startAppShell({
+  import('./app-shell.js').then(({ startAppShell }) => { appShell = startAppShell({
     state: () => ({ mode, phase: currentView().phase, guideOpen }),
     setPaused: setAppPaused,
     toMenu: () => leave(),
     wakeAudio: () => sound.wake(),
     sleepAudio: () => sound.sleep()
-  })).catch(error => console.error('Odd Birdle app shell failed', error));
+  }); }).catch(error => console.error('Odd Birdle app shell failed', error));
   // Errors go to the server (kind and place only): a broken screen shows up without anyone having to write in.
   {
     const platform = window.Capacitor?.getPlatform?.() ?? 'web';
@@ -2839,12 +2840,31 @@ if (portal === 'app') {
     window.addEventListener('unhandledrejection', event => reportAppError(event.reason, 'promise:' + placeOf(event.reason)));
   }
   // An invite link opened with the app installed (the site's /join/CODE address): straight into that room.
+  let inviteTimer;
+  let lastInvite = { room: '', at: 0 };
   const openInvite = url => {
     const room = roomFromInvite(url);
     if (!room || !features.online) return;
-    if (socket) leave();
-    codeInput.value = room;
-    connect({ type: 'join', code: room }, 'link');
+    // The same link can arrive twice (as the launch link and as the open event): the second one changes nothing.
+    if (room === lastInvite.room && Date.now() - lastInvite.at < 8000) return;
+    lastInvite = { room, at: Date.now() };
+    // Whatever was going on ends here (a running match was held by the app going to the background): the invite wins.
+    if (mode !== 'menu') leave();
+    appShell?.release();
+    // The link arrives while the app is still coming back from the background, and the game is held until that is over:
+    // wait for it (a few seconds at most) and then go in.
+    clearInterval(inviteTimer);
+    let waited = 0;
+    const go = () => {
+      if (gamePaused && waited < 6000) return false;
+      clearInterval(inviteTimer);
+      if (socket) leave();
+      codeInput.value = room;
+      connect({ type: 'join', code: room }, 'link');
+      return true;
+    };
+    if (go()) return;
+    inviteTimer = setInterval(() => { waited += 150; go(); }, 150);
   };
   try {
     const appPlugin = window.Capacitor?.Plugins?.App;

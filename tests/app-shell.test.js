@@ -181,3 +181,17 @@ test('the app page is a game: zoom, double tap, long-press selection and the con
     assert.ok(prevented, type + ' is cancelled');
   }
 });
+
+test('release lets go of the hold a running match left behind, for an invite link that ends it', () => {
+  const calls = [];
+  const shell = startAppShell({
+    plugins: undefined, platform: 'android', doc: undefined,
+    state: () => ({ mode: 'online', phase: 'live' }), setPaused: paused => calls.push(paused), toMenu: () => {}
+  });
+  shell.background();
+  shell.foreground();
+  assert.equal(shell.held, true, 'the match stays held after coming back');
+  shell.release();
+  assert.equal(shell.held, false);
+  assert.equal(calls.at(-1), false);
+});
