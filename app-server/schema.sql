@@ -84,3 +84,17 @@ CREATE TABLE IF NOT EXISTS throttle (
   count INTEGER NOT NULL,
   PRIMARY KEY (key, window)
 );
+
+-- Errors the app reports (docs/APP-API.md): one row per kind of error, with a count. No user id, no address, no device id.
+CREATE TABLE IF NOT EXISTS errors (
+  signature TEXT NOT NULL,
+  platform TEXT NOT NULL,
+  version TEXT NOT NULL,
+  message TEXT NOT NULL,
+  place TEXT NOT NULL,
+  mode TEXT NOT NULL,
+  count INTEGER NOT NULL,
+  first_seen INTEGER NOT NULL,
+  last_seen INTEGER NOT NULL,
+  PRIMARY KEY (signature, platform, version)
+);

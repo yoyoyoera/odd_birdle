@@ -29,6 +29,9 @@ import { createAppStorage } from './app-storage.js';
 import { shareCardImage, shareInvite } from './app-share.js';
 import { createDuoTouch } from './duo-touch.js';
 import { createAccount } from './app-account.js';
+import { createErrorReporter, placeOf } from './app-errors.js';
+// The phone app tells the server when something breaks (set up with the app shell below; empty elsewhere).
+var reportAppError = () => false;
 // The stage list and its saved clears: in the Reddit app always, in the phone app when it is built with `stages`.
 const stagesOn = portal === 'reddit' || (portal === 'app' && features.stages);
 import { landscapeOnly, touchLayout } from './touch-layout.js';
@@ -1568,6 +1571,7 @@ function frame(time) {
     accumulator = 0;
     if (time - lastFrameErrorAt >= 5000) {
       console.error('Odd Birdle frame failed', { mode, phase: stage.dataset.phase }, error);
+      reportAppError(error, 'frame:' + placeOf(error));
       lastFrameErrorAt = time;
     }
     resize();
@@ -2819,6 +2823,21 @@ if (portal === 'app') {
     wakeAudio: () => sound.wake(),
     sleepAudio: () => sound.sleep()
   })).catch(error => console.error('Odd Birdle app shell failed', error));
+  // Errors go to the server (kind and place only): a broken screen shows up without anyone having to write in.
+  {
+    const platform = window.Capacitor?.getPlatform?.() ?? 'web';
+    let version = 'unknown';
+    const known = ['menu', 'solo', 'online', 'stages', 'account', 'join', 'waiting', 'connecting'];
+    window.Capacitor?.Plugins?.App?.getInfo?.()?.then?.(info => { version = `${info.version}(${info.build})`; }).catch?.(() => {});
+    reportAppError = createErrorReporter({
+      platform, mode: () => known.includes(mode) ? mode : 'other', get version() { return version; },
+      send: report => fetch(new URL('api/app/v1/error', serverBase), {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...report, version }), keepalive: true
+      }).catch(() => {})
+    });
+    window.addEventListener('error', event => reportAppError(event.error ?? event.message, placeOf(event.error, event.filename ? `${event.filename.split('/').pop()}:${event.lineno}` : '')));
+    window.addEventListener('unhandledrejection', event => reportAppError(event.reason, 'promise:' + placeOf(event.reason)));
+  }
   // An invite link opened with the app installed (the site's /join/CODE address): straight into that room.
   const openInvite = url => {
     const room = roomFromInvite(url);

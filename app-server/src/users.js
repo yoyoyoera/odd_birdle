@@ -122,7 +122,8 @@ export async function clean(db, now = Date.now()) {
   await db.batch([
     db.prepare('DELETE FROM tokens WHERE started_at < ?1').bind(now - 2 * day),
     db.prepare('DELETE FROM nonces WHERE expires_at < ?1').bind(now),
-    db.prepare('DELETE FROM throttle WHERE window < ?1').bind(Math.floor(now / 3600000) - 3)
+    db.prepare('DELETE FROM throttle WHERE window < ?1').bind(Math.floor(now / 3600000) - 3),
+    db.prepare('DELETE FROM errors WHERE last_seen < ?1').bind(now - 60 * day)
   ]);
   return old.results.length;
 }

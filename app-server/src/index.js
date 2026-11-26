@@ -7,11 +7,12 @@ import {
 import { finishAttempt, getToday, startAttempt } from './daily.js';
 import { consumeNonce, issueNonce, signIn, verifyIdToken } from './login.js';
 import { exchangeCode, open, revokeToken, seal } from './apple.js';
+import { parseReport, recordError } from './errors.js';
 
 const base = '/api/app/v1';
 
 // Requests per hour from one address, by what they ask for.
-const limits = { guest: 20, login: 40, nonce: 80, delete: 10, report: 40 };
+const limits = { guest: 20, login: 40, nonce: 80, delete: 10, report: 40, error: 30 };
 
 function corsHeaders(origin) {
   return origin && originSource(origin)
@@ -74,6 +75,14 @@ export function createHandler({ fetcher = fetch, now = () => Date.now() } = {}) 
       if (route === 'POST /nonce') {
         if (await limited('nonce')) return fail('rate-limited', 429);
         return reply({ ok: true, nonce: await issueNonce(db, now()) });
+      }
+      if (route === 'POST /error') {
+        // From the app, with no sign-in: what broke, never who.
+        if (await limited('error')) return fail('rate-limited', 429);
+        const report = parseReport(await body(request));
+        if (!report) return fail('bad-request');
+        await recordError(db, report, now());
+        return reply({ ok: true });
       }
       if (route === 'POST /delete') {
         if (await limited('delete')) return fail('rate-limited', 429);
