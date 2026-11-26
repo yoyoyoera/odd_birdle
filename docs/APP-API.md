@@ -37,6 +37,7 @@
   - Google: `iss = https://accounts.google.com`, `aud = 웹 클라이언트 ID`(서버 클라이언트 ID, 비밀 아님)
   - `nonce`를 쓴다: 앱이 무작위 값을 만들고 그 해시를 요청에 넣고, 서버는 토큰 안의 값과 맞는지 확인한다(재사용 방지).
 - **저장하는 것은 공급자 이름과 `sub`(공급자가 주는 사용자 고유 값)뿐**이다. 이메일·이름·프로필 사진은 요청하지도 저장하지도 않는다.
+- **공개 클라이언트 ID**(2026-11-26 콘솔 설정 완료, 비밀 아님. 설정 기록은 `oddbirdle-accounts-coding-handoff.md`): 서버가 Google 토큰의 `aud`로 확인할 값은 **서버용 웹 ID** `377705180865-egarisfejvkilscd9icvgqvdbsv2srbi.apps.googleusercontent.com` 하나뿐이다. iOS ID `377705180865-m95mhiriqlotc40vlqfmk0pin602fb9v…`와 Android ID들(업로드·디버그·Play 서명 3종)은 앱 쪽 설정에 쓴다. 이 ID들은 서버 비밀이 아니므로 코드와 문서에 적어도 된다. Google 프로젝트는 `odd-birdle`(번호 377705180865), OAuth는 외부·테스트 상태.
 - 합치기 규칙:
   1. 그 `(provider, sub)`가 아직 없으면 → **지금의 손님 행에 붙인다**(손님이 계정이 되고 기록은 그대로).
   2. 이미 있으면(다른 기기에서 만든 계정) → 그 계정이 "기준"이다. 지금 손님의 기록을 기준 계정으로 **합친 뒤 손님 행을 지운다**.
@@ -89,6 +90,7 @@ throttle(key TEXT, window INTEGER, count INTEGER, PRIMARY KEY(key, window))
 - **앱 안**: 설정 → Delete my data → `DELETE /me`(인증 필요). 확인 화면에서 "계정과 DAILY 기록, 닉네임이 지워지고 되돌릴 수 없습니다"를 보여 준다. 로그아웃만 하는 버튼은 따로 둔다.
 - **삭제 코드**: 12자(무작위 읽기 쉬운 알파벳, 예 `K7M2-QX9D-4HTB`). 서버가 `HMAC(서버 비밀, userId)`로 **언제든 다시 계산**하므로 따로 저장하지 않아도 앱 설정에서 다시 볼 수 있다(조회는 인증된 `GET /me/delete-code`). 서버에는 코드의 해시를 색인으로 둔다(`users.delete_code_hash`, 위 표에 추가).
 - **웹 삭제 페이지** `https://oddbirdle.pages.dev/delete`: 코드를 입력하면 `POST /delete { code }`로 지운다. **앱을 지운 뒤에도, 로그인 계정이든 손님이든** 같은 방식으로 지울 수 있다. 계정이 있는 사용자는 코드를 잃어버렸을 때를 위해 **지원 이메일**로도 요청할 수 있다고 안내한다(공급자 로그인으로 본인임을 확인).
+- **Apple 로그인 사용자의 삭제(필수 확인)**: Apple은 계정 삭제 때 Sign in with Apple **토큰을 폐기**하라고 요구한다(TN3194). 폐기 호출에는 Apple 인증 코드 교환용 **서버 자격 증명(Services ID 또는 앱 ID 기준 클라이언트 비밀, 개인 키 `.p8`, 키 ID, 팀 ID)**이 필요하다. 지금 콘솔 작업에는 이 키가 **포함되지 않았다.** D3 전에 사용자가 Apple Developer에서 Sign in with Apple 키를 만들어 `wrangler secret`으로 서버에 넣어야 한다(저장소에 넣지 않음). 그 전에는 삭제 때 토큰 폐기를 건너뛰고 문서에 미완으로 남긴다.
 - **무엇을 지우나**: `users`, `devices`, `identities`, `attempts`, `tokens`, `clears`, 그 사람이 한 `reports`, 신고당한 기록은 신고자 정보 없이 비운다. 순위표에서 그 줄이 사라진다.
 - **부정 시도 막기**: `POST /delete`와 `POST /guest`, `POST /login`은 `throttle`로 IP·키별 시간당 횟수를 제한한다(예: 삭제 5회/시간). 코드가 12자(약 60비트)라 무차별 대입은 현실적으로 불가능하다.
 - Google Play "계정 삭제 URL"에는 위 `/delete` 페이지, App Store "앱 안 계정 삭제 시작"에는 설정의 Delete my data를 적는다.
