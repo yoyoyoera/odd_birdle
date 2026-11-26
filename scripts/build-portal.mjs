@@ -124,6 +124,10 @@ if (name === 'app') {
     html[data-portal="app"] #pause-overlay { position: fixed; inset: 0; z-index: 5; }
     /* The stage announcement before a match covers the whole screen too, not only the court. */
     html[data-portal="app"] #stage-intro { position: fixed; inset: 0; z-index: 2; }
+    /* The YOU flag that marks your half as a match starts: small and still, it must never read as the screen zooming in. */
+    html[data-portal="app"] #you-flag { font-size: 28px; letter-spacing: .12em; opacity: .8; transform: translate(-50%, -50%);
+      animation: you-flag-app 1.6s ease-out forwards; will-change: opacity; contain: layout style; }
+    @keyframes you-flag-app { 0%, 60% { opacity: .8; } 100% { opacity: 0; } }
     /* The stage list covers the whole screen, the side strips too. Its content keeps just clear of the corner buttons and the
        Dynamic Island; the cards slide out to the safe edges of the screen and fade away there. */
     html[data-portal="app"] #stage-panel { position: fixed; inset: 0; z-index: 2; box-sizing: border-box;
