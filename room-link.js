@@ -20,7 +20,7 @@ export function roomFromLink(href) {
 // The link the phone app shares: the site address plus /join/CODE. With the app installed it opens the app; otherwise the site sends
 // the visitor on to the game in the browser, in the same room.
 export function inviteUrl(code, site) {
-  return new URL('join/' + code, site).href;
+  return new URL('/join/' + code, site).href;
 }
 
 // The room in an invite link the app was opened with (either the /join/CODE form or the older ?room=CODE form).

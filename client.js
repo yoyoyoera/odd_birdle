@@ -2717,7 +2717,7 @@ function showCopyResult(label) {
 }
 copyLink.addEventListener('click', async () => {
   // On a portal, invite links stay on the portal (CrazyGames) or point at our site.
-  const link = canShareCard ? inviteUrl(roomCode.value, siteUrl) : portalInviteLink(roomCode.value) ?? roomLink(roomCode.value, portal ? siteUrl : location.href);
+  const link = canShareCard ? inviteUrl(roomCode.value, siteUrl) : portalInviteLink(roomCode.value) ?? inviteUrl(roomCode.value, portal ? siteUrl : location.href);
   if (canShareCard) {
     // The phone app: the system share sheet, with the room code and a link that opens the game in a browser.
     const outcome = await shareInvite({ text: `Play Odd Birdle with me! Room code: ${roomCode.value}`, url: link });
