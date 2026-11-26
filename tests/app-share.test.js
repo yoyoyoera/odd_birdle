@@ -43,3 +43,18 @@ test('a share that breaks for another reason falls back to the download', async 
   const outcome = await shareCardImage({ canvas, text: '', plugins, doc: { createElement: () => link, body: { append() {} } } });
   assert.equal(outcome, 'saved');
 });
+
+import { shareInvite } from '../app-share.js';
+
+test('an invite goes to the share sheet with its text and link; closing it is not an error; no sheet means copy instead', async () => {
+  const calls = [];
+  const plugins = { Share: { share: async options => { calls.push(options); } } };
+  assert.equal(await shareInvite({ text: 'Room code: ABC123', url: 'https://example.test/?room=ABC123', plugins }), 'shared');
+  assert.equal(calls[0].text, 'Room code: ABC123');
+  assert.equal(calls[0].url, 'https://example.test/?room=ABC123');
+  const closing = { Share: { share: async () => { throw new Error('Share canceled'); } } };
+  assert.equal(await shareInvite({ text: 't', url: 'u', plugins: closing }), 'cancelled');
+  const broken = { Share: { share: async () => { throw new Error('no activity'); } } };
+  assert.equal(await shareInvite({ text: 't', url: 'u', plugins: broken }), 'unavailable');
+  assert.equal(await shareInvite({ text: 't', url: 'u', plugins: undefined }), 'unavailable');
+});

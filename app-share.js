@@ -27,3 +27,16 @@ export async function shareCardImage({ canvas, text, fileName = 'oddbirdle-card.
     return 'failed';
   }
 }
+
+// Shares a room invite through the system share sheet (Messages, KakaoTalk, ...): a line of text and the link.
+// Returns 'shared', 'cancelled' or 'unavailable' (no sheet: the caller copies the link instead).
+export async function shareInvite({ text, url, plugins = globalThis.Capacitor?.Plugins } = {}) {
+  const Share = plugins?.Share;
+  if (!Share) return 'unavailable';
+  try {
+    await Share.share({ title: 'Odd Birdle', text, url, dialogTitle: 'Invite a friend' });
+    return 'shared';
+  } catch (error) {
+    return /cancel/i.test(String(error?.message ?? error)) ? 'cancelled' : 'unavailable';
+  }
+}

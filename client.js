@@ -26,7 +26,7 @@ import { createDemo } from './demo.js';
 import { startHeartbeat, track, trackVisit } from './analytics.js';
 import { features } from './features.js';
 import { createAppStorage } from './app-storage.js';
-import { shareCardImage } from './app-share.js';
+import { shareCardImage, shareInvite } from './app-share.js';
 import { createDuoTouch } from './duo-touch.js';
 import { createAccount } from './app-account.js';
 // The stage list and its saved clears: in the Reddit app always, in the phone app when it is built with `stages`.
@@ -2707,8 +2707,9 @@ back.addEventListener('click', () => {
 });
 
 // GamePix has no links out of the game, so there the room code itself is what gets copied.
-const copyLabel = closedPortal ? 'COPY CODE' : 'COPY LINK';
+const copyLabel = canShareCard ? 'SHARE INVITE' : closedPortal ? 'COPY CODE' : 'COPY LINK';
 let copyReset;
+setText(copyLink, copyLabel);
 function showCopyResult(label) {
   setText(copyLink, label);
   clearTimeout(copyReset);
@@ -2717,6 +2718,12 @@ function showCopyResult(label) {
 copyLink.addEventListener('click', async () => {
   // On a portal, invite links stay on the portal (CrazyGames) or point at our site.
   const link = portalInviteLink(roomCode.value) ?? roomLink(roomCode.value, portal ? siteUrl : location.href);
+  if (canShareCard) {
+    // The phone app: the system share sheet, with the room code and a link that opens the game in a browser.
+    const outcome = await shareInvite({ text: `Play Odd Birdle with me! Room code: ${roomCode.value}`, url: link });
+    if (outcome === 'shared') track('link_copy');
+    if (outcome !== 'unavailable') return;
+  }
   try {
     await navigator.clipboard.writeText(link);
     showCopyResult('COPIED');
