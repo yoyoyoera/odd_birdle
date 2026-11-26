@@ -1880,9 +1880,9 @@ function restartCpu() {
     setMirroredShapes(false);
     duoTouch.reset();
     solo = duoGame;
-    // Player one holds the racket from the account; player two the plain one.
+    // Both players are on this account: both hold the racket chosen in it.
     duoGame.setRacketShape('left', closet?.shape);
-    duoGame.setRacketShape('right', undefined);
+    duoGame.setRacketShape('right', closet?.shape);
     duoOpening = duoOpening === undefined ? (Math.random() < 0.5 ? 'left' : 'right') : duoOpening === 'left' ? 'right' : 'left';
     duoGame.restart(3, undefined, null, { touchLimit: threeTouchLimit, openingSide: duoOpening });
     // Both rackets are on court from the start (each is moved by its own finger afterwards).

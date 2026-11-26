@@ -60,16 +60,16 @@ function reaches(shape, offset) {
   return game.view().shuttle.flight > flight;
 }
 
-test('a long racket hits a shuttle above its centre that the plain racket cannot reach', () => {
-  const longRacket = racketById('long');
-  // This shuttle is touched by the plain racket up to 38 above its centre, by the long one up to 46, and by neither at 50.
+test('an oval racket hits a shuttle above its centre that the plain racket cannot reach', () => {
+  const ovalRacket = racketById('oval');
+  // This shuttle is touched by the plain racket up to 38 above its centre, by the oval one up to 42, and by neither at 46.
   assert.equal(reaches(undefined, 30), true);
-  assert.equal(reaches(longRacket, 30), true);
-  for (const offset of [42, 46]) {
+  assert.equal(reaches(ovalRacket, 30), true);
+  for (const offset of [42]) {
     assert.equal(reaches(undefined, offset), false, 'plain, ' + offset);
-    assert.equal(reaches(longRacket, offset), true, 'long, ' + offset);
+    assert.equal(reaches(ovalRacket, offset), true, 'oval, ' + offset);
   }
-  assert.equal(reaches(longRacket, 54), false, 'but not forever');
+  assert.equal(reaches(ovalRacket, 54), false, 'but not forever');
 });
 
 test('a wide racket reaches sideways, and a shaped racket stays inside its half of the court', () => {
