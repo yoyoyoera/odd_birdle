@@ -122,13 +122,19 @@ if (name === 'app') {
     html[data-portal="app"]:not([data-features~="online"]) #link-own { display: none; }
     /* Pause covers the whole screen, the strips too. */
     html[data-portal="app"] #pause-overlay { position: fixed; inset: 0; z-index: 5; }
+    /* The stage announcement before a match covers the whole screen too, not only the court. */
+    html[data-portal="app"] #stage-intro { position: fixed; inset: 0; z-index: 2; }
     /* The stage list covers the whole screen, the side strips too. Its content keeps just clear of the corner buttons and the
        Dynamic Island; the cards slide out to the safe edges of the screen and fade away there. */
     html[data-portal="app"] #stage-panel { position: fixed; inset: 0; z-index: 2; box-sizing: border-box;
       --padL: max(calc(var(--app-safe-left) + 10px), 66px); --padR: max(calc(var(--app-safe-right) + 10px), 66px);
-      padding: max(var(--app-safe-top), 10px) var(--padR) max(var(--app-safe-bottom), 10px) var(--padL); }
-    html[data-portal="app"] #stage-panel header { padding: 0; }
-    html[data-portal="app"] #stage-bar { margin: 0 0 6px; }
+      padding: max(var(--app-safe-top), 28px) var(--padR) max(var(--app-safe-bottom), 14px) var(--padL); }
+    /* The title row sits level with the back button, and the cards start below that button instead of under it. */
+    html[data-portal="app"] #stage-panel header { padding: 0; min-height: 40px; }
+    html[data-portal="app"] #stage-panel h2 { font-size: 32px; }
+    html[data-portal="app"] #stage-count { font-size: 28px; }
+    html[data-portal="app"] #stage-progress { font-size: 12px; }
+    html[data-portal="app"] #stage-bar { height: 4px; margin: 8px 0 12px; }
     html[data-portal="app"] #stage-list { scrollbar-width: none;
       --bleedL: var(--padL); --bleedR: var(--padR);
       margin-left: calc(-1 * var(--bleedL)); margin-right: calc(-1 * var(--bleedR));
