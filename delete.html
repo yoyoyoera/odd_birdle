@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Delete my Odd Birdle data</title>
+  <style>
+    :root { --bg: #f4f2e8; --ink: #274d3b; --line: #cfd6c2; --bad: #a82f23; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #182223; --ink: #e8ebd6; --line: #3a4a48; --bad: #ff8e80; } }
+    body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; }
+    main { max-width: 36rem; margin: 0 auto; padding: 32px 20px 64px; }
+    h1 { font-size: 1.6rem; margin: 0 0 8px; }
+    h2 { font-size: 1.05rem; margin: 28px 0 6px; padding-top: 14px; border-top: 1px solid var(--line); }
+    p { margin: 6px 0; }
+    form { display: flex; gap: 8px; margin: 16px 0 8px; flex-wrap: wrap; }
+    input { flex: 1 1 14rem; min-height: 44px; padding: 0 12px; border: 2px solid var(--ink); border-radius: 0; background: transparent; color: var(--ink);
+      font: 650 1.1rem/1 ui-monospace, Menlo, Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; }
+    button { min-height: 44px; padding: 0 20px; border: 0; border-radius: 0; background: var(--ink); color: var(--bg); font: 650 1rem/1 inherit; cursor: pointer; }
+    button:disabled { opacity: .5; cursor: default; }
+    #result { min-height: 1.6em; font-weight: 650; }
+    #result[data-bad] { color: var(--bad); }
+    a { color: inherit; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Delete my Odd Birdle data</h1>
+  <p>This page erases the daily-challenge record, nickname and account that the Odd Birdle app keeps for you on our server. You do not need the app, and you do not need to sign in: you only need your <strong>delete code</strong>.</p>
+  <p>Find it in the app under <strong>DAILY → your name → SHOW DELETE CODE</strong> (twelve letters and numbers, like <code>K7M2-QX9D-4HTB</code>).</p>
+
+  <form id="form">
+    <input id="code" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="20" placeholder="XXXX-XXXX-XXXX" aria-label="Delete code" required>
+    <button id="go" type="submit">Delete everything</button>
+  </form>
+  <p id="result" role="status"></p>
+
+  <h2>What is erased</h2>
+  <p>Your daily clears and their places, your nickname, your sign-in link (Apple or Google) and the records of the devices you used. If you signed in with Apple, we also ask Apple to end the link. It cannot be undone. Your high-score places on past days disappear from the daily boards.</p>
+
+  <h2>Lost your code?</h2>
+  <p>Write to <a href="mailto:verejohn21@gmail.com">verejohn21@gmail.com</a> from the account you signed in with and say which sign-in (Apple or Google) you used. We will confirm it is you and erase the data.</p>
+
+  <h2>삭제 안내 (한국어)</h2>
+  <p>앱에서 <strong>DAILY → 내 이름 → SHOW DELETE CODE</strong>로 보이는 삭제 코드(영문·숫자 12자)를 위 칸에 입력하면, 서버에 있는 데일리 기록, 닉네임, 계정 연결이 모두 지워지고 되돌릴 수 없습니다. 앱을 지운 뒤에도 같은 방법으로 지울 수 있습니다. 코드를 잃어버렸다면 <a href="mailto:verejohn21@gmail.com">verejohn21@gmail.com</a>로 로그인한 방식(Apple/Google)을 적어 요청해 주세요.</p>
+</main>
+<script>
+  const form = document.querySelector('#form');
+  const code = document.querySelector('#code');
+  const result = document.querySelector('#result');
+  const go = document.querySelector('#go');
+  const say = (text, bad = false) => { result.textContent = text; result.toggleAttribute('data-bad', bad); };
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    go.disabled = true;
+    say('Working…');
+    try {
+      const response = await fetch('/api/app/v1/delete', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: code.value }) });
+      const body = await response.json().catch(() => ({}));
+      if (body.ok) { say('Done. Your data was erased. 삭제되었습니다.'); code.value = ''; }
+      else if (response.status === 404) say('That code was not found. It may already be erased, or it has a typo.', true);
+      else if (response.status === 429) say('Too many tries. Please wait an hour.', true);
+      else say('Something went wrong. Please try again.', true);
+    } catch {
+      say('Could not reach the server. Please try again.', true);
+    }
+    go.disabled = false;
+  });
+</script>
+</body>
+</html>
