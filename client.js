@@ -2318,38 +2318,61 @@ function renderRackets() {
   row.querySelector('[aria-selected="true"]')?.scrollIntoView({ inline: 'nearest', block: 'nearest' });
 }
 
-const shopHint = { armed: undefined };
+const shopHint = { picked: undefined, dropped: undefined };
 
 function renderShop() {
   const today = new Date().toISOString().slice(0, 10);
+  const shelf = shelfFor(today);
+  const picked = shelf.find(racket => racket.id === shopHint.picked);
   byId('shop-coins').textContent = '◎ ' + closet.coins;
-  byId('shop-shelf').replaceChildren(...shelfFor(today).map(racket => {
+  byId('shop-shelf').replaceChildren(...shelf.map((racket, index) => {
     const owned = closet.has(racket.id);
     const tile = document.createElement('button');
     tile.type = 'button';
     tile.className = 'tile';
     tile.setAttribute('role', 'listitem');
     if (owned) tile.dataset.owned = '';
-    if (shopHint.armed === racket.id) tile.dataset.armed = '';
+    if (picked?.id === racket.id) tile.dataset.picked = '';
+    const code = document.createElement('span');
+    code.className = 'code';
+    code.textContent = 'A' + (index + 1);
     const price = document.createElement('span');
     price.className = 'price';
-    price.textContent = owned ? 'OWNED ✓' : shopHint.armed === racket.id ? 'TAP TO BUY' : '◎ ' + racket.price;
+    price.textContent = owned ? 'YOURS ✓' : '◎ ' + racket.price;
     const name = document.createElement('span');
     name.className = 'rname';
     name.textContent = racket.name;
-    tile.innerHTML = racketIcon(racket, 64);
-    tile.append(name, price);
+    tile.innerHTML = racketIcon(racket, 56);
+    tile.append(code, name, price);
     tile.addEventListener('click', () => {
-      const message = byId('shop-message');
-      if (owned) { message.textContent = 'You have it. Put it on in ACCOUNT.'; return; }
-      if (shopHint.armed !== racket.id) { shopHint.armed = racket.id; message.textContent = ''; renderShop(); return; }
-      shopHint.armed = undefined;
-      const result = closet.buy(racket.id);
-      message.textContent = result.ok ? `${racket.name} is yours. Put it on in ACCOUNT.` : result.reason === 'coins' ? 'Not enough coins.' : 'Could not buy it.';
+      shopHint.picked = racket.id;
+      byId('shop-message').textContent = owned ? 'You have it. Put it on in ACCOUNT.' : '';
       renderShop();
     });
     return tile;
   }));
+  const pick = byId('shop-pick');
+  const buy = byId('shop-buy');
+  if (!picked) { pick.textContent = 'PICK A SLOT'; buy.disabled = true; }
+  else {
+    const slot = 'A' + (shelf.indexOf(picked) + 1);
+    const owned = closet.has(picked.id);
+    pick.textContent = owned ? `${slot} · YOURS` : `${slot} · ◎ ${picked.price}`;
+    buy.disabled = owned;
+  }
+  const tray = byId('shop-tray');
+  const dropped = racketById(shopHint.dropped);
+  tray.dataset.hint = dropped ? '' : 'TAKE YOUR RACKET HERE';
+  tray.innerHTML = dropped ? racketIcon(dropped, 38) : '';
+}
+
+function buySelected() {
+  const racket = racketById(shopHint.picked);
+  if (!racket) return;
+  const result = closet.buy(racket.id);
+  byId('shop-message').textContent = result.ok ? `${racket.name} dropped. Put it on in ACCOUNT.` : result.reason === 'coins' ? 'Not enough coins.' : 'Could not buy it.';
+  shopHint.dropped = result.ok ? racket.id : undefined;
+  renderShop();
 }
 
 function shopClockText() {
@@ -2362,7 +2385,8 @@ function shopClockText() {
 
 function openShop() {
   setMode('shop');
-  shopHint.armed = undefined;
+  shopHint.picked = undefined;
+  shopHint.dropped = undefined;
   byId('shop-message').textContent = '';
   renderShop();
   byId('shop-when').textContent = shopClockText();
@@ -2423,6 +2447,7 @@ function initAppAccount(storage) {
     byId('ac-shop').hidden = false;
     byId('ac-shop').addEventListener('click', openShop);
     byId('shop-account').addEventListener('click', openAccount);
+    byId('shop-buy').addEventListener('click', buySelected);
     byId('shop-coins-add').addEventListener('click', () => { closet.addCoins(100); renderShop(); });
   }
   const say = text => { byId('ac-message').textContent = text; };

@@ -617,11 +617,20 @@
       </div>
     </section>
     <section id="shop-panel" aria-label="Racket shop" hidden>
-      <header><h2>SHOP</h2><div id="shop-top"><span id="shop-coins">◎ 0</span><button id="shop-account" type="button">ACCOUNT ›</button></div></header>
+      <header><h2>SHOP</h2><div id="shop-top"><button id="shop-account" type="button">ACCOUNT ›</button></div></header>
       <div id="shop-body">
-        <p id="shop-when"></p>
-        <div id="shop-shelf" role="list"></div>
-        <div id="shop-bottom"><button id="shop-coins-add" type="button">GET TEST COINS</button><p id="shop-message" role="status"></p></div>
+        <div id="shop-machine">
+          <div id="shop-shelf" role="list"></div>
+          <div id="shop-tray" aria-hidden="true"></div>
+        </div>
+        <div id="shop-side">
+          <span id="shop-coins" aria-label="Coins">◎ 0</span>
+          <p id="shop-when"></p>
+          <div id="shop-pick" aria-live="polite">PICK A SLOT</div>
+          <button id="shop-buy" type="button" disabled>BUY</button>
+          <p id="shop-message" role="status"></p>
+          <button id="shop-coins-add" type="button">GET TEST COINS</button>
+        </div>
       </div>
     </section>
     <div id="expand-gate" hidden>

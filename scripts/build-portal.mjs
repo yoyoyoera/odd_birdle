@@ -203,21 +203,34 @@ if (name === 'app') {
     html[data-portal="app"] #account-panel .rk { flex: 0 0 auto; width: 62px; height: 62px; min-height: 0; padding: 0; display: grid; place-items: center; }
     html[data-portal="app"] #account-panel .rk[aria-selected="true"] { background: var(--ink); color: var(--court); }
     html[data-portal="app"] #ac-rackets-note { margin-top: 6px; font-size: 11px; opacity: .65; letter-spacing: .02em; }
-    /* The shop. */
+    /* The shop is a vending machine: a lit cabinet of three slots, and a side panel with the coin display, the key and BUY. */
     html[data-portal="app"] #shop-top { display: flex; align-items: center; gap: 12px; }
-    html[data-portal="app"] #shop-coins { padding: 0 14px; line-height: 40px; font-size: 16px; font-weight: 650; background: color-mix(in srgb, var(--court) 78%, transparent); }
-    html[data-portal="app"] #shop-body { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+    html[data-portal="app"] #shop-body { flex: 1; min-height: 0; display: flex; gap: 14px; }
     html[data-portal="app"] #shop-body p { margin: 0; }
-    html[data-portal="app"] #shop-when { align-self: flex-start; padding: 4px 12px; font-size: 13px; font-weight: 650; letter-spacing: .1em; background: color-mix(in srgb, var(--court) 78%, transparent); }
-    html[data-portal="app"] #shop-shelf { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-    html[data-portal="app"] #shop-panel .tile { min-height: 0; height: 100%; padding: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
-      background: color-mix(in srgb, var(--ink) 9%, transparent); backdrop-filter: blur(1.5px); -webkit-backdrop-filter: blur(1.5px); }
-    html[data-portal="app"] #shop-panel .tile[data-owned] { opacity: .55; }
-    html[data-portal="app"] #shop-panel .tile[data-armed] { background: var(--ink); color: var(--court); }
-    html[data-portal="app"] #shop-panel .rname { font-size: 15px; }
-    html[data-portal="app"] #shop-panel .price { font-size: 14px; letter-spacing: .08em; opacity: .85; }
-    html[data-portal="app"] #shop-bottom { display: flex; align-items: center; gap: 14px; }
-    html[data-portal="app"] #shop-message { font-size: 13px; font-weight: 650; }
+    html[data-portal="app"] #shop-machine { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; padding: 10px; background: var(--ink); color: var(--court); }
+    html[data-portal="app"] #shop-shelf { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    html[data-portal="app"] #shop-panel .tile { position: relative; min-height: 0; height: 100%; padding: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+      background: var(--court); color: var(--ink); border-radius: 0; box-shadow: inset 0 0 0 0 var(--ink); }
+    html[data-portal="app"] #shop-panel .tile .code { position: absolute; left: 6px; top: 4px; font-size: 11px; font-weight: 650; letter-spacing: .08em; opacity: .6; }
+    html[data-portal="app"] #shop-panel .tile[data-owned] { opacity: .5; }
+    html[data-portal="app"] #shop-panel .tile[data-picked] { box-shadow: inset 0 0 0 4px var(--ink); }
+    html[data-portal="app"] #shop-panel .rname { font-size: 14px; }
+    html[data-portal="app"] #shop-panel .price { font-size: 13px; letter-spacing: .08em; opacity: .85; }
+    html[data-portal="app"] #shop-tray { height: 44px; display: flex; align-items: center; justify-content: center; overflow: hidden;
+      background: color-mix(in srgb, #000 55%, var(--ink)); font-size: 11px; font-weight: 650; letter-spacing: .12em; }
+    html[data-portal="app"] #shop-tray::before { content: attr(data-hint); opacity: .55; }
+    html[data-portal="app"] #shop-tray svg { animation: shop-drop .55s cubic-bezier(.3, 0, .7, 1) both; }
+    @keyframes shop-drop { from { transform: translateY(-120px); } 60% { transform: translateY(0); } 78% { transform: translateY(-9px); } to { transform: translateY(0); } }
+    @media (prefers-reduced-motion: reduce) { html[data-portal="app"] #shop-tray svg { animation: none; } }
+    html[data-portal="app"] #shop-side { flex: 0 0 min(34%, 210px); display: flex; flex-direction: column; gap: 8px; padding: 10px; background: var(--ink); color: var(--court); min-height: 0; }
+    html[data-portal="app"] #shop-coins { padding: 0 10px; line-height: 40px; font-size: 20px; font-weight: 650; text-align: right; letter-spacing: .06em;
+      background: var(--court); color: var(--ink); }
+    html[data-portal="app"] #shop-when { font-size: 11px; font-weight: 650; letter-spacing: .1em; opacity: .75; }
+    html[data-portal="app"] #shop-pick { padding: 6px 10px; font-size: 14px; font-weight: 650; letter-spacing: .08em; text-align: center; background: color-mix(in srgb, var(--court) 16%, transparent); }
+    html[data-portal="app"] #shop-panel #shop-side button { width: 100%; background: var(--court); color: var(--ink); }
+    html[data-portal="app"] #shop-panel #shop-side button:active:not(:disabled) { background: color-mix(in srgb, var(--court) 70%, var(--ink)); }
+    html[data-portal="app"] #shop-panel #shop-coins-add { margin-top: auto; background: transparent; color: var(--court); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--court) 40%, transparent); font-size: 11px; min-height: 32px; }
+    html[data-portal="app"] #shop-message { font-size: 12px; font-weight: 650; min-height: 2.6em; }
     /* The menu, Reddit style: the mode buttons in a column on the left, the daily card with the first five to clear it on the right.
        --cw is one hundredth of the court's width (the court fills the screen's height), so sizes follow the court like on Reddit. */
     html[data-portal="app"] { --cw: min(1.8vh, 1vw); }
