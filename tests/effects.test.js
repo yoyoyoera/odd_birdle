@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGame, effectLabels, forceAt, projectStrike, step } from '../game.js';
+import { lobPlayer } from './lob-player.js';
 
 // Math.random is pinned so serves are repeatable; `roll.value` picks shapes and gust directions.
 function pinned(t, value = 0.5) {
@@ -174,8 +175,9 @@ test('a pinned test effect is the only random effect that comes up', () => {
     game.setOnlyEffect(id);
     game.restart(3, 4);
     const seen = new Set();
+    const play = lobPlayer();
     for (let i = 0; i < 120 * 400; i++) {
-      game.moveRacket('left', { x: 300 + Math.sin(i / 90) * 120, y: 380, time: i * 8 });
+      play(game);
       game.simulate(1 / 120);
       const text = game.view().eventText;
       const effect = effectLabels.find(label => text?.startsWith(label));

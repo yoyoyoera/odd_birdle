@@ -30,7 +30,7 @@ for (const withCpu of [false, true]) {
       const previousFlight = tap(game, 'left', touch);
       assert.equal(game.view().shuttle.flight, previousFlight + 1);
       assert.deepEqual(game.view().score, { left: 0, right: 0 });
-      advance(game, 21);
+      advance(game, 36);
     }
     assert.equal(game.view().shuttle.touchLimitReachedFor, 'left');
     const previousFlight = tap(game, 'left', 4);
@@ -52,7 +52,7 @@ test('an unlimited game still accepts a fourth hit', () => {
     const previousFlight = tap(game, 'right', touch);
     assert.equal(game.view().shuttle.flight, previousFlight + 1);
     assert.deepEqual(game.view().score, { left: 0, right: 0 });
-    advance(game, 21);
+    advance(game, 36);
   }
 });
 
@@ -61,7 +61,7 @@ test('the opponent can return the third shot and reset the touch count', () => {
   game.testShot({ x: 237, y: 250, vx: 0, vy: 0 });
   for (let touch = 1; touch <= 2; touch++) {
     tap(game, 'left', touch);
-    advance(game, 21);
+    advance(game, 36);
   }
   const frame = game.contactFrame();
   game.moveRacket('left', { x: frame.x - 48, y: frame.y + 49, time: 600 }, frame);

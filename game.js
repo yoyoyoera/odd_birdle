@@ -75,6 +75,11 @@ const netCordSeconds = 0.35;
 export const leftLine = 64;
 export const rightLine = width - leftLine;
 export const racketRadius = 22;
+// What counts as a NEW touch by the same racket (the 3-touch rule counts touches): the shuttle must have got clear of that
+// racket (apartMargin beyond it) and at least sameRacketGap seconds must have passed since its last touch. A shuttle that
+// stays on or in the racket, or rides along with it, is still the same touch. The other racket is not held up by this.
+export const sameRacketGap = 0.28;
+export const apartMargin = 6;
 // The racket's radius (every racket is the same size today; a racket could carry its own `r`).
 export const radiusOf = racket => racket?.r ?? racketRadius;
 const baseGravity = 760;
@@ -427,6 +432,7 @@ export function createGame({ withCpu = false, twoPlayers = false, quickEvents = 
   let outlinePoints;
   const rackets = {};
   const touching = {};
+  const retouch = { left: { wait: 0, apart: false }, right: { wait: 0, apart: false } };
   let cpu;
   let doubles;
   let turn;
@@ -541,6 +547,7 @@ export function createGame({ withCpu = false, twoPlayers = false, quickEvents = 
     consecutiveTouches = 0;
     cordTouches = 0;
     hitCooldown = 0;
+    clearRetouch();
     touching.left = touching.right = false;
     flash = 0;
     message = server + ' serve';
@@ -1032,6 +1039,41 @@ export function createGame({ withCpu = false, twoPlayers = false, quickEvents = 
     return (touchLimit ?? Infinity) - (lastHitter === team ? consecutiveTouches : 0);
   }
 
+  function clearRetouch() {
+    for (const lock of Object.values(retouch)) { lock.wait = 0; lock.apart = false; }
+  }
+
+  const racketOf = side => side === 'left' ? rackets.left : (cpu ?? rackets.right);
+
+  // Is the shuttle still on (or within apartMargin of) this side's racket?
+  function together(side) {
+    const racket = racketOf(side);
+    return Boolean(racket) && outlineContact(racket, racket, radiusOf(racket) + apartMargin, shuttle.x, shuttle.y, outline);
+  }
+
+  // May this side's racket count a new touch right now? Not within sameRacketGap of its last one, and not until the shuttle
+  // has been clear of it since. (The CPU's racket is not a hand: its follow-up touches are planned, so for it only the pause
+  // counts, `planned`.)
+  function mayTouch(side, planned = false) {
+    const lock = retouch[side];
+    if (lock.wait > 0) return false;
+    if (lock.apart && !planned) {
+      if (together(side)) return false;
+      lock.apart = false;
+    }
+    return true;
+  }
+
+  // The sides that may not touch just now, for the clients to know (undefined when none).
+  function lockedSides() {
+    const locked = {};
+    for (const side of ['left', 'right']) {
+      const lock = retouch[side];
+      if (lock.wait > 0 || (lock.apart && together(side))) locked[side] = true;
+    }
+    return locked.left || locked.right ? locked : undefined;
+  }
+
   function launch(vx, vy, hitter) {
     const team = teamOf(hitter);
     support = undefined;
@@ -1065,6 +1107,11 @@ export function createGame({ withCpu = false, twoPlayers = false, quickEvents = 
       if (bots[hitter]) bots[hitter].plan = bots[hitter].outFeint = undefined;
     }
     hitCooldown = 0.14;
+    // This racket has touched it: its next touch needs the shuttle clear of it and a pause; the other racket is free.
+    retouch[hitter].wait = sameRacketGap;
+    retouch[hitter].apart = true;
+    retouch[hitter === 'left' ? 'right' : 'left'].wait = 0;
+    retouch[hitter === 'left' ? 'right' : 'left'].apart = false;
     flash = 0.22;
     message = 'Rally in progress';
     if (activeEffect?.id === 'invisible') {
@@ -1141,14 +1188,15 @@ export function createGame({ withCpu = false, twoPlayers = false, quickEvents = 
     const path = previous ? posesBetween(previous, { x: shuttle.x, y: shuttle.y, rings: outline }) : undefined;
     const meet = path ? sweptTouch(path, from, to) : racketContact(from, to) ? 0 : -1;
     if (phase === 'live' && !trampolineHold && onCourt && hitCooldown <= 0 &&
-        (!touching[side] || (support === side && isSwing({ vx: swingX, vy: swingY }))) && meet >= 0) {
+        (!touching[side] || (support === side && isSwing({ vx: swingX, vy: swingY }))) && meet >= 0 && mayTouch(side)) {
       // Hit from the point on its path where it first met the racket.
       if (path) {
         shuttle.x = path[meet].x;
         shuttle.y = path[meet].y;
       }
       playerHit(side, swingX, swingY);
-      touching[side] = overlap;
+      // The shuttle was put on the racket to be hit, so it is touching it, whatever the end of this step looked like.
+      touching[side] = true;
     } else if (!overlap) {
       touching[side] = false;
     }
@@ -1156,7 +1204,7 @@ export function createGame({ withCpu = false, twoPlayers = false, quickEvents = 
 
   function contactFrame() {
     if (phase !== 'live' || pendingLanding || trampolineHold || activeEffect?.id === 'freeze') return undefined;
-    return { ...shuttlePose(), flight, canHit: hitCooldown <= 0 };
+    return { ...shuttlePose(), flight, canHit: hitCooldown <= 0, locked: lockedSides() };
   }
 
   // `sample(time)`: the shuttle as the server had it at an earlier moment (rooms.js), so the path since the racket's last
@@ -1186,7 +1234,7 @@ export function createGame({ withCpu = false, twoPlayers = false, quickEvents = 
     path.push(seen);
     const meet = sweptTouch(path, from, to);
     const frame = path[meet];
-    if (meet < 0 || !frame.canHit) {
+    if (meet < 0 || !frame.canHit || !mayTouch(side)) {
       return;
     }
     // Start at the same contact pose the striker saw, then catch up to the server clock.
@@ -1376,7 +1424,7 @@ export function createGame({ withCpu = false, twoPlayers = false, quickEvents = 
     const inReach = defending && tracked.x <= rightLine && birdX <= rightLine;
     const remainingTouches = touchesLeft(team);
     if (canHit && remainingTouches > 0 && cpuThaw <= 0 && (inReach || leavingOut) && birdX >= center &&
-        (doubles || lastHitter !== team || cpuFollowUps > 0 || afterBounce) && hitCooldown <= 0 &&
+        (doubles || lastHitter !== team || cpuFollowUps > 0 || afterBounce) && hitCooldown <= 0 && mayTouch(team, true) &&
         racketContact(bot, bot, doubles ? racketRadius : cpuRadius())) {
       if (leavingOut) {
         // The CPU tried to leave it, but the racket was still in the way.
@@ -1500,6 +1548,7 @@ export function createGame({ withCpu = false, twoPlayers = false, quickEvents = 
 
   function advanceShuttle(dt) {
     hitCooldown = Math.max(0, hitCooldown - dt);
+    for (const lock of Object.values(retouch)) lock.wait = Math.max(0, lock.wait - dt);
     flash = Math.max(0, flash - dt);
     const previousX = shuttle.x;
     const previousY = shuttle.y;
@@ -1517,6 +1566,10 @@ export function createGame({ withCpu = false, twoPlayers = false, quickEvents = 
     }
     shuttle.angle += shuttle.spin * dt;
     updateOutline();
+    // A racket's last touch is over once the shuttle has been clear of it (checked every step, not only when they meet again).
+    for (const side of ['left', 'right']) {
+      if (retouch[side].apart && !together(side)) retouch[side].apart = false;
+    }
     bumperCooldown = Math.max(0, bumperCooldown - dt);
     bumperFlash = Math.max(0, bumperFlash - dt);
     cordFlash = Math.max(0, cordFlash - dt);
@@ -1744,7 +1797,7 @@ export function createGame({ withCpu = false, twoPlayers = false, quickEvents = 
         ? { swell: trampolineSwell(), press: press ? { x: press.x, age: press.age } : undefined } : undefined,
       // NET CORD: how many tape clips so far (a new one is a sound and an "ooh") and the tape's wobble.
       cord: { count: cordCount, x: cordX, wobble: cordFlash / netCordSeconds },
-      shuttle: visible && !bombBurst ? { ...networkShuttlePose(), flight, baseSize: shuttle.size, canHit: hitCooldown <= 0 && !pendingLanding && !frozen } : undefined,
+      shuttle: visible && !bombBurst ? { ...networkShuttlePose(), flight, baseSize: shuttle.size, canHit: hitCooldown <= 0 && !pendingLanding && !frozen, locked: lockedSides() } : undefined,
       left: position(rackets.left),
       right: (racket => racket && (!doubles && cpu && cpuRadius() !== racketRadius ? { ...racket, radius: cpuRadius() } : racket))(position(doubles ? bots.right : cpu ?? rackets.right)),
       ...(doubles ? {
@@ -1833,6 +1886,7 @@ export function createGame({ withCpu = false, twoPlayers = false, quickEvents = 
     lastHitter = hitter;
     cordTouches = 0;
     hitCooldown = 0;
+    clearRetouch();
     touching.left = touching.right = false;
     flight++;
     strike = undefined;
