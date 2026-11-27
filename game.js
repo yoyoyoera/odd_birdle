@@ -82,6 +82,9 @@ export const sameRacketGap = 0.28;
 export const apartMargin = 6;
 // ...but a shuttle that has stayed on the racket this long (a small bounce, falling back) counts as a new touch anyway.
 export const apartLimit = 0.4;
+// A shuttle dropping onto a racket faster than this (units/s) is a new touch even if it never left the racket's outline: a long
+// shuttle turning on its centre, or one knocked down by an effect while resting on the racket.
+export const dropOnSpeed = 90;
 // The racket's radius (every racket is the same size today; a racket could carry its own `r`).
 export const radiusOf = racket => racket?.r ?? racketRadius;
 const baseGravity = 760;
@@ -1148,7 +1151,8 @@ export function createGame({ withCpu = false, twoPlayers = false, quickEvents = 
 
   function networkShuttlePose() {
     return { ...shuttlePose(), baseSize: shuttle.size,
-      touchLimitReachedFor: touchesLeft(lastHitter) === 0 ? lastHitter : undefined };
+      touchLimitReachedFor: touchesLeft(lastHitter) === 0 ? lastHitter : undefined,
+      touches: consecutiveTouches, touchesBy: lastHitter, vy: shuttle.vy };
   }
 
   function updateOutline() {
@@ -1192,7 +1196,7 @@ export function createGame({ withCpu = false, twoPlayers = false, quickEvents = 
     const path = previous ? posesBetween(previous, { x: shuttle.x, y: shuttle.y, rings: outline }) : undefined;
     const meet = path ? sweptTouch(path, from, to) : racketContact(from, to) ? 0 : -1;
     if (phase === 'live' && !trampolineHold && onCourt && hitCooldown <= 0 &&
-        (!touching[side] || (support === side && isSwing({ vx: swingX, vy: swingY }))) && meet >= 0 && mayTouch(side)) {
+        (!touching[side] || (support !== side && shuttle.vy > dropOnSpeed) || (support === side && isSwing({ vx: swingX, vy: swingY }))) && meet >= 0 && mayTouch(side)) {
       // Hit from the point on its path where it first met the racket.
       if (path) {
         shuttle.x = path[meet].x;
@@ -1208,7 +1212,7 @@ export function createGame({ withCpu = false, twoPlayers = false, quickEvents = 
 
   function contactFrame() {
     if (phase !== 'live' || pendingLanding || trampolineHold || activeEffect?.id === 'freeze') return undefined;
-    return { ...shuttlePose(), flight, canHit: hitCooldown <= 0, locked: lockedSides() };
+    return { ...shuttlePose(), vy: shuttle.vy, flight, canHit: hitCooldown <= 0, locked: lockedSides() };
   }
 
   // `sample(time)`: the shuttle as the server had it at an earlier moment (rooms.js), so the path since the racket's last
@@ -1221,7 +1225,7 @@ export function createGame({ withCpu = false, twoPlayers = false, quickEvents = 
     }
     const rings = shuttleOutline(seen);
     const overlaps = outlineContact(to, to, racketRadius, seen.x, seen.y, rings);
-    if (touching[side] && !(support === side && !hold && isSwing(to))) {
+    if (touching[side] && !(support === side && !hold && isSwing(to)) && !(support !== side && seen.vy > dropOnSpeed)) {
       if (!overlaps) touching[side] = false;
       return;
     }
