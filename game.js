@@ -1053,7 +1053,7 @@ export function createGame({ withCpu = false, twoPlayers = false, quickEvents = 
   // Is the shuttle still on (or within apartMargin of) this side's racket?
   function together(side) {
     const racket = racketOf(side);
-    return Boolean(racket) && outlineContact(racket, racket, radiusOf(racket) + apartMargin, shuttle.x, shuttle.y, outline);
+    return Boolean(racket) && racketOutlineContact(racket, racket, shuttle.x, shuttle.y, outline, apartMargin);
   }
 
   // May this side's racket count a new touch right now? Not within sameRacketGap of its last one, and not until the shuttle
@@ -1113,12 +1113,12 @@ export function createGame({ withCpu = false, twoPlayers = false, quickEvents = 
     }
     hitCooldown = 0.14;
     // This racket has touched it: its next touch needs the shuttle clear of it and a pause; the other racket is free.
-    retouch[hitter].wait = sameRacketGap;
-    retouch[hitter].apart = true;
-    retouch[hitter].held = 0;
-    retouch[hitter].rose = false;
-    retouch[hitter === 'left' ? 'right' : 'left'].wait = 0;
-    retouch[hitter === 'left' ? 'right' : 'left'].apart = false;
+    retouch[team].wait = sameRacketGap;
+    retouch[team].apart = true;
+    retouch[team].held = 0;
+    retouch[team].rose = false;
+    retouch[opponent(team)].wait = 0;
+    retouch[opponent(team)].apart = false;
     flash = 0.22;
     message = 'Rally in progress';
     if (activeEffect?.id === 'invisible') {
