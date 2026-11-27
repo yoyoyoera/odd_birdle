@@ -5,6 +5,7 @@ import {
   trampolineDentDepth, trampolineHoldSeconds, retiredEffectIds, randomEffectIds
 } from '../game.js';
 
+import { lobPlayer } from './lob-player.js';
 const run = (game, seconds) => { for (let i = 0; i < Math.round(seconds / step); i++) game.simulate(step); };
 
 function serve(t, { shape = 5 } = {}) {
@@ -30,8 +31,9 @@ test('the random pool has the three new effects and no FREEZE or INVISIBLE', () 
   const game = createGame({ withCpu: true, quickEvents: true });
   game.restart(3, 4);
   const seen = new Set();
+  const play = lobPlayer();
   for (let i = 0; i < 120 * 900; i++) {
-    game.moveRacket('left', { x: 300 + Math.sin(i / 90) * 120, y: 380, time: i * 8 });
+    play(game);
     game.simulate(step);
     const effect = game.view().effect;
     if (effect) seen.add(effect);
@@ -50,8 +52,9 @@ test('a pinned trial effect is the only one that comes up, and can be asked for 
   pinned.setOnlyEffect('trampoline');
   pinned.restart(3, 4);
   const seen = new Set();
+  const play = lobPlayer();
   for (let i = 0; i < 120 * 200; i++) {
-    pinned.moveRacket('left', { x: 300 + Math.sin(i / 90) * 120, y: 380, time: i * 8 });
+    play(pinned);
     pinned.simulate(step);
     if (pinned.view().effect) seen.add(pinned.view().effect);
     if (pinned.view().phase === 'finished') pinned.restart(3, 4);
