@@ -75,6 +75,15 @@ const netCordSeconds = 0.35;
 export const leftLine = 64;
 export const rightLine = width - leftLine;
 export const racketRadius = 22;
+// What counts as a NEW touch by the same racket (the 3-touch rule counts touches): the shuttle must have got clear of that
+// racket (apartMargin beyond it) and at least sameRacketGap seconds must have passed since its last touch. A shuttle that
+// stays on or in the racket, or rides along with it, is still the same touch. The other racket is not held up by this.
+export const sameRacketGap = 0.28;
+export const apartMargin = 6;
+// ...but a shuttle that has stayed on the racket this long (a small bounce, falling back) counts as a new touch anyway.
+export const apartLimit = 0.4;
+// A shuttle dropping onto a racket faster than this (units/s) is a new touch even if it never left the racket's outline.
+export const dropOnSpeed = 90;
 const baseGravity = 760;
 export const step = 1 / 120;
 export const threeTouchLimit = 3;
@@ -382,6 +391,7 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
   let outlinePoints;
   const rackets = {};
   const touching = {};
+  const retouch = { left: { wait: 0, apart: false, held: 0, rose: false }, right: { wait: 0, apart: false, held: 0, rose: false } };
   let cpu;
   let doubles;
   let turn;
@@ -495,6 +505,7 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     cordTouches = 0;
     hitCooldown = 0;
     touching.left = touching.right = false;
+    clearRetouch();
     flash = 0;
     message = server + ' serve';
   }
@@ -970,6 +981,41 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     return (touchLimit ?? Infinity) - (lastHitter === team ? consecutiveTouches : 0);
   }
 
+  function clearRetouch() {
+    for (const lock of Object.values(retouch)) { lock.wait = 0; lock.apart = false; lock.held = 0; lock.rose = false; }
+  }
+
+  // Is the shuttle still on (or within apartMargin of) this side's racket?
+  function together(side) {
+    const racket = side === 'left' ? rackets.left : (cpu ?? rackets.right);
+    return Boolean(racket) && outlineContact(racket, racket, racketRadius + apartMargin, shuttle.x, shuttle.y, outline);
+  }
+
+  // May this side's racket count a new touch right now? Not within sameRacketGap of its last one, and not until the shuttle
+  // has been clear of it since. (The CPU's racket is not a hand: its follow-up touches are planned, so for it only the pause
+  // counts, `planned`.) Doubles has its own turn rules and is not held up here.
+  function mayTouch(side, planned = false) {
+    if (doubles) return true;
+    const lock = retouch[side];
+    if (lock.wait > 0) return false;
+    if (lock.apart && !planned) {
+      if (together(side)) return false;
+      lock.apart = false;
+    }
+    return true;
+  }
+
+  // The sides that may not touch just now, for the clients to know (undefined when none).
+  function lockedSides() {
+    if (doubles) return undefined;
+    const locked = {};
+    for (const side of ['left', 'right']) {
+      const lock = retouch[side];
+      if (lock.wait > 0 || (lock.apart && together(side))) locked[side] = true;
+    }
+    return locked.left || locked.right ? locked : undefined;
+  }
+
   function launch(vx, vy, hitter) {
     const team = teamOf(hitter);
     support = undefined;
@@ -1003,6 +1049,13 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
       if (bots[hitter]) bots[hitter].plan = bots[hitter].outFeint = undefined;
     }
     hitCooldown = 0.14;
+    // This racket has touched it: its next touch needs the shuttle clear of it and a pause; the other racket is free.
+    retouch[team].wait = sameRacketGap;
+    retouch[team].apart = true;
+    retouch[team].held = 0;
+    retouch[team].rose = false;
+    retouch[opponent(team)].wait = 0;
+    retouch[opponent(team)].apart = false;
     flash = 0.22;
     message = 'Rally in progress';
     if (activeEffect?.id === 'invisible') {
@@ -1069,7 +1122,8 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     const onCourt = onSide(side);
     const overlap = onCourt && racketContact(to, to);
     if (phase === 'live' && !trampolineHold && onCourt && hitCooldown <= 0 &&
-        (!touching[side] || (support === side && isSwing({ vx: swingX, vy: swingY }))) && racketContact(from, to)) {
+        (!touching[side] || (support !== side && shuttle.vy > dropOnSpeed) || (support === side && isSwing({ vx: swingX, vy: swingY }))) &&
+        racketContact(from, to) && mayTouch(side)) {
       playerHit(side, swingX, swingY);
       touching[side] = overlap;
     } else if (!overlap) {
@@ -1079,7 +1133,7 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
 
   function contactFrame() {
     if (phase !== 'live' || pendingLanding || trampolineHold || activeEffect?.id === 'freeze') return undefined;
-    return { ...shuttlePose(), flight, canHit: hitCooldown <= 0 };
+    return { ...shuttlePose(), vy: shuttle.vy, flight, canHit: hitCooldown <= 0, locked: lockedSides() };
   }
 
   function onlineContact(side, from, to, frame, hold = false) {
@@ -1090,11 +1144,11 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     }
     const rings = shuttleOutline(frame);
     const overlaps = outlineContact(to, to, racketRadius, frame.x, frame.y, rings);
-    if (touching[side] && !(support === side && !hold && isSwing(to))) {
+    if (touching[side] && !(support === side && !hold && isSwing(to)) && !(support !== side && frame.vy > dropOnSpeed)) {
       if (!overlaps) touching[side] = false;
       return;
     }
-    if (!frame.canHit || !outlineContact(from, to, racketRadius, frame.x, frame.y, rings)) {
+    if (!frame.canHit || !mayTouch(side) || !outlineContact(from, to, racketRadius, frame.x, frame.y, rings)) {
       return;
     }
     // Start at the same contact pose the striker saw, then catch up to the server clock.
@@ -1273,7 +1327,7 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     const inReach = defending && tracked.x <= rightLine && birdX <= rightLine;
     const remainingTouches = touchesLeft(team);
     if (canHit && remainingTouches > 0 && cpuThaw <= 0 && (inReach || leavingOut) && birdX >= center &&
-        (doubles || lastHitter !== team || cpuFollowUps > 0 || afterBounce) && hitCooldown <= 0 &&
+        (doubles || lastHitter !== team || cpuFollowUps > 0 || afterBounce) && hitCooldown <= 0 && mayTouch(team, true) &&
         racketContact(bot, bot, doubles ? racketRadius : cpuRadius())) {
       if (leavingOut) {
         // The CPU tried to leave it, but the racket was still in the way.
@@ -1381,6 +1435,14 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
 
   function advanceShuttle(dt) {
     hitCooldown = Math.max(0, hitCooldown - dt);
+    for (const lock of Object.values(retouch)) {
+      lock.wait = Math.max(0, lock.wait - dt);
+      // A shuttle that only popped up a little and drops back onto a still racket is a new touch: don't hold it forever.
+      lock.held += dt;
+      if (shuttle.vy < -30) lock.rose = true;
+      // Once it went up and is coming back down it has plainly left the racket, however small the bounce was.
+      if (lock.apart && ((lock.rose && shuttle.vy > 0) || lock.held >= apartLimit)) lock.apart = false;
+    }
     flash = Math.max(0, flash - dt);
     const previousX = shuttle.x;
     const previousY = shuttle.y;
@@ -1398,6 +1460,10 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     }
     shuttle.angle += shuttle.spin * dt;
     updateOutline();
+    // A racket's last touch is over once the shuttle has been clear of it (checked every step, not only when they meet again).
+    for (const side of ['left', 'right']) {
+      if (retouch[side].apart && !together(side)) retouch[side].apart = false;
+    }
     bumperCooldown = Math.max(0, bumperCooldown - dt);
     bumperFlash = Math.max(0, bumperFlash - dt);
     cordFlash = Math.max(0, cordFlash - dt);
@@ -1613,7 +1679,9 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
         ? { swell: trampolineSwell(), press: press ? { x: press.x, age: press.age } : undefined } : undefined,
       // NET CORD: how many tape clips so far (a new one is a sound and an "ooh") and the tape's wobble.
       cord: { count: cordCount, x: cordX, wobble: cordFlash / netCordSeconds },
-      shuttle: visible && !bombBurst ? { ...shuttlePose(), flight, baseSize: shuttle.size, canHit: hitCooldown <= 0 && !pendingLanding && !frozen } : undefined,
+      shuttle: visible && !bombBurst ? { ...shuttlePose(), flight, baseSize: shuttle.size, canHit: hitCooldown <= 0 && !pendingLanding && !frozen,
+        locked: lockedSides(), touches: consecutiveTouches, touchesBy: lastHitter, vy: shuttle.vy,
+        touchLimitReachedFor: touchesLeft(lastHitter) === 0 ? lastHitter : undefined } : undefined,
       left: position(rackets.left),
       right: (racket => racket && (!doubles && cpu && cpuRadius() !== racketRadius ? { ...racket, radius: cpuRadius() } : racket))(position(doubles ? bots.right : cpu ?? rackets.right)),
       ...(doubles ? {
@@ -1685,6 +1753,24 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
     consecutiveTouches = 1;
     cordTouches = 0;
     hitCooldown = 0.14;
+    clearRetouch();
+    flight++;
+    strike = undefined;
+    support = undefined;
+    updateOutline();
+    return true;
+  }
+
+  // Tests only: put the shuttle somewhere, flying, as if `hitter` had just hit it.
+  function testShot({ x, y, vx, vy, hitter = 'right' }) {
+    if (phase !== 'live' || !shuttle) return false;
+    Object.assign(shuttle, { x, y, vx, vy });
+    clearEffect();
+    lastHitter = hitter;
+    cordTouches = 0;
+    hitCooldown = 0;
+    clearRetouch();
+    touching.left = touching.right = false;
     flight++;
     strike = undefined;
     support = undefined;
@@ -1715,7 +1801,7 @@ export function createGame({ withCpu = false, quickEvents = false, rules: initia
       return { x: cpu.x, y: cpu.y };
     }
   } : {};
-  return { restart, moveRacket, holdRacket, contactFrame, simulate, view, triggerEffect, testNetCord, setNetScale, setEffectSeconds, setShuttle, setEffects, setOnlyEffect, ...drivenCpu };
+  return { restart, moveRacket, holdRacket, contactFrame, simulate, view, triggerEffect, testNetCord, testShot, setNetScale, setEffectSeconds, setShuttle, setEffects, setOnlyEffect, ...drivenCpu };
 }
 
 // The twin stage uses two round shuttles of equal mass. Sweep their relative motion to find first contact,

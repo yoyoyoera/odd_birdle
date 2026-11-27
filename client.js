@@ -528,7 +528,8 @@ function predictContact(from, to, motion, time, moving = false) {
     if (!overlaps) localOverlap = false;
     return false;
   }
-  if (!shuttle.canHit || prediction || predictedFlight === shuttle.flight ||
+  // (the server also holds a racket back from a second touch until the shuttle has left it: see game.js mayTouch)
+  if (!shuttle.canHit || shuttle.locked?.[localSide] || prediction || predictedFlight === shuttle.flight ||
       (!overlaps && !racketTouches(shuttle, from, to))) return false;
   localOverlap = overlaps;
   predictedFlight = shuttle.flight;

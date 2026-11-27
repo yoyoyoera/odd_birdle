@@ -177,7 +177,8 @@ test('a fourth consecutive hit loses only that shuttle in Twin Shuttles', t => {
     game.moveRacket('left', undefined);
     game.moveRacket('left', { x: shuttle.x, y: shuttle.y, time: hit * 200 });
     if (hit < 4) assert.equal(game.view().shuttles[0].flight, shuttle.flight + 2);
-    for (let i = 0; i < 18; i++) game.simulate(step);
+    game.moveRacket('left', undefined);
+    for (let i = 0; i < 240 && (i < 18 || game.view().shuttle?.locked?.left); i++) game.simulate(step);
   }
   const result = game.view();
   assert.equal(result.phase, 'live');
@@ -198,7 +199,8 @@ for (const stage of [undefined, 7]) {
       game.moveRacket('left', undefined);
       game.moveRacket('left', { x: shuttle.x, y: shuttle.y, time: hit * 200 });
       if (hit < 4) assert.equal(game.view().shuttle.flight, priorFlight + 1);
-      for (let i = 0; i < 18; i++) game.simulate(step);
+      game.moveRacket('left', undefined);
+    for (let i = 0; i < 240 && (i < 18 || game.view().shuttle?.locked?.left); i++) game.simulate(step);
     }
     assert.equal(game.view().eventText, 'THAT’S FOUR!');
     assert.deepEqual(game.view().score, { left: 0, right: 1 });
