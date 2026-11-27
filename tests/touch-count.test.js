@@ -69,3 +69,24 @@ test("the other racket's hit clears the lock", () => {
   game.testShot({ x: 660, y: 250, vx: 0, vy: 0, hitter: 'left' });
   assert.equal(game.view().shuttle.locked?.left, undefined);
 });
+
+test('a shuttle that keeps bouncing on a still racket is hit again each time it drops back', () => {
+  const game = createGame({ withCpu: false });
+  game.setEffects(false);
+  game.setShuttle({ shape: 0, size: 0 });
+  game.restart(0, 4);
+  game.testShot({ x: 237, y: 300, vx: 0, vy: 0, hitter: 'right' });
+  const start = flight(game);
+  let time = 0;
+  for (let i = 0; i < 120 * 4; i++) {
+    const frame = game.contactFrame();
+    time += 8;
+    // The racket sits still under where the shuttle falls and is jabbed up through it when it arrives.
+    if (frame?.canHit && frame.y > 290 && frame.y < 330) {
+      game.moveRacket('left', { x: 237, y: 300 + 20, time: time - 16 }, frame);
+      game.moveRacket('left', { x: 237, y: 300 - 4, time }, frame);
+    } else game.moveRacket('left', { x: 237, y: 330, time }, frame);
+    game.simulate(step);
+  }
+  assert.ok(flight(game) - start >= 3, `only ${flight(game) - start} hits`);
+});
