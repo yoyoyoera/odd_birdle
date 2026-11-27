@@ -44,6 +44,10 @@ if (frameDiagnostics) {
 const stage = document.querySelector('#stage');
 const scoreboard = document.querySelector('#score');
 const touchRule = document.querySelector('#touch-rule');
+const touchCount = document.querySelector('#touch-count');
+// Test site only: no 3-touch limit, just show how many times in a row you have touched the shuttle.
+const touchCountOnly = location.hostname.startsWith('touch-test.') || new URLSearchParams(location.search).get('touchcount') === '1';
+const touchLimitSetting = touchCountOnly ? undefined : threeTouchLimit;
 const sideLabel = document.querySelector('#side-label');
 const cpuLabel = document.querySelector('#cpu-label');
 const youFlag = document.querySelector('#you-flag');
@@ -132,7 +136,7 @@ const racketSender = createRacketSender(message => send(message), { interval: ()
 const testJuice = testParams.get('test') === 'juice';
 const testThreeTouches = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname) && testParams.get('test') === 'touches';
 const solo = createGame({
-  withCpu: true, bombEffects: !portal, touchLimit: threeTouchLimit,
+  withCpu: true, bombEffects: !portal, touchLimit: touchLimitSetting,
   quickEvents: (testEffects || onlyEffectTest) && testParams.get('fast') === '1'
 });
 const demo = createDemo();
@@ -295,7 +299,7 @@ function connect(request, via = request.type === 'join' ? 'code' : 'create') {
   connection.addEventListener('open', () => {
     if (socket !== connection) return;
     if (queueing) updateQueue();
-    else send({ ...request, restartBarrier: coordinatedBreak, touchLimit: threeTouchLimit });
+    else send({ ...request, restartBarrier: coordinatedBreak, touchLimit: touchLimitSetting });
   });
   connection.addEventListener('message', ({ data }) => {
     if (socket !== connection) return;
@@ -396,7 +400,16 @@ function connect(request, via = request.type === 'join' ? 'code' : 'create') {
   });
 }
 
+function updateTouchCount(view) {
+  const shuttleView = view.shuttle;
+  const mine = mode === 'solo' ? 'left' : localSide;
+  const show = touchCountOnly && view.phase === 'live' && shuttleView?.touchesBy === mine && shuttleView.touches > 0;
+  touchCount.hidden = !show;
+  if (show) setText(touchCount, `TOUCH ${shuttleView.touches}`);
+}
+
 function updateHud(view) {
+  updateTouchCount(view);
   const { phase, score, eventText = '', eventWind = false, winner, message = '' } = view;
   if (stage.dataset.phase !== phase) stage.dataset.phase = phase;
   scoreboard.hidden = !score;
@@ -1769,7 +1782,7 @@ function updateQueue() {
   const want = !gamePaused && !breakPending && quick.on && mode === 'solo' && document.visibilityState === 'visible' &&
     performance.now() - lastInput < idleMs;
   if (want !== quick.queued && socket?.readyState === WebSocket.OPEN) {
-    send({ type: want ? 'queue' : 'unqueue', restartBarrier: coordinatedBreak, touchLimit: want ? threeTouchLimit : undefined });
+    send({ type: want ? 'queue' : 'unqueue', restartBarrier: coordinatedBreak, touchLimit: want ? touchLimitSetting : undefined });
     if (!want) quick.queued = false;
   }
   showQueueStatus();

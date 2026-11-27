@@ -963,7 +963,7 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
     shuttle.vx = vx;
     shuttle.vy = vy;
     shuttle.spin = vx / 92 + 1.4;
-    if (touchLimit !== undefined) consecutiveTouches = lastHitter === hitter ? consecutiveTouches + 1 : 1;
+    consecutiveTouches = lastHitter === hitter ? consecutiveTouches + 1 : 1;
     lastHitter = hitter;
     cordTouches = 0;
     hitCooldown = 0.14;
@@ -1005,7 +1005,8 @@ export function createGame({ withCpu = false, quickEvents = false, bombEffects =
 
   function networkShuttlePose() {
     return { ...shuttlePose(), baseSize: shuttle.size,
-      touchLimitReachedFor: touchesLeft(lastHitter) === 0 ? lastHitter : undefined };
+      touchLimitReachedFor: touchesLeft(lastHitter) === 0 ? lastHitter : undefined,
+      touches: consecutiveTouches, touchesBy: lastHitter };
   }
 
   function updateOutline() {

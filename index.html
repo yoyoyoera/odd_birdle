@@ -199,6 +199,8 @@
       color: var(--ink); opacity: .45; font-size: clamp(1.5rem, 6vw, calc(3.5rem * var(--grow, 1))); font-weight: 650; line-height: 1;
       font-variant-numeric: tabular-nums; pointer-events: none; }
     #stage[data-phase="ready"] #score, #stage[data-phase="finished"] #score { opacity: 1; }
+    #touch-count { position: absolute; left: 50%; bottom: 3%; transform: translateX(-50%); color: var(--ink); font-weight: 800;
+      font-size: clamp(1rem, 3vw, 2rem); pointer-events: none; opacity: .85; }
     #touch-rule { position: absolute; top: calc(50% + clamp(.75rem, 3vw, calc(1.75rem * var(--grow, 1))) + .3rem);
       left: 50%; transform: translateX(-50%); color: var(--ink);
       font-size: clamp(.7rem, 2.2vw, calc(1rem * var(--grow, 1))); font-weight: 700;
@@ -312,6 +314,7 @@
     <canvas id="court" aria-label="Badminton court. Use your pointer to hit the shuttle."></canvas>
     <output id="score" aria-label="Left and right scores" hidden>0:0</output>
     <span id="touch-rule" hidden></span>
+    <span id="touch-count" hidden></span>
     <span id="side-label" hidden>YOU</span>
     <span id="cpu-label" hidden></span>
     <span id="you-flag" aria-hidden="true" hidden>YOU</span>
