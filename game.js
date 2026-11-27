@@ -81,7 +81,7 @@ export const racketRadius = 22;
 export const sameRacketGap = 0.28;
 export const apartMargin = 6;
 // ...but a shuttle that has stayed on the racket this long (a small bounce, falling back) counts as a new touch anyway.
-export const apartLimit = 0.55;
+export const apartLimit = 0.4;
 // The racket's radius (every racket is the same size today; a racket could carry its own `r`).
 export const radiusOf = racket => racket?.r ?? racketRadius;
 const baseGravity = 760;
@@ -434,7 +434,7 @@ export function createGame({ withCpu = false, twoPlayers = false, quickEvents = 
   let outlinePoints;
   const rackets = {};
   const touching = {};
-  const retouch = { left: { wait: 0, apart: false, held: 0 }, right: { wait: 0, apart: false, held: 0 } };
+  const retouch = { left: { wait: 0, apart: false, held: 0, rose: false }, right: { wait: 0, apart: false, held: 0, rose: false } };
   let cpu;
   let doubles;
   let turn;
@@ -1042,7 +1042,7 @@ export function createGame({ withCpu = false, twoPlayers = false, quickEvents = 
   }
 
   function clearRetouch() {
-    for (const lock of Object.values(retouch)) { lock.wait = 0; lock.apart = false; lock.held = 0; }
+    for (const lock of Object.values(retouch)) { lock.wait = 0; lock.apart = false; lock.held = 0; lock.rose = false; }
   }
 
   const racketOf = side => side === 'left' ? rackets.left : (cpu ?? rackets.right);
@@ -1113,6 +1113,7 @@ export function createGame({ withCpu = false, twoPlayers = false, quickEvents = 
     retouch[hitter].wait = sameRacketGap;
     retouch[hitter].apart = true;
     retouch[hitter].held = 0;
+    retouch[hitter].rose = false;
     retouch[hitter === 'left' ? 'right' : 'left'].wait = 0;
     retouch[hitter === 'left' ? 'right' : 'left'].apart = false;
     flash = 0.22;
@@ -1555,7 +1556,9 @@ export function createGame({ withCpu = false, twoPlayers = false, quickEvents = 
       lock.wait = Math.max(0, lock.wait - dt);
       // A shuttle that only popped up a little and drops back onto a still racket is a new touch: don't hold it forever.
       lock.held += dt;
-      if (lock.apart && lock.held >= apartLimit) lock.apart = false;
+      if (shuttle.vy < -30) lock.rose = true;
+      // Once it went up and is coming back down it has plainly left the racket, however small the bounce was.
+      if (lock.apart && ((lock.rose && shuttle.vy > 0) || lock.held >= apartLimit)) lock.apart = false;
     }
     flash = Math.max(0, flash - dt);
     const previousX = shuttle.x;
